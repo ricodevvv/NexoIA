@@ -1,0 +1,51 @@
+import { and, asc, eq } from "drizzle-orm";
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { Chat } from "@/components/chat/chat";
+import { modelOptions } from "@/lib/ai/options";
+import { getPlan } from "@/lib/billing/usage";
+import { db, schema } from "@/lib/db";
+import { getUser, requireUser } from "@/lib/session";
+
+async function findConversation(userId: string, id: string) {
+  return db.query.conversation.findFirst({
+    where: and(eq(schema.conversation.id, id), eq(schema.conversation.userId, userId)),
+  });
+}
+
+export async function generateMetadata(props: PageProps<"/chat/[id]">): Promise<Metadata> {
+  const user = await getUser();
+  const { id } = await props.params;
+  const conv = user ? await findConversation(user.id, id) : null;
+  return { title: conv?.title ?? "Chat" };
+}
+
+export default async function ChatPage(props: PageProps<"/chat/[id]">) {
+  const user = await requireUser();
+  const { id } = await props.params;
+  const conversation = await findConversation(user.id, id);
+  if (!conversation) notFound();
+
+  const [rows, models, plan] = await Promise.all([
+    db
+      .select({ id: schema.message.id, role: schema.message.role, parts: schema.message.parts, model: schema.message.model })
+      .from(schema.message)
+      .where(eq(schema.message.conversationId, id))
+      .orderBy(asc(schema.message.createdAt)),
+    modelOptions(user.id),
+    getPlan(user.id),
+  ]);
+
+  return (
+    <Chat
+      key={id}
+      conversationId={id}
+      title={conversation.title}
+      initialMessages={rows}
+      initialModel={conversation.model}
+      models={models}
+      userName={user.name}
+      plan={plan}
+    />
+  );
+}
