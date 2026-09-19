@@ -103,8 +103,68 @@
   gap: var(--space-2);
 }
 
-.inline .field {
+.inline > :global(.field) {
   flex: 1;
+}
+
+.inlineEnd {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.prefs {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  cursor: pointer;
+}
+
+.toggleRow > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-sm);
+}
+
+.memories {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+
+.memories li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 8px 0 8px 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+
+.memories li > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.memories li a:first-child {
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .stack {

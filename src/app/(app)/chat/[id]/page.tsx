@@ -26,7 +26,7 @@ export default async function ChatPage(props: PageProps<"/chat/[id]">) {
   const conversation = await findConversation(user.id, id);
   if (!conversation) notFound();
 
-  const [rows, models, plan] = await Promise.all([
+  const [rows, models, plan, project] = await Promise.all([
     db
       .select({ id: schema.message.id, role: schema.message.role, parts: schema.message.parts, model: schema.message.model })
       .from(schema.message)
@@ -34,6 +34,9 @@ export default async function ChatPage(props: PageProps<"/chat/[id]">) {
       .orderBy(asc(schema.message.createdAt)),
     modelOptions(user.id),
     getPlan(user.id),
+    conversation.projectId
+      ? db.query.project.findFirst({ where: eq(schema.project.id, conversation.projectId) })
+      : Promise.resolve(undefined),
   ]);
 
   return (
@@ -46,6 +49,7 @@ export default async function ChatPage(props: PageProps<"/chat/[id]">) {
       models={models}
       userName={user.name}
       plan={plan}
+      project={project ? { id: project.id, name: project.name } : null}
     />
   );
 }

@@ -50,6 +50,28 @@
   background: var(--bg);
 }
 
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-2);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  text-decoration: none;
+}
+
+.navLink:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.navLink[data-active="true"] {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
 .search {
   display: flex;
   align-items: center;

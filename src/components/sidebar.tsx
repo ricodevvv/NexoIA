@@ -3,6 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import {
+  FolderClosed,
   LogOut,
   Monitor,
   Moon,
@@ -17,7 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { notifyConversationsChanged, onConversationsChanged } from "./events";
@@ -47,6 +48,7 @@ function groupOf(date: Date) {
 export function Sidebar({ user, plan, onToggle }: Props) {
   const router = useRouter();
   const params = useParams<{ id?: string }>();
+  const pathname = usePathname();
   const [items, setItems] = useState<Conversation[]>([]);
   const [query, setQuery] = useState("");
   const [renaming, setRenaming] = useState<Conversation | null>(null);
@@ -113,6 +115,10 @@ export function Sidebar({ user, plan, onToggle }: Props) {
           <SquarePen size={15} />
           Nuevo chat
         </Link>
+        <Link href="/projects" className={styles.navLink} data-active={pathname.startsWith("/projects")}>
+          <FolderClosed size={15} aria-hidden="true" />
+          Proyectos
+        </Link>
         <label className={styles.search}>
           <Search size={14} aria-hidden="true" />
           <span className="sr-only">Buscar chats</span>
@@ -129,7 +135,7 @@ export function Sidebar({ user, plan, onToggle }: Props) {
             <h2 className="label">{group}</h2>
             <ul>
               {convs.map((c) => (
-                <li key={c.id} className={styles.item} data-active={params.id === c.id}>
+                <li key={c.id} className={styles.item} data-active={pathname.startsWith("/chat/") && params.id === c.id}>
                   <Link href={`/chat/${c.id}`} className={styles.itemLink} title={c.title}>
                     {c.title}
                   </Link>

@@ -1,4 +1,5 @@
 import { Chat } from "@/components/chat/chat";
+import { ResetOnReturn } from "@/components/chat/reset-on-return";
 import { DEFAULT_MODEL } from "@/lib/ai/models";
 import { modelOptions } from "@/lib/ai/options";
 import { getPlan } from "@/lib/billing/usage";
@@ -12,5 +13,9 @@ export default async function NewChatPage() {
     ? DEFAULT_MODEL
     : (firstAvailable?.id ?? DEFAULT_MODEL);
 
-  return <Chat key="new" initialMessages={[]} initialModel={initialModel} models={models} userName={user.name} plan={plan} />;
+  return (
+    <ResetOnReturn path="/">
+      <Chat initialMessages={[]} initialModel={initialModel} models={models} userName={user.name} plan={plan} />
+    </ResetOnReturn>
+  );
 }

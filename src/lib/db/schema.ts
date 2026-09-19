@@ -1,4 +1,4 @@
-import { boolean, customType, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, customType, index, integer, jsonb, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 import type { MessagePart, NativeTurn } from "@/lib/ai/types";
 
 const bytea = customType<{ data: Buffer }>({
@@ -54,18 +54,43 @@ export const verification = pgTable("verification", {
   updatedAt: updatedAt(),
 });
 
+export const project = pgTable(
+  "project",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    instructions: text("instructions").notNull().default(""),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("project_user_idx").on(t.userId, t.updatedAt)],
+);
+
+export const projectFile = pgTable(
+  "project_file",
+  {
+    projectId: text("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
+    attachmentId: text("attachment_id").notNull().references(() => attachment.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.attachmentId] })],
+);
+
 export const conversation = pgTable(
   "conversation",
   {
     id: text("id").primaryKey(),
     userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    projectId: text("project_id").references(() => project.id, { onDelete: "set null" }),
     title: text("title").notNull().default("Nuevo chat"),
     model: text("model").notNull(),
     starred: boolean("starred").notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index("conversation_user_idx").on(t.userId, t.updatedAt)],
+  (t) => [index("conversation_user_idx").on(t.userId, t.updatedAt), index("conversation_project_idx").on(t.projectId)],
 );
 
 export const message = pgTable(
@@ -133,4 +158,38 @@ export const usage = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("usage_user_idx").on(t.userId, t.createdAt)],
+);
+
+export const userSettings = pgTable("user_settings", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  preferences: text("preferences").notNull().default(""),
+  memoryEnabled: boolean("memory_enabled").notNull().default(true),
+  artifactsEnabled: boolean("artifacts_enabled").notNull().default(true),
+  updatedAt: updatedAt(),
+});
+
+export const memory = pgTable(
+  "memory",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    content: text("content").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("memory_user_idx").on(t.userId, t.createdAt)],
+);
+
+export type SharedMessage = { role: "user" | "assistant"; parts: MessagePart[]; model: string | null };
+
+export const share = pgTable(
+  "share",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    conversationId: text("conversation_id").notNull().references(() => conversation.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    messages: jsonb("messages").$type<SharedMessage[]>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("share_conversation_idx").on(t.conversationId)],
 );

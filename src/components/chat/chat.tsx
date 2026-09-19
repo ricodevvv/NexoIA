@@ -1,17 +1,18 @@
 "use client";
 
-import { ArrowDown, PanelLeft } from "lucide-react";
+import { ArrowDown, FolderClosed, PanelLeft } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { applyEvent } from "@/lib/ai/parts";
 import type { ChatStreamEvent, Effort, MessagePart } from "@/lib/ai/types";
+import { useArtifactViewer } from "../artifacts/use-artifact-viewer";
 import { notifyConversationsChanged } from "../events";
 import { useShell } from "../shell";
 import { useStoredState } from "../use-stored-state";
 import { Composer } from "./composer";
-import { Message, type UIMessage } from "./message";
+import { Message, MessageContext, type UIMessage } from "./message";
 import type { ModelOption } from "./model-picker";
+import { ShareDialog } from "./share-dialog";
 import styles from "./chat.module.css";
 
 type Props = {
@@ -22,6 +23,8 @@ type Props = {
   models: ModelOption[];
   userName: string;
   plan: "free" | "pro";
+  project?: { id: string; name: string; description?: string } | null;
+  emptyExtra?: ReactNode;
 };
 
 type SendArgs = {
@@ -45,7 +48,6 @@ function greeting() {
  */
 export function Chat(props: Props) {
   const { models } = props;
-  const router = useRouter();
   const { collapsed, toggle } = useShell();
   const [conversationId, setConversationId] = useState(props.conversationId);
   const [title, setTitle] = useState(props.title);
@@ -63,6 +65,7 @@ export function Chat(props: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
+  const viewer = useArtifactViewer(messages);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -91,7 +94,6 @@ export function Chat(props: Props) {
     const userTmp = `tmp-u-${crypto.randomUUID()}`;
     const assistantTmp = `tmp-a-${crypto.randomUUID()}`;
     let assistantId = assistantTmp;
-    let createdId: string | null = null;
 
     setMessages((all) => {
       let base = all;
@@ -122,7 +124,17 @@ export function Chat(props: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({ conversationId, text, attachmentIds, model, effort, webSearch, regenerate, editMessageId }),
+        body: JSON.stringify({
+          conversationId,
+          projectId: props.project?.id,
+          text,
+          attachmentIds,
+          model,
+          effort,
+          webSearch,
+          regenerate,
+          editMessageId,
+        }),
       });
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
@@ -162,7 +174,6 @@ export function Chat(props: Props) {
           const event = JSON.parse(line) as ChatStreamEvent;
           if (event.type === "start") {
             if (!conversationId) {
-              createdId = event.conversationId;
               setConversationId(event.conversationId);
               window.history.replaceState(null, "", `/chat/${event.conversationId}`);
             }
@@ -180,6 +191,10 @@ export function Chat(props: Props) {
           } else if (event.type === "error") {
             fail(event.message);
           } else if (event.type !== "done") {
+            if (event.type === "tool_call" && event.call.name === "artifact") {
+              const identifier = (event.call.input as { identifier?: unknown } | null)?.identifier;
+              if (typeof identifier === "string") viewer.openLatest(identifier);
+            }
             queue.push(event);
             if (!frame) frame = requestAnimationFrame(flush);
           }
@@ -193,7 +208,6 @@ export function Chat(props: Props) {
       abortRef.current = null;
       setStreamingId(null);
       notifyConversationsChanged();
-      if (createdId) router.replace(`/chat/${createdId}`, { scroll: false });
     }
   }
 
@@ -224,67 +238,99 @@ export function Chat(props: Props) {
     />
   );
 
-  return (
-    <div className={styles.chat}>
-      <header className={styles.header} data-collapsed={collapsed}>
-        <button className={`icon-btn ${styles.menuBtn}`} onClick={toggle} aria-label="Mostrar barra lateral">
-          <PanelLeft />
+  const thread = (
+    <>
+      <div className={styles.scroll} ref={scrollRef} onScroll={onScroll}>
+        <div className={styles.thread}>
+          {messages.map((m, i) => (
+            <Message
+              key={m.id}
+              message={m}
+              live={m.id === streamingId}
+              isLast={i === messages.length - 1}
+              busy={busy}
+              modelLabel={m.model ? labels.get(m.model) ?? m.model : undefined}
+              onRegenerate={() => send({ text: "", attachmentIds: [], regenerate: true })}
+              onEdit={(text) => {
+                const attachmentParts = m.parts.filter((p) => p.type === "attachment");
+                send({
+                  text,
+                  attachmentIds: attachmentParts.flatMap((p) => (p.type === "attachment" ? [p.attachmentId] : [])),
+                  attachmentParts,
+                  editMessageId: m.id,
+                });
+              }}
+            />
+          ))}
+        </div>
+      </div>
+      {!atBottom && (
+        <button className={styles.toBottom} onClick={() => scrollToBottom(true)} aria-label="Ir al final">
+          <ArrowDown size={16} />
         </button>
-        <h1 className={styles.title}>{empty ? "" : title}</h1>
-      </header>
+      )}
+      <div className={styles.dock}>
+        {composer}
+        <p className={styles.disclaimer}>Los modelos pueden equivocarse. Verifica lo importante.</p>
+      </div>
+    </>
+  );
 
-      {empty ? (
-        <section className={styles.welcome}>
+  const welcome = (
+    <section className={styles.welcome} data-project={Boolean(props.project)}>
+      {props.project ? (
+        <>
+          <p className="label">
+            <FolderClosed size={12} aria-hidden="true" className={styles.inlineIcon} /> Proyecto
+          </p>
+          <h2 className={styles.greeting}>{props.project.name}</h2>
+          {props.project.description && <p className={styles.projectDescription}>{props.project.description}</p>}
+        </>
+      ) : (
+        <>
           <p className="label">
             Nexo · {new Date().toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" })}
           </p>
           <h2 className={styles.greeting}>
             {greeting()}, <em>{firstName}</em>.
           </h2>
-          <div className={styles.welcomeComposer}>{composer}</div>
-          {!models.some((m) => m.available) && (
-            <p className={styles.setup}>
-              No hay ningún proveedor configurado. <Link href="/settings?tab=keys">Agrega una API key</Link> para empezar.
-            </p>
-          )}
-        </section>
-      ) : (
-        <>
-          <div className={styles.scroll} ref={scrollRef} onScroll={onScroll}>
-            <div className={styles.thread}>
-              {messages.map((m, i) => (
-                <Message
-                  key={m.id}
-                  message={m}
-                  live={m.id === streamingId}
-                  isLast={i === messages.length - 1}
-                  busy={busy}
-                  modelLabel={m.model ? labels.get(m.model) ?? m.model : undefined}
-                  onRegenerate={() => send({ text: "", attachmentIds: [], regenerate: true })}
-                  onEdit={(text) => {
-                    const attachmentParts = m.parts.filter((p) => p.type === "attachment");
-                    send({
-                      text,
-                      attachmentIds: attachmentParts.flatMap((p) => (p.type === "attachment" ? [p.attachmentId] : [])),
-                      attachmentParts,
-                      editMessageId: m.id,
-                    });
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-          {!atBottom && (
-            <button className={styles.toBottom} onClick={() => scrollToBottom(true)} aria-label="Ir al final">
-              <ArrowDown size={16} />
-            </button>
-          )}
-          <div className={styles.dock}>
-            {composer}
-            <p className={styles.disclaimer}>Los modelos pueden equivocarse. Verifica lo importante.</p>
-          </div>
         </>
       )}
-    </div>
+      <div className={styles.welcomeComposer}>{composer}</div>
+      {!models.some((m) => m.available) && (
+        <p className={styles.setup}>
+          No hay ningún proveedor configurado. <Link href="/settings?tab=keys">Agrega una API key</Link> para empezar.
+        </p>
+      )}
+      {props.emptyExtra}
+    </section>
+  );
+
+  return (
+    <MessageContext.Provider value={{ attachmentUrl: (id) => `/api/attachments/${id}`, ...viewer.context }}>
+      <div className={styles.layout} data-artifact={Boolean(viewer.panel)}>
+        <div className={styles.chat}>
+          <header className={styles.header} data-collapsed={collapsed}>
+            <button className={`icon-btn ${styles.menuBtn}`} onClick={toggle} aria-label="Mostrar barra lateral">
+              <PanelLeft />
+            </button>
+            <h1 className={styles.title}>
+              {props.project && !empty && (
+                <>
+                  <Link href={`/projects/${props.project.id}`} className={styles.crumb}>
+                    {props.project.name}
+                  </Link>
+                  <span aria-hidden="true"> / </span>
+                </>
+              )}
+              {empty ? "" : title}
+            </h1>
+            {conversationId && !empty && !busy && <ShareDialog conversationId={conversationId} />}
+          </header>
+          {empty ? welcome : thread}
+        </div>
+        {viewer.panel && <div className={styles.artifactSlot}>{viewer.panel}</div>}
+      </div>
+    </MessageContext.Provider>
   );
 }

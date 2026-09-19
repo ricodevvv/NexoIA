@@ -6,6 +6,7 @@ import { stripeEnabled } from "@/lib/billing/stripe";
 import { getPlan, usedToday } from "@/lib/billing/usage";
 import { db, schema } from "@/lib/db";
 import { requireUser } from "@/lib/session";
+import { getSettings, listMemories } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "Ajustes" };
 
@@ -13,7 +14,7 @@ export default async function SettingsPage(props: PageProps<"/settings">) {
   const user = await requireUser();
   const { tab, checkout } = await props.searchParams;
 
-  const [keys, servers, plan, used, sub] = await Promise.all([
+  const [keys, servers, plan, used, sub, settings, memories, shares] = await Promise.all([
     db
       .select({ provider: schema.apiKey.provider, hint: schema.apiKey.hint })
       .from(schema.apiKey)
@@ -26,6 +27,13 @@ export default async function SettingsPage(props: PageProps<"/settings">) {
     getPlan(user.id),
     usedToday(user.id),
     db.query.subscription.findFirst({ where: eq(schema.subscription.userId, user.id) }),
+    getSettings(user.id),
+    listMemories(user.id),
+    db
+      .select({ id: schema.share.id, conversationId: schema.share.conversationId, title: schema.share.title, createdAt: schema.share.createdAt })
+      .from(schema.share)
+      .where(eq(schema.share.userId, user.id))
+      .orderBy(desc(schema.share.createdAt)),
   ]);
 
   return (
@@ -34,6 +42,11 @@ export default async function SettingsPage(props: PageProps<"/settings">) {
       checkoutOk={checkout === "ok"}
       user={{ name: user.name, email: user.email }}
       keys={keys}
+      personalization={{
+        settings,
+        memories: memories.map((m) => ({ id: m.id, content: m.content, createdAt: m.createdAt.toISOString() })),
+        shares: shares.map((x) => ({ ...x, createdAt: x.createdAt.toISOString() })),
+      }}
       servers={servers}
       serverKeys={{
         anthropic: Boolean(process.env.ANTHROPIC_API_KEY),

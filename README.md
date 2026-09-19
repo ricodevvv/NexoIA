@@ -55,7 +55,10 @@ src/lib/ai/
   models.ts       catálogo de modelos por proveedor
   engine.ts       bucle del turno: llama al modelo, ejecuta tools, repite
   providers/      un adaptador por proveedor (anthropic, openai, compat)
+  builtins.ts     tools propias del servidor: artifact, memory_save, memory_delete
+  system.ts       arma el system prompt (preferencias, proyecto, memoria)
 src/lib/mcp.ts    cliente MCP: conecta los servidores del usuario y expone sus tools
+src/components/artifacts/  panel, versiones y el iframe aislado
 src/app/api/chat  endpoint de streaming (NDJSON)
 ```
 
@@ -68,6 +71,30 @@ Los mensajes se guardan en dos formas: `parts`, que es lo que pinta la UI, y `na
 En Ajustes → Conectores agregas la URL de un servidor MCP remoto (Streamable HTTP o SSE) y, si hace falta, headers de auth. Las tools quedan disponibles en todos los chats y con cualquier modelo, porque el cliente MCP corre en nuestro servidor y no depende del conector nativo de cada API.
 
 Por seguridad solo se aceptan URLs `https` que no apunten a redes privadas. Para probar con un servidor local pon `ALLOW_PRIVATE_MCP=1`, pero nunca en producción.
+
+## Proyectos
+
+Un proyecto junta chats sobre un mismo tema con instrucciones y archivos fijos. Las instrucciones van al system prompt y los archivos se adjuntan al primer mensaje de cada chat del proyecto (no se guardan duplicados, se inyectan en cada petición). Máximo 30 archivos por proyecto.
+
+## Artifacts
+
+Cuando el modelo genera algo que vale la pena ver aparte (una página, un componente React, un diagrama), llama a la tool `artifact` y se abre en un panel lateral con vista previa, código, versiones y descarga. Tipos: `html`, `react`, `svg`, `mermaid`, `markdown` y `code`.
+
+La vista previa corre en un iframe con `sandbox="allow-scripts"` y sin `allow-same-origin`: el código generado no ve cookies, sesión ni el DOM de la app. Los componentes React se compilan en el navegador con Babel y los paquetes npm se cargan desde esm.sh, así que la vista previa necesita internet.
+
+Las versiones no se guardan en una tabla aparte: salen de las llamadas a la tool que ya están en los mensajes. Editar o regenerar un mensaje también cambia las versiones.
+
+## Memoria y preferencias
+
+En Ajustes → Personalización:
+
+- **Preferencias personales**: texto libre que va al system prompt de todos los chats.
+- **Memoria**: el modelo guarda datos con las tools `memory_save` y `memory_delete`, y los ve en el system prompt en los chats siguientes. Tú puedes verlos, agregar, borrar uno o borrar todo. Tope de 100.
+- Se pueden apagar los artifacts o la memoria. Así el modelo ni siquiera ve esas tools.
+
+## Compartir chats
+
+El botón Compartir crea un enlace público `/share/:id` con una copia del chat en ese momento, sin el razonamiento. Para incluir mensajes nuevos, hay que actualizar el enlace. Los adjuntos se sirven solo si aparecen en esa copia. Los enlaces activos se ven y se revocan en Personalización.
 
 ## Planes y Stripe
 

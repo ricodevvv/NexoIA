@@ -1,9 +1,11 @@
 "use client";
 
-import { AlertTriangle, Check, FileText, Globe, Loader2, Pencil, RefreshCw, Wrench, X } from "lucide-react";
+import { AlertTriangle, Brain, Check, Code2, FileText, Globe, Loader2, Pencil, RefreshCw, Wrench, X } from "lucide-react";
 import Image from "next/image";
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import type { MessagePart } from "@/lib/ai/types";
+import { readArtifact } from "../artifacts/artifacts";
+import artifactStyles from "../artifacts/artifacts.module.css";
 import { CopyButton } from "./code-block";
 import { Markdown } from "./markdown";
 import styles from "./chat.module.css";
@@ -17,6 +19,43 @@ export type UIMessage = {
 
 type ToolCallPart = Extract<MessagePart, { type: "tool_call" }>;
 
+export type MessageContextValue = {
+  attachmentUrl: (id: string) => string;
+  openArtifact?: (identifier: string, callId: string) => void;
+  activeArtifactCall?: string | null;
+  artifactVersion?: (identifier: string, callId: string) => { index: number; total: number };
+};
+
+export const MessageContext = createContext<MessageContextValue>({
+  attachmentUrl: (id) => `/api/attachments/${id}`,
+});
+
+function ArtifactCard({ part }: { part: ToolCallPart }) {
+  const ctx = useContext(MessageContext);
+  const artifact = readArtifact(part);
+  if (!artifact) return <ToolCall part={part} live={false} />;
+  const version = ctx.artifactVersion?.(artifact.identifier, artifact.callId);
+  return (
+    <button
+      type="button"
+      className={artifactStyles.card}
+      data-active={ctx.activeArtifactCall === artifact.callId}
+      onClick={() => ctx.openArtifact?.(artifact.identifier, artifact.callId)}
+    >
+      <span className={artifactStyles.cardIcon} aria-hidden="true">
+        <Code2 size={17} />
+      </span>
+      <span className={artifactStyles.cardText}>
+        <span className={artifactStyles.cardTitle}>{artifact.title}</span>
+        <span className="label">
+          {artifact.type}
+          {version && version.total > 1 ? ` · versión ${version.index + 1}` : ""} · abrir
+        </span>
+      </span>
+    </button>
+  );
+}
+
 function plainText(parts: MessagePart[]) {
   return parts
     .filter((p): p is Extract<MessagePart, { type: "text" }> => p.type === "text")
@@ -26,6 +65,8 @@ function plainText(parts: MessagePart[]) {
 
 function toolLabel(name: string) {
   if (name === "web_search") return "Búsqueda web";
+  if (name === "memory_save") return "Memoria · guardar";
+  if (name === "memory_delete") return "Memoria · borrar";
   const [server, ...rest] = name.split("__");
   return rest.length ? `${server} · ${rest.join("__")}` : name;
 }
@@ -41,7 +82,7 @@ function pretty(value: unknown) {
 
 function ToolCall({ part, live }: { part: ToolCallPart; live: boolean }) {
   const running = part.output === undefined && live;
-  const Icon = part.name === "web_search" ? Globe : Wrench;
+  const Icon = part.name === "web_search" ? Globe : part.name.startsWith("memory_") ? Brain : Wrench;
   const query = part.name === "web_search" && part.input && typeof part.input === "object" ? (part.input as { query?: string }).query : null;
   return (
     <details className={styles.tool} data-state={running ? "running" : part.isError ? "error" : "done"}>
@@ -86,7 +127,7 @@ function Reasoning({ text, live }: { text: string; live: boolean }) {
 }
 
 function Attachment({ part }: { part: Extract<MessagePart, { type: "attachment" }> }) {
-  const src = `/api/attachments/${part.attachmentId}`;
+  const src = useContext(MessageContext).attachmentUrl(part.attachmentId);
   if (part.mediaType.startsWith("image/")) {
     return (
       <a href={src} target="_blank" rel="noopener noreferrer" className={styles.thumb}>
@@ -162,6 +203,9 @@ export function Message({ message, live, isLast, busy, modelLabel, onRegenerate,
         const partLive = live && i === lastIndex;
         if (part.type === "text") return <Markdown key={i} text={part.text} />;
         if (part.type === "reasoning") return <Reasoning key={i} text={part.text} live={partLive} />;
+        if (part.type === "tool_call" && part.name === "artifact" && part.output !== undefined) {
+          return <ArtifactCard key={part.id} part={part} />;
+        }
         if (part.type === "tool_call") return <ToolCall key={part.id} part={part} live={live} />;
         if (part.type === "notice") {
           return (

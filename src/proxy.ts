@@ -5,7 +5,9 @@ const PUBLIC = ["/login", "/signup"];
 
 export function proxy(request: NextRequest) {
   const hasSession = Boolean(getSessionCookie(request));
-  const isPublic = PUBLIC.includes(request.nextUrl.pathname);
+  const { pathname } = request.nextUrl;
+  if (pathname.startsWith("/share/")) return NextResponse.next();
+  const isPublic = PUBLIC.includes(pathname);
   if (!hasSession && !isPublic) return NextResponse.redirect(new URL("/login", request.url));
   if (hasSession && isPublic) return NextResponse.redirect(new URL("/", request.url));
   return NextResponse.next();

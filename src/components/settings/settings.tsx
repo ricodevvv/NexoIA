@@ -1,7 +1,8 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Check, Loader2, PanelLeft, Plug, Trash2 } from "lucide-react";
+import { Brain, Check, ExternalLink, Link2, Loader2, PanelLeft, Plug, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
@@ -17,6 +18,11 @@ type Props = {
   checkoutOk: boolean;
   user: { name: string; email: string };
   keys: KeyRow[];
+  personalization: {
+    settings: { preferences: string; memoryEnabled: boolean; artifactsEnabled: boolean };
+    memories: { id: string; content: string; createdAt: string }[];
+    shares: { id: string; conversationId: string; title: string; createdAt: string }[];
+  };
   servers: Server[];
   serverKeys: { anthropic: boolean; openai: boolean };
   billing: {
@@ -32,6 +38,7 @@ type Props = {
 
 const TABS = [
   { id: "account", label: "Cuenta" },
+  { id: "personalization", label: "Personalización" },
   { id: "keys", label: "API keys" },
   { id: "connectors", label: "Conectores" },
   { id: "billing", label: "Plan" },
@@ -79,6 +86,7 @@ export function Settings(props: Props) {
         </nav>
         <section className={styles.panel} role="tabpanel">
           {tab === "account" && <Account user={props.user} />}
+          {tab === "personalization" && <Personalization data={props.personalization} />}
           {tab === "keys" && <Keys keys={props.keys} serverKeys={props.serverKeys} />}
           {tab === "connectors" && <Connectors servers={props.servers} />}
           {tab === "billing" && <Billing billing={props.billing} checkoutOk={props.checkoutOk} />}
@@ -188,6 +196,195 @@ function Account({ user }: { user: Props["user"] }) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+    </>
+  );
+}
+
+function Toggle({
+  checked,
+  label,
+  description,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  description: string;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className={styles.toggleRow}>
+      <span>
+        <strong>{label}</strong>
+        <span className="muted">{description}</span>
+      </span>
+      <span className={styles.switch}>
+        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+        <span aria-hidden="true" />
+      </span>
+    </label>
+  );
+}
+
+function Personalization({ data }: { data: Props["personalization"] }) {
+  const router = useRouter();
+  const [prefs, setPrefs] = useState(data.settings.preferences);
+  const [saved, setSaved] = useState(false);
+  const [confirmWipe, setConfirmWipe] = useState(false);
+  const [newMemory, setNewMemory] = useState("");
+
+  async function save(patch: Record<string, unknown>) {
+    await api("/api/settings", { method: "PATCH", body: JSON.stringify(patch) });
+    router.refresh();
+  }
+
+  async function removeMemory(id: string) {
+    await api(`/api/memory?id=${id}`, { method: "DELETE" });
+    setConfirmWipe(false);
+    router.refresh();
+  }
+
+  async function addMemory(e: React.FormEvent) {
+    e.preventDefault();
+    if (newMemory.trim().length < 3) return;
+    await api("/api/memory", { method: "POST", body: JSON.stringify({ content: newMemory }) });
+    setNewMemory("");
+    router.refresh();
+  }
+
+  async function unshare(conversationId: string) {
+    await api(`/api/conversations/${conversationId}/share`, { method: "DELETE" });
+    router.refresh();
+  }
+
+  return (
+    <>
+      <Section
+        title="Preferencias personales"
+        description="Nexo las tiene en cuenta en todas tus conversaciones: cómo quieres que te hable, a qué te dedicas, qué evitar."
+      >
+        <form
+          className={styles.stack}
+          onSubmit={async (e) => {
+            e.preventDefault();
+            await save({ preferences: prefs });
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2000);
+          }}
+        >
+          <textarea
+            className={`textarea ${styles.prefs}`}
+            value={prefs}
+            onChange={(e) => setPrefs(e.target.value)}
+            rows={5}
+            maxLength={5000}
+            placeholder="Ej.: Soy dev backend, trabajo con Java y Kotlin. Respóndeme corto y con código cuando aplique."
+          />
+          <div className={styles.inlineEnd}>
+            {saved && <span className={styles.ok}>Guardado</span>}
+            <button className="btn btn-primary" disabled={prefs === data.settings.preferences}>
+              Guardar preferencias
+            </button>
+          </div>
+        </form>
+      </Section>
+
+      <Section title="Funciones">
+        <div className={styles.rows}>
+          <Toggle
+            checked={data.settings.artifactsEnabled}
+            label="Artifacts"
+            description="Páginas, componentes, diagramas y documentos en un panel aparte con vista previa."
+            onChange={(v) => save({ artifactsEnabled: v })}
+          />
+          <Toggle
+            checked={data.settings.memoryEnabled}
+            label="Memoria"
+            description="Nexo guarda datos útiles sobre ti y los recuerda en chats futuros."
+            onChange={(v) => save({ memoryEnabled: v })}
+          />
+        </div>
+      </Section>
+
+      <Section
+        title={`Memoria · ${data.memories.length}`}
+        description="Lo que Nexo recuerda de ti. Puedes borrar lo que quieras o agregar cosas a mano."
+      >
+        <form className={styles.inline} onSubmit={addMemory}>
+          <label className="field">
+            <span className="sr-only">Nuevo recuerdo</span>
+            <input
+              className="input"
+              value={newMemory}
+              onChange={(e) => setNewMemory(e.target.value)}
+              maxLength={500}
+              placeholder="Ej.: Prefiere ejemplos en TypeScript"
+            />
+          </label>
+          <button className="btn">Agregar</button>
+        </form>
+        {data.memories.length === 0 ? (
+          <div className={styles.empty}>
+            <Brain size={20} aria-hidden="true" />
+            <p>Todavía no hay recuerdos.</p>
+          </div>
+        ) : (
+          <ul className={styles.memories}>
+            {data.memories.map((m) => (
+              <li key={m.id}>
+                <span>{m.content}</span>
+                <time className="label" dateTime={m.createdAt}>
+                  {new Date(m.createdAt).toLocaleDateString("es", { day: "2-digit", month: "short" })}
+                </time>
+                <button className="icon-btn" onClick={() => removeMemory(m.id)} aria-label="Borrar recuerdo">
+                  <Trash2 />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {data.memories.length > 0 && (
+          <div>
+            {confirmWipe ? (
+              <span className={styles.inlineEnd}>
+                <span className="muted">¿Seguro? No se puede deshacer.</span>
+                <button className="btn btn-sm" onClick={() => setConfirmWipe(false)}>
+                  No
+                </button>
+                <button className="btn btn-sm btn-danger" onClick={() => removeMemory("all")}>
+                  Sí, borrar todo
+                </button>
+              </span>
+            ) : (
+              <button className="btn btn-sm btn-ghost btn-danger" onClick={() => setConfirmWipe(true)}>
+                Borrar toda la memoria
+              </button>
+            )}
+          </div>
+        )}
+      </Section>
+
+      <Section title="Enlaces compartidos" description="Chats que tienen un enlace público activo.">
+        {data.shares.length === 0 ? (
+          <div className={styles.empty}>
+            <Link2 size={20} aria-hidden="true" />
+            <p>No has compartido ningún chat.</p>
+          </div>
+        ) : (
+          <ul className={styles.memories}>
+            {data.shares.map((x) => (
+              <li key={x.id}>
+                <Link href={`/chat/${x.conversationId}`}>{x.title}</Link>
+                <a className="icon-btn" href={`/share/${x.id}`} target="_blank" rel="noopener noreferrer" aria-label="Abrir enlace público">
+                  <ExternalLink />
+                </a>
+                <button className="btn btn-sm btn-ghost btn-danger" onClick={() => unshare(x.conversationId)}>
+                  Dejar de compartir
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
     </>
   );
 }

@@ -1,20 +1,23 @@
 import { and, asc, eq, gte, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { builtinTools } from "@/lib/ai/builtins";
 import { runTurn } from "@/lib/ai/engine";
 import { resolveKey } from "@/lib/ai/keys";
 import { findModel } from "@/lib/ai/models";
 import { systemPrompt } from "@/lib/ai/system";
-import type { AttachmentData, ChatStreamEvent, MessagePart } from "@/lib/ai/types";
+import type { AttachmentData, ChatStreamEvent, HistoryMessage, MessagePart } from "@/lib/ai/types";
 import { checkQuota, recordUsage } from "@/lib/billing/usage";
 import { db, schema } from "@/lib/db";
 import { openToolbox } from "@/lib/mcp";
+import { getSettings, listMemories } from "@/lib/settings";
 import { apiUser, handleError, HttpError } from "@/lib/session";
 
 export const maxDuration = 800;
 
 const Body = z.object({
   conversationId: z.string().optional(),
+  projectId: z.string().optional(),
   text: z.string().max(200_000).default(""),
   attachmentIds: z.array(z.string()).max(20).default([]),
   model: z.string(),
@@ -36,6 +39,29 @@ async function loadConversation(userId: string, id: string) {
   });
   if (!conv) throw new HttpError(404, "Conversación no encontrada");
   return conv;
+}
+
+async function loadProject(userId: string, projectId: string | null) {
+  if (!projectId) return null;
+  const project = await db.query.project.findFirst({
+    where: and(eq(schema.project.id, projectId), eq(schema.project.userId, userId)),
+  });
+  if (!project) return null;
+  const files = await db
+    .select({ id: schema.attachment.id, name: schema.attachment.name, mediaType: schema.attachment.mediaType })
+    .from(schema.projectFile)
+    .innerJoin(schema.attachment, eq(schema.attachment.id, schema.projectFile.attachmentId))
+    .where(eq(schema.projectFile.projectId, projectId))
+    .orderBy(asc(schema.projectFile.createdAt));
+  return { ...project, files };
+}
+
+function withProjectFiles(history: HistoryMessage[], files: { id: string; name: string; mediaType: string }[]) {
+  if (!files.length) return history;
+  const first = history.findIndex((m) => m.role === "user");
+  if (first === -1) return history;
+  const parts: MessagePart[] = files.map((f) => ({ type: "attachment", attachmentId: f.id, name: f.name, mediaType: f.mediaType }));
+  return history.map((m, i) => (i === first ? { ...m, parts: [...parts, ...m.parts] } : m));
 }
 
 async function truncateFrom(conversationId: string, messageId: string) {
@@ -77,7 +103,13 @@ export async function POST(request: Request) {
       : (
           await db
             .insert(schema.conversation)
-            .values({ id: nanoid(), userId: user.id, title: titleFrom(body.text), model: model.id })
+            .values({
+              id: nanoid(),
+              userId: user.id,
+              projectId: (await loadProject(user.id, body.projectId ?? null))?.id ?? null,
+              title: titleFrom(body.text),
+              model: model.id,
+            })
             .returning()
         )[0];
 
@@ -101,10 +133,16 @@ export async function POST(request: Request) {
       await db.insert(schema.message).values({ id: userMessageId, conversationId: conversation.id, role: "user", parts });
     }
 
-    const history = await db.query.message.findMany({
-      where: eq(schema.message.conversationId, conversation.id),
-      orderBy: asc(schema.message.createdAt),
-    });
+    const [stored, project, settings] = await Promise.all([
+      db.query.message.findMany({
+        where: eq(schema.message.conversationId, conversation.id),
+        orderBy: asc(schema.message.createdAt),
+      }),
+      loadProject(user.id, conversation.projectId),
+      getSettings(user.id),
+    ]);
+    const memories = settings.memoryEnabled ? await listMemories(user.id) : null;
+    const history = withProjectFiles(stored, project?.files ?? []);
     const attachmentIds = history.flatMap((m) =>
       m.parts.flatMap((p) => (p.type === "attachment" ? [p.attachmentId] : [])),
     );
@@ -137,20 +175,27 @@ export async function POST(request: Request) {
         if (isNew) send({ type: "title", title: conversation.title });
 
         const toolbox = await openToolbox(user.id);
+        const builtins = builtinTools({ userId: user.id, artifacts: settings.artifactsEnabled, memory: settings.memoryEnabled });
         for (const error of toolbox.errors) send({ type: "notice", level: "warning", text: error });
 
         const outcome = await runTurn(
           {
             model,
             apiKey: key.apiKey,
-            system: systemPrompt(user),
+            system: systemPrompt({
+              user,
+              preferences: settings.preferences,
+              memories,
+              project: project ? { name: project.name, instructions: project.instructions } : null,
+              artifacts: settings.artifactsEnabled,
+            }),
             history,
             attachments,
-            tools: toolbox.tools,
+            tools: [...builtins.specs, ...toolbox.tools],
             effort: body.effort,
             webSearch: body.webSearch,
           },
-          (call, signal) => toolbox.call(call.id, call.name, call.input, signal),
+          (call, signal) => (builtins.handles(call.name) ? builtins.run(call) : toolbox.call(call.id, call.name, call.input, signal)),
           send,
           controller.signal,
         );
