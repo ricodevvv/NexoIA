@@ -1,0 +1,58 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?pon POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: nexo
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexo"]
+      interval: 5s
+      retries: 10
+
+  migrate:
+    build: { context: ., target: migrate }
+    environment:
+      DATABASE_URL: postgres://nexo:${POSTGRES_PASSWORD}@db:5432/nexo
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  sandbox:
+    build: ./sandbox
+    entrypoint: ["node", "server.mjs"]
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 2g
+    pids_limit: 128
+    volumes:
+      - sandbox-socket:/run/nexo-sandbox
+    restart: unless-stopped
+
+  app:
+    build: { context: ., target: app }
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://nexo:${POSTGRES_PASSWORD}@db:5432/nexo
+      CODE_SANDBOX_SOCKET: /run/nexo-sandbox/sandbox.sock
+      CODE_SANDBOX_COMMAND: ""
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - sandbox-socket:/run/nexo-sandbox
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+      sandbox: { condition: service_started }
+    restart: unless-stopped
+
+volumes:
+  db:
+  sandbox-socket:

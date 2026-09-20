@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { sharedAttachmentIds } from "@/lib/projects";
+import { readFile } from "@/lib/storage";
 import { apiUser, handleError, HttpError } from "@/lib/session";
 
 export async function GET(_request: Request, ctx: RouteContext<"/api/attachments/[id]">) {
@@ -12,7 +13,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/attachments
       throw new HttpError(404, "Archivo no encontrado");
     }
     const inline = row.mediaType.startsWith("image/") || row.mediaType === "application/pdf";
-    return new Response(new Uint8Array(row.data), {
+    return new Response(new Uint8Array(await readFile(row)), {
       headers: {
         "Content-Type": row.mediaType,
         "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(row.name)}`,

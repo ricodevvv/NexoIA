@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import styles from "./auth.module.css";
+import { authErrorMessage } from "@/lib/auth-errors";
 
 /**
  * Pide el correo y manda el enlace para restablecer la contraseña. Siempre
@@ -76,7 +77,7 @@ export function ResetForm({ token, invalid }: { token: string | null; invalid: b
     const result = await authClient.resetPassword({ newPassword: password, token });
     setBusy(false);
     if (result.error) {
-      setError(result.error.message ?? "El enlace no es válido o ya caducó.");
+      setError(authErrorMessage(result.error, "El enlace no es válido o ya caducó."));
       return;
     }
     setDone(true);

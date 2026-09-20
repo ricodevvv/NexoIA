@@ -7,6 +7,7 @@ import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { notifyConversationsChanged } from "../events";
 import styles from "./invite.module.css";
+import { authErrorMessage } from "@/lib/auth-errors";
 
 type Props = {
   state: "ok" | "missing" | "used" | "expired" | "wrong-account";
@@ -37,7 +38,7 @@ export function InviteCard({ state, invitation, currentEmail }: Props) {
       : await authClient.organization.rejectInvitation({ invitationId: invitation.id });
     if (err) {
       setBusy(false);
-      setError(err.message ?? "No se pudo completar");
+      setError(authErrorMessage(err, "No se pudo completar"));
       return;
     }
     notifyConversationsChanged();

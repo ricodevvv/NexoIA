@@ -1,3 +1,4 @@
+import { logError } from "@/lib/log";
 import { applyEvent } from "./parts";
 import { createAnthropicSession } from "./providers/anthropic";
 import { createCompatSession } from "./providers/compat";
@@ -85,6 +86,7 @@ export async function runTurn(
   } catch (err) {
     clean = false;
     if (!signal.aborted) {
+      logError("provider", err, { provider: opts.model.provider, model: opts.model.id, status: (err as { status?: number }).status });
       const text = describeError(err);
       push({ type: "notice", level: "error", text });
     }

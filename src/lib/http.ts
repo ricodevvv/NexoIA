@@ -1,3 +1,5 @@
+import { logError } from "@/lib/log";
+
 export class HttpError extends Error {
   constructor(
     public status: number,
@@ -19,6 +21,6 @@ export function handleError(err: unknown) {
       { status: err.status, headers: retryAfter ? { "Retry-After": String(retryAfter) } : undefined },
     );
   }
-  console.error(err);
+  logError("api", err);
   return Response.json({ error: "Error interno" }, { status: 500 });
 }

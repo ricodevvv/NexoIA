@@ -13,6 +13,7 @@ import { checkQuota, recordUsage } from "@/lib/billing/usage";
 import { db, schema } from "@/lib/db";
 import { openToolbox } from "@/lib/mcp";
 import { projectAccess, sharedAttachmentIds } from "@/lib/projects";
+import { readFile } from "@/lib/storage";
 import { getSettings, listMemories } from "@/lib/settings";
 import { presetStyle } from "@/lib/styles";
 import { clientIp, enforce, LIMITS } from "@/lib/rate-limit";
@@ -170,7 +171,11 @@ export async function POST(request: Request) {
           sharedAttachmentIds(user.id, attachmentIds),
         ])
       : [[], new Set<string>()];
-    const files = found.filter((f) => f.userId === user.id || shared.has(f.id));
+    const files = await Promise.all(
+      found
+        .filter((f) => f.userId === user.id || shared.has(f.id))
+        .map(async (f) => ({ id: f.id, name: f.name, mediaType: f.mediaType, data: await readFile(f) })),
+    );
     const attachments = new Map<string, AttachmentData>(files.map((f) => [f.id, f]));
 
     const assistantMessageId = nanoid();

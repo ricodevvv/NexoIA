@@ -7,7 +7,15 @@ DEST=/opt/nexo
 rsync -a --delete \
   --exclude node_modules --exclude .next --exclude .git \
   --exclude .env.local --exclude '*.png' \
+  --exclude test-results --exclude playwright-report \
   "$SRC/" "$DEST/"
+
+SANDBOX_HASH=$(cat "$SRC"/sandbox/Dockerfile "$SRC"/sandbox/package.json "$SRC"/sandbox/*.mjs "$SRC"/sandbox/run.sh | sha256sum | cut -c1-16)
+if [[ "$(sudo docker image inspect nexo-sandbox:latest -f '{{index .Config.Labels "nexo.hash"}}' 2>/dev/null)" != "$SANDBOX_HASH" ]]; then
+  sudo docker build -q --label "nexo.hash=$SANDBOX_HASH" -t nexo-sandbox:latest "$SRC/sandbox" >/dev/null
+  echo "Imagen del sandbox actualizada"
+fi
+sudo install -o root -g root -m 755 "$SRC/sandbox/run.sh" /usr/local/bin/nexo-sandbox
 
 cd "$DEST"
 pnpm install --frozen-lockfile --prefer-offline

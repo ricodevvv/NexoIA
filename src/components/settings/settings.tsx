@@ -9,6 +9,7 @@ import { authClient } from "@/lib/auth-client";
 import type { Plan, PlanId } from "@/lib/billing/plans";
 import { useShell } from "../shell";
 import styles from "./settings.module.css";
+import { authErrorMessage } from "@/lib/auth-errors";
 
 type Server = { id: string; name: string; url: string; enabled: boolean };
 type KeyRow = { provider: "anthropic" | "openai"; hint: string };
@@ -127,7 +128,7 @@ function Account({ user }: { user: Props["user"] }) {
     e.preventDefault();
     const name = String(new FormData(e.currentTarget).get("name")).trim();
     const { error } = await authClient.updateUser({ name });
-    setMsg(error ? { kind: "error", text: error.message ?? "No se pudo guardar" } : { kind: "ok", text: "Guardado" });
+    setMsg(error ? { kind: "error", text: authErrorMessage(error, "No se pudo guardar") } : { kind: "ok", text: "Guardado" });
     if (!error) router.refresh();
   }
 
@@ -140,7 +141,7 @@ function Account({ user }: { user: Props["user"] }) {
       newPassword: String(data.get("next")),
       revokeOtherSessions: true,
     });
-    setPwMsg(error ? { kind: "error", text: error.message ?? "No se pudo cambiar" } : { kind: "ok", text: "Contraseña actualizada" });
+    setPwMsg(error ? { kind: "error", text: authErrorMessage(error, "No se pudo cambiar") } : { kind: "ok", text: "Contraseña actualizada" });
     if (!error) form.reset();
   }
 

@@ -1,3 +1,4 @@
+import { and, eq, isNotNull } from "drizzle-orm";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
@@ -6,6 +7,7 @@ import { db, schema } from "@/lib/db";
 import { sendMail } from "@/lib/email";
 import { syncSeats } from "@/lib/billing/team";
 import { consume } from "@/lib/rate-limit";
+import { deleteFiles } from "@/lib/storage";
 
 function social() {
   const providers: Record<string, { clientId: string; clientSecret: string }> = {};
@@ -60,7 +62,18 @@ export const auth = betterAuth({
     },
   },
   socialProviders: social(),
-  user: { deleteUser: { enabled: true } },
+  user: {
+    deleteUser: {
+      enabled: true,
+      beforeDelete: async (user) => {
+        const rows = await db
+          .select({ key: schema.attachment.storageKey })
+          .from(schema.attachment)
+          .where(and(eq(schema.attachment.userId, user.id), isNotNull(schema.attachment.storageKey)));
+        await deleteFiles(rows.map((r) => r.key!));
+      },
+    },
+  },
   session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
   rateLimit: {
     enabled: true,

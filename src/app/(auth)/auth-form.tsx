@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import styles from "./auth.module.css";
+import { authErrorMessage } from "@/lib/auth-errors";
 
 type Props = {
   mode: "login" | "signup";
@@ -39,7 +40,7 @@ export function AuthForm({ mode, providers, next }: Props) {
         setUnverified(email);
         setError("Confirma tu correo antes de entrar. Te mandamos un enlace al registrarte.");
       } else {
-        setError(result.error.message ?? "No se pudo continuar");
+        setError(authErrorMessage(result.error, "No se pudo continuar"));
       }
       return;
     }

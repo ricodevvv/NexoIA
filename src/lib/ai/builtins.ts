@@ -4,6 +4,7 @@ import { z } from "zod";
 import { runPython } from "@/lib/code-exec";
 import { db, schema } from "@/lib/db";
 import { consume, LIMITS } from "@/lib/rate-limit";
+import { putFile } from "@/lib/storage";
 import type { AttachmentData, FileRef, ToolCall, ToolResult, ToolSpec } from "./types";
 
 export const ARTIFACT_TOOL = "artifact";
@@ -122,13 +123,14 @@ export function builtinTools(opts: BuiltinOptions): { specs: ToolSpec[]; handles
         const saved: FileRef[] = [];
         for (const file of out.files) {
           const id = nanoid();
+          const stored = await putFile(`${opts.userId}/${id}`, file.data, file.mediaType);
           await db.insert(schema.attachment).values({
             id,
             userId: opts.userId,
             name: file.name,
             mediaType: file.mediaType,
             size: file.data.length,
-            data: file.data,
+            ...stored,
           });
           saved.push({ attachmentId: id, name: file.name, mediaType: file.mediaType });
         }

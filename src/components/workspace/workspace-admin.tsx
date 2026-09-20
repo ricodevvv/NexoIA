@@ -9,6 +9,7 @@ import { notifyConversationsChanged } from "../events";
 import { Connectors, Section } from "../settings/settings";
 import styles from "../settings/settings.module.css";
 import { useShell } from "../shell";
+import { authErrorMessage } from "@/lib/auth-errors";
 
 type Role = "owner" | "admin" | "member";
 
@@ -122,7 +123,7 @@ function Members({ workspace, manage, members, invitations, me }: Props) {
     });
     setBusy(false);
     if (err) {
-      setError(err.message ?? "No se pudo invitar");
+      setError(authErrorMessage(err, "No se pudo invitar"));
       return;
     }
     form.reset();
@@ -132,13 +133,13 @@ function Members({ workspace, manage, members, invitations, me }: Props) {
 
   async function changeRole(memberId: string, role: Role) {
     const { error: err } = await authClient.organization.updateMemberRole({ memberId, role, organizationId: workspace.id });
-    if (err) setError(err.message ?? "No se pudo cambiar el rol");
+    if (err) setError(authErrorMessage(err, "No se pudo cambiar el rol"));
     router.refresh();
   }
 
   async function remove(memberId: string) {
     const { error: err } = await authClient.organization.removeMember({ memberIdOrEmail: memberId, organizationId: workspace.id });
-    if (err) setError(err.message ?? "No se pudo quitar");
+    if (err) setError(authErrorMessage(err, "No se pudo quitar"));
     router.refresh();
   }
 
@@ -348,7 +349,7 @@ function General({ workspace, manage }: Props) {
     const name = String(new FormData(e.currentTarget).get("name")).trim();
     const { error: err } = await authClient.organization.update({ organizationId: workspace.id, data: { name } });
     if (err) {
-      setError(err.message ?? "No se pudo guardar");
+      setError(authErrorMessage(err, "No se pudo guardar"));
       return;
     }
     setSaved(true);
@@ -361,7 +362,7 @@ function General({ workspace, manage }: Props) {
         ? await authClient.organization.delete({ organizationId: workspace.id })
         : await authClient.organization.leave({ organizationId: workspace.id });
     if (err) {
-      setError(err.message ?? "No se pudo completar");
+      setError(authErrorMessage(err, "No se pudo completar"));
       setConfirm(null);
       return;
     }

@@ -115,7 +115,8 @@ export const attachment = pgTable("attachment", {
   name: text("name").notNull(),
   mediaType: text("media_type").notNull(),
   size: integer("size").notNull(),
-  data: bytea("data").notNull(),
+  data: bytea("data"),
+  storageKey: text("storage_key"),
   createdAt: createdAt(),
 });
 

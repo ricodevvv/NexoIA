@@ -8,6 +8,7 @@ import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { notifyConversationsChanged } from "./events";
 import styles from "./sidebar.module.css";
+import { authErrorMessage } from "@/lib/auth-errors";
 
 export type WorkspaceOption = { id: string; name: string; role: "owner" | "admin" | "member" };
 
@@ -49,7 +50,7 @@ export function WorkspaceSwitcher({ workspaces, active }: { workspaces: Workspac
     const { data, error: err } = await authClient.organization.create({ name, slug: slugify(name) });
     if (err || !data) {
       setBusy(false);
-      setError(err?.message ?? "No se pudo crear el equipo");
+      setError(authErrorMessage(err, "No se pudo crear el equipo"));
       return;
     }
     await authClient.organization.setActive({ organizationId: data.id });

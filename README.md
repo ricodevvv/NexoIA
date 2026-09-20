@@ -126,18 +126,17 @@ Al registrarse se manda un enlace de verificación, pero por defecto se puede en
 
 La tool `run_python` deja que cualquier modelo corra Python para calcular, analizar los archivos adjuntos o hacer gráficas. Trae numpy, pandas, matplotlib, scipy, sympy y scikit-learn. Las figuras se guardan solas y lo que el código escriba en `/mnt/output` le llega al usuario como archivo.
 
-Cómo está aislado:
+Python corre en WebAssembly (Pyodide) dentro de un proceso Node con el modelo de permisos (`--permission`): no escribe a disco, no crea procesos y solo lee su propia carpeta. Eso es igual en los tres modos; lo que cambia es dónde vive ese proceso:
 
-- Python corre en WebAssembly (Pyodide) dentro de un proceso Node aparte (`sandbox/python-runner.mjs`).
-- Ese proceso arranca con el modelo de permisos de Node (`--permission`): no puede escribir a disco, crear procesos ni workers, y solo lee `node_modules`, `sandbox/` y la caché de paquetes. No ve el `.env` ni ningún archivo del proyecto.
-- Arranca sin variables de entorno, con 60 s de límite y 512 MB de heap.
-- Los paquetes se descargan una vez a una caché (`/tmp/nexo-pyodide-cache`) al levantar el servidor. Esa es la única ejecución con permiso de escritura y no corre código del usuario.
+| Modo | Cómo se activa | Aislamiento de red |
+|---|---|---|
+| Proceso local | por defecto, sin variables | ninguno, solo para desarrollo |
+| Contenedor por ejecución | `CODE_SANDBOX_COMMAND="sudo -n /usr/local/bin/nexo-sandbox"` | `--network none` |
+| Servicio (docker-compose) | `CODE_SANDBOX_SOCKET=/run/nexo-sandbox/sandbox.sock` | el servicio corre con `network_mode: none` |
 
-Lo que **no** cubre: la red. El modelo de permisos de Node no la limita. Se bloquea `fetch` antes de correr el código, pero alguien decidido podría abrir sockets desde JS. Por eso:
+El modo contenedor usa la imagen `nexo-sandbox` (se construye desde `sandbox/`, ya trae los paquetes adentro) y un script en `/usr/local/bin/nexo-sandbox` que la app puede correr con `sudo` y nada más, así no hace falta meter a la app al grupo `docker`. El contenedor va con sistema de archivos de solo lectura, sin capacidades, 1 GB de memoria, 64 procesos y 60 s de límite.
 
-- En desarrollo está prendida. En producción viene apagada y se activa con `CODE_EXECUTION=1`.
-- Para producción, envuélvela sin red con `CODE_SANDBOX_WRAPPER`, por ejemplo `CODE_SANDBOX_WRAPPER="bwrap --unshare-net --ro-bind / / --dev /dev --tmpfs /tmp --bind /tmp/nexo-pyodide-cache /tmp/nexo-pyodide-cache"`, o córrela en un contenedor sin salida a la red interna.
-- Al desplegar, copia la carpeta `sandbox/` junto a la app.
+En producción viene apagada; se prende con `CODE_EXECUTION=1` más alguno de los dos modos aislados.
 
 ## Equipos
 
@@ -185,6 +184,48 @@ sudo systemctl restart nexo              # reiniciar la app tras cambiar /etc/ne
 
 La URL de `trycloudflare.com` **cambia si se reinicia el túnel** (por ejemplo, si se reinicia la VM). Para una URL fija: un túnel con nombre de Cloudflare apuntando a un dominio tuyo, o abrir los puertos 80/443 en el NSG de Azure y poner Caddy con Let's Encrypt.
 
+## Almacenamiento de adjuntos
+
+Por defecto los adjuntos van a Postgres, que para empezar es lo más simple. Para mandarlos a S3, Cloudflare R2 o MinIO:
+
+```bash
+STORAGE_DRIVER=s3
+S3_BUCKET=nexo
+S3_ENDPOINT=https://<cuenta>.r2.cloudflarestorage.com   # vacío para AWS
+S3_REGION=auto                                           # la región real en AWS
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+S3_FORCE_PATH_STYLE=1                                    # solo MinIO
+```
+
+El bucket se crea solo si no existe. Los adjuntos viejos que ya estaban en Postgres se siguen leyendo de ahí; solo los nuevos van a S3. Al borrar una cuenta se borran también sus objetos.
+
+## Monitoreo
+
+- `GET /api/health` responde 200 si la base y el almacenamiento están bien, o 503 si algo falla. Sirve para Uptime Kuma, Better Stack o el healthcheck de Docker.
+- Los errores salen como una línea JSON por evento (`{"level":"error","event":"provider",...}`) en la salida de error, fácil de filtrar con `journalctl -u nexo | grep '"level":"error"'`.
+- Con `ERROR_WEBHOOK_URL` (un webhook de Slack o Discord) cada error también manda un aviso.
+
+## Tests
+
+```bash
+pnpm test        # unitarios (Vitest): historial, eventos, artifacts, seguridad, límites
+pnpm test:e2e    # de punta a punta (Playwright) contra un modelo falso y un servidor MCP de prueba
+```
+
+Los unitarios necesitan la base `nexo_test`. Los e2e levantan solos los mocks (`tests/mocks/`) y un `next dev` en el puerto 3100 con esa misma base, que vacían al empezar. No usan ninguna API key real.
+
+## Docker
+
+`docker-compose.yml` levanta todo: Postgres, las migraciones, el sandbox sin red y la app.
+
+```bash
+cp .env.example .env     # llena las keys y pon POSTGRES_PASSWORD
+docker compose up -d --build
+```
+
+La app queda en el puerto 3000 (o `APP_PORT`). Pon un proxy con HTTPS adelante (Caddy, Traefik o un túnel de Cloudflare) y ajusta `BETTER_AUTH_URL` a la URL pública.
+
 ## Scripts
 
 ```bash
@@ -194,4 +235,6 @@ pnpm typecheck     # tipos
 pnpm lint
 pnpm db:generate   # genera migración tras cambiar src/lib/db/schema.ts
 pnpm db:migrate    # aplica migraciones
+pnpm test          # tests unitarios
+pnpm test:e2e      # tests de punta a punta
 ```

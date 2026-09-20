@@ -43,6 +43,13 @@
       "when": 1790235043303,
       "tag": "0005_equipos",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790237217282,
+      "tag": "0006_almacenamiento",
+      "breakpoints": true
     }
   ]
 }
