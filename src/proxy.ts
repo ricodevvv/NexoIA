@@ -9,7 +9,11 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (pathname.startsWith("/share/") || ALWAYS.includes(pathname)) return NextResponse.next();
   const isPublic = PUBLIC.includes(pathname);
-  if (!hasSession && !isPublic) return NextResponse.redirect(new URL("/login", request.url));
+  if (!hasSession && !isPublic) {
+    const login = new URL("/login", request.url);
+    if (pathname !== "/") login.searchParams.set("next", pathname);
+    return NextResponse.redirect(login);
+  }
   if (hasSession && isPublic) return NextResponse.redirect(new URL("/", request.url));
   return NextResponse.next();
 }

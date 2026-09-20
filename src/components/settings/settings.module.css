@@ -431,3 +431,56 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+.inlineStart {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.usageTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.usageTable th {
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border-strong);
+  text-align: start;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.usageTable td {
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.usageTable td:nth-child(2) {
+  width: 55%;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.barCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bar {
+  display: block;
+  min-inline-size: 2px;
+  height: 8px;
+  background: var(--accent);
+  border-radius: var(--radius-1);
+}

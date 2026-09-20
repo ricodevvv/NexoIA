@@ -9,11 +9,13 @@ import styles from "./auth.module.css";
 type Props = {
   mode: "login" | "signup";
   providers: ("google" | "github")[];
+  next: string;
 };
+
 
 const PROVIDER_LABEL = { google: "Google", github: "GitHub" };
 
-export function AuthForm({ mode, providers }: Props) {
+export function AuthForm({ mode, providers, next }: Props) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -29,7 +31,7 @@ export function AuthForm({ mode, providers }: Props) {
     setError(null);
     const result =
       mode === "signup"
-        ? await authClient.signUp.email({ email, password, name: String(data.get("name")) })
+        ? await authClient.signUp.email({ email, password, name: String(data.get("name")), callbackURL: next })
         : await authClient.signIn.email({ email, password });
     setBusy(false);
     if (result.error) {
@@ -45,19 +47,19 @@ export function AuthForm({ mode, providers }: Props) {
       setNotice(`Te mandamos un enlace a ${email}. Ábrelo para confirmar tu cuenta y entrar.`);
       return;
     }
-    router.replace("/");
+    router.replace(next);
     router.refresh();
   }
 
   async function resend() {
     if (!unverified) return;
-    await authClient.sendVerificationEmail({ email: unverified, callbackURL: "/" });
+    await authClient.sendVerificationEmail({ email: unverified, callbackURL: next });
     setError(null);
     setNotice(`Listo, revisa ${unverified}.`);
   }
 
   async function social(provider: "google" | "github") {
-    await authClient.signIn.social({ provider, callbackURL: "/" });
+    await authClient.signIn.social({ provider, callbackURL: next });
   }
 
   const isSignup = mode === "signup";
@@ -132,7 +134,7 @@ export function AuthForm({ mode, providers }: Props) {
 
       <p className={styles.switch}>
         {isSignup ? "¿Ya tienes cuenta? " : "¿Primera vez aquí? "}
-        <Link href={isSignup ? "/login" : "/signup"}>{isSignup ? "Inicia sesión" : "Crea una cuenta"}</Link>
+        <Link href={`${isSignup ? "/login" : "/signup"}${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}>{isSignup ? "Inicia sesión" : "Crea una cuenta"}</Link>
       </p>
     </div>
   );

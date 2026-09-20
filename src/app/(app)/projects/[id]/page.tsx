@@ -8,11 +8,12 @@ import { DEFAULT_MODEL } from "@/lib/ai/models";
 import { modelOptions } from "@/lib/ai/options";
 import { getPlan } from "@/lib/billing/usage";
 import { db, schema } from "@/lib/db";
+import { projectAccess } from "@/lib/projects";
 import { getUser, requireUser } from "@/lib/session";
 import { listStyles } from "@/lib/styles-server";
 
 async function findProject(userId: string, id: string) {
-  return db.query.project.findFirst({ where: and(eq(schema.project.id, id), eq(schema.project.userId, userId)) });
+  return (await projectAccess(userId, id))?.project ?? null;
 }
 
 export async function generateMetadata(props: PageProps<"/projects/[id]">): Promise<Metadata> {
@@ -25,8 +26,12 @@ export async function generateMetadata(props: PageProps<"/projects/[id]">): Prom
 export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
   const user = await requireUser();
   const { id } = await props.params;
-  const project = await findProject(user.id, id);
-  if (!project) notFound();
+  const access = await projectAccess(user.id, id);
+  if (!access) notFound();
+  const { project, canEdit, shared } = access;
+  const team = project.organizationId
+    ? await db.query.organization.findFirst({ where: eq(schema.organization.id, project.organizationId) })
+    : null;
 
   const [files, chats, models, plan, styles] = await Promise.all([
     db
@@ -43,7 +48,7 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
     db
       .select({ id: schema.conversation.id, title: schema.conversation.title, updatedAt: schema.conversation.updatedAt })
       .from(schema.conversation)
-      .where(eq(schema.conversation.projectId, id))
+      .where(and(eq(schema.conversation.projectId, id), eq(schema.conversation.userId, user.id)))
       .orderBy(desc(schema.conversation.updatedAt)),
     modelOptions(user.id),
     getPlan(user.id),
@@ -66,6 +71,8 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
       emptyExtra={
         <ProjectDetails
           project={{ id, name: project.name, description: project.description, instructions: project.instructions }}
+          canEdit={canEdit}
+          team={shared ? (team?.name ?? "tu equipo") : null}
           files={files}
           chats={chats.map((c) => ({ ...c, updatedAt: c.updatedAt.toISOString() }))}
         />

@@ -2,7 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { lookup } from "node:dns/promises";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { decrypt } from "@/lib/crypto";
 import type { ToolResult, ToolSpec } from "@/lib/ai/types";
@@ -95,12 +95,16 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string) {
 }
 
 /**
- * Abre todos los servidores MCP activos del usuario y junta sus tools con
- * nombres únicos `servidor__tool`.
+ * Abre los servidores MCP activos del usuario, más los compartidos del equipo
+ * activo, y junta sus tools con nombres únicos `servidor__tool`.
  */
-export async function openToolbox(userId: string): Promise<McpToolbox> {
+export async function openToolbox(userId: string, organizationId: string | null): Promise<McpToolbox> {
+  const personal = and(eq(schema.mcpServer.userId, userId), isNull(schema.mcpServer.organizationId));
   const rows = await db.query.mcpServer.findMany({
-    where: and(eq(schema.mcpServer.userId, userId), eq(schema.mcpServer.enabled, true)),
+    where: and(
+      eq(schema.mcpServer.enabled, true),
+      organizationId ? or(personal, eq(schema.mcpServer.organizationId, organizationId)) : personal,
+    ),
   });
 
   const entries = new Map<string, ToolEntry>();

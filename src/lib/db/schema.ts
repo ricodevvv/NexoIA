@@ -1,4 +1,4 @@
-import { boolean, customType, index, integer, jsonb, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, customType, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import type { MessagePart, NativeTurn } from "@/lib/ai/types";
 
 const bytea = customType<{ data: Buffer }>({
@@ -24,6 +24,7 @@ export const session = pgTable("session", {
   token: text("token").notNull().unique(),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
+  activeOrganizationId: text("active_organization_id"),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -59,6 +60,7 @@ export const project = pgTable(
   {
     id: text("id").primaryKey(),
     userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organization.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description").notNull().default(""),
     instructions: text("instructions").notNull().default(""),
@@ -129,6 +131,7 @@ export const apiKey = pgTable("api_key", {
 export const mcpServer = pgTable("mcp_server", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").references(() => organization.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   url: text("url").notNull(),
   headers: text("headers"),
@@ -165,6 +168,7 @@ export const userSettings = pgTable("user_settings", {
   preferences: text("preferences").notNull().default(""),
   memoryEnabled: boolean("memory_enabled").notNull().default(true),
   artifactsEnabled: boolean("artifacts_enabled").notNull().default(true),
+  codeEnabled: boolean("code_enabled").notNull().default(true),
   updatedAt: updatedAt(),
 });
 
@@ -205,3 +209,59 @@ export const responseStyle = pgTable(
   },
   (t) => [index("response_style_user_idx").on(t.userId)],
 );
+
+export const rateLimit = pgTable("rate_limit", {
+  key: text("key").primaryKey(),
+  windowStart: timestamp("window_start").notNull(),
+  count: integer("count").notNull().default(0),
+});
+
+export const organization = pgTable(
+  "organization",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    logo: text("logo"),
+    createdAt: timestamp("created_at").notNull(),
+    metadata: text("metadata"),
+  },
+  (t) => [uniqueIndex("organization_slug_uidx").on(t.slug)],
+);
+
+export const member = pgTable(
+  "member",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    role: text("role").default("member").notNull(),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (t) => [index("member_organizationId_idx").on(t.organizationId), index("member_userId_idx").on(t.userId)],
+);
+
+export const invitation = pgTable(
+  "invitation",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    role: text("role"),
+    status: text("status").default("pending").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    inviterId: text("inviter_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  },
+  (t) => [index("invitation_organizationId_idx").on(t.organizationId), index("invitation_email_idx").on(t.email)],
+);
+
+export const orgSubscription = pgTable("org_subscription", {
+  organizationId: text("organization_id").primaryKey().references(() => organization.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("inactive"),
+  seats: integer("seats").notNull().default(0),
+  stripeCustomerId: text("stripe_customer_id").unique(),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  updatedAt: updatedAt(),
+});

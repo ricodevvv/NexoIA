@@ -302,3 +302,42 @@
     grid-template-columns: 1fr;
   }
 }
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.checkRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.checkRow input {
+  margin-top: 4px;
+  accent-color: var(--accent);
+}
+
+.checkRow span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sharedNote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--space-3);
+  padding: 8px 12px;
+  border-radius: var(--radius-2);
+  background: var(--accent-soft);
+  font-size: var(--text-sm);
+}

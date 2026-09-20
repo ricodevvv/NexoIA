@@ -6,6 +6,7 @@ import { SearchPalette } from "./search-palette";
 import { Sidebar } from "./sidebar";
 import styles from "./shell.module.css";
 import { useStoredState } from "./use-stored-state";
+import type { WorkspaceOption } from "./workspace-switcher";
 
 type ShellUser = { name: string; email: string; image: string | null };
 
@@ -25,7 +26,19 @@ export function useShell() {
  * Estructura base de la app: sidebar a la izquierda (cajón en móvil) y el
  * contenido a la derecha.
  */
-export function Shell({ user, plan, children }: { user: ShellUser; plan: "free" | "pro"; children: React.ReactNode }) {
+export function Shell({
+  user,
+  plan,
+  workspaces,
+  activeWorkspace,
+  children,
+}: {
+  user: ShellUser;
+  plan: "free" | "pro";
+  workspaces: WorkspaceOption[];
+  activeWorkspace: string | null;
+  children: React.ReactNode;
+}) {
   const [sidebar, setSidebar] = useStoredState<"open" | "collapsed">("nexo-sidebar", "open");
   const [openAt, setOpenAt] = useState<string | null>(null);
   const pathname = usePathname();
@@ -56,7 +69,7 @@ export function Shell({ user, plan, children }: { user: ShellUser; plan: "free" 
     <ShellContext.Provider value={{ collapsed, toggle, openSearch: () => setSearchOpen(true) }}>
       <div className="shell" data-collapsed={collapsed}>
         <div className={styles.sidebarSlot} data-open={mobileOpen}>
-          <Sidebar user={user} plan={plan} onToggle={toggle} />
+          <Sidebar user={user} plan={plan} onToggle={toggle} workspaces={workspaces} activeWorkspace={activeWorkspace} />
         </div>
         {mobileOpen && <button className={styles.scrim} aria-label="Cerrar menú" onClick={() => setOpenAt(null)} />}
         <main className="main">{children}</main>

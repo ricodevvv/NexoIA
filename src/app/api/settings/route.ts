@@ -6,6 +6,7 @@ const Patch = z.object({
   preferences: z.string().max(5000).optional(),
   memoryEnabled: z.boolean().optional(),
   artifactsEnabled: z.boolean().optional(),
+  codeEnabled: z.boolean().optional(),
 });
 
 export async function GET() {

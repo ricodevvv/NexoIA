@@ -1,10 +1,12 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { encrypt } from "@/lib/crypto";
 import { db, schema } from "@/lib/db";
 import { assertSafeUrl } from "@/lib/mcp";
-import { apiUser, handleError, HttpError } from "@/lib/session";
+import { enforce, LIMITS } from "@/lib/rate-limit";
+import { apiSession, handleError, HttpError } from "@/lib/session";
+import { activeWorkspace, canManage } from "@/lib/workspace";
 
 const McpInput = z.object({
   name: z.string().trim().min(1).max(40),
@@ -12,9 +14,20 @@ const McpInput = z.object({
   headers: z.record(z.string(), z.string()).default({}),
 });
 
-export async function GET() {
+async function scope(request: Request, write: boolean) {
+  const data = await apiSession();
+  if (new URL(request.url).searchParams.get("workspace") !== "1") {
+    return { user: data.user, organizationId: null, filter: and(eq(schema.mcpServer.userId, data.user.id), isNull(schema.mcpServer.organizationId)) };
+  }
+  const workspace = await activeWorkspace(data);
+  if (!workspace) throw new HttpError(400, "No tienes un equipo activo");
+  if (write && !canManage(workspace.role)) throw new HttpError(403, "Solo los admins del equipo manejan sus conectores");
+  return { user: data.user, organizationId: workspace.id, filter: eq(schema.mcpServer.organizationId, workspace.id) };
+}
+
+export async function GET(request: Request) {
   try {
-    const user = await apiUser();
+    const { filter } = await scope(request, false);
     const rows = await db
       .select({
         id: schema.mcpServer.id,
@@ -24,7 +37,7 @@ export async function GET() {
         hasHeaders: schema.mcpServer.headers,
       })
       .from(schema.mcpServer)
-      .where(eq(schema.mcpServer.userId, user.id))
+      .where(filter)
       .orderBy(desc(schema.mcpServer.createdAt));
     return Response.json(rows.map((r) => ({ ...r, hasHeaders: Boolean(r.hasHeaders) })));
   } catch (err) {
@@ -34,7 +47,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const user = await apiUser();
+    const { user, organizationId } = await scope(request, true);
+    await enforce([{ key: `mcp:u:${user.id}`, ...LIMITS.connector }]);
     const input = McpInput.parse(await request.json());
     try {
       await assertSafeUrl(input.url);
@@ -46,6 +60,7 @@ export async function POST(request: Request) {
       .values({
         id: nanoid(),
         userId: user.id,
+        organizationId,
         name: input.name,
         url: input.url,
         headers: Object.keys(input.headers).length ? encrypt(JSON.stringify(input.headers)) : null,

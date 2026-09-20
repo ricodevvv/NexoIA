@@ -16,7 +16,12 @@ export function applyEvent(parts: MessagePart[], event: ProviderEvent): MessageP
     const index = next.findIndex((p) => p.type === "tool_call" && p.id === event.result.id);
     const part = next[index];
     if (part?.type === "tool_call") {
-      next[index] = { ...part, output: event.result.output, isError: event.result.isError };
+      next[index] = {
+        ...part,
+        output: event.result.output,
+        isError: event.result.isError,
+        ...(event.result.files?.length ? { files: event.result.files } : {}),
+      };
     }
   } else if (event.type === "notice") {
     next.push({ type: "notice", level: event.level, text: event.text });

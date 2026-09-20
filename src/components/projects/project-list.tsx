@@ -8,7 +8,7 @@ import { useState } from "react";
 import { useShell } from "../shell";
 import styles from "./projects.module.css";
 
-type Project = { id: string; name: string; description: string; updatedAt: string; chats: number };
+type Project = { id: string; name: string; description: string; updatedAt: string; chats: number; team: string | null };
 
 function relative(date: string) {
   const diff = (Date.now() - new Date(date).getTime()) / 1000;
@@ -21,7 +21,7 @@ function relative(date: string) {
 /**
  * Lista de proyectos del usuario con el diálogo para crear uno nuevo.
  */
-export function ProjectList({ projects }: { projects: Project[] }) {
+export function ProjectList({ projects, workspace }: { projects: Project[]; workspace: { id: string; name: string } | null }) {
   const router = useRouter();
   const { collapsed, toggle } = useShell();
   const [open, setOpen] = useState(false);
@@ -36,7 +36,7 @@ export function ProjectList({ projects }: { projects: Project[] }) {
     const res = await fetch("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: data.get("name"), description: data.get("description") }),
+      body: JSON.stringify({ name: data.get("name"), description: data.get("description"), shared: data.get("shared") === "on" }),
     });
     const body = await res.json();
     setBusy(false);
@@ -77,6 +77,15 @@ export function ProjectList({ projects }: { projects: Project[] }) {
                   <span>Descripción (opcional)</span>
                   <input className="input" name="description" maxLength={300} />
                 </label>
+                {workspace && (
+                  <label className={styles.checkRow}>
+                    <input type="checkbox" name="shared" defaultChecked />
+                    <span>
+                      Compartir con <strong>{workspace.name}</strong>
+                      <small className="hint">Todo el equipo verá las instrucciones y archivos. Los chats siguen siendo privados.</small>
+                    </span>
+                  </label>
+                )}
                 {error && <p className="error-text">{error}</p>}
                 <div className="dialog-actions">
                   <Dialog.Close type="button" className="btn">
@@ -108,7 +117,10 @@ export function ProjectList({ projects }: { projects: Project[] }) {
           {projects.map((p, i) => (
             <li key={p.id} style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}>
               <Link href={`/projects/${p.id}`} className={styles.card}>
-                <span className={styles.cardIndex}>{String(i + 1).padStart(2, "0")}</span>
+                <span className={styles.cardTop}>
+                  <span className={styles.cardIndex}>{String(i + 1).padStart(2, "0")}</span>
+                  {p.team && <span className="tag">{p.team}</span>}
+                </span>
                 <h2>{p.name}</h2>
                 <p>{p.description || "Sin descripción"}</p>
                 <span className="label">

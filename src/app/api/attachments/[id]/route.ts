@@ -1,15 +1,16 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { sharedAttachmentIds } from "@/lib/projects";
 import { apiUser, handleError, HttpError } from "@/lib/session";
 
 export async function GET(_request: Request, ctx: RouteContext<"/api/attachments/[id]">) {
   try {
     const user = await apiUser();
     const { id } = await ctx.params;
-    const row = await db.query.attachment.findFirst({
-      where: and(eq(schema.attachment.id, id), eq(schema.attachment.userId, user.id)),
-    });
-    if (!row) throw new HttpError(404, "Archivo no encontrado");
+    const row = await db.query.attachment.findFirst({ where: eq(schema.attachment.id, id) });
+    if (!row || (row.userId !== user.id && !(await sharedAttachmentIds(user.id, [id])).has(id))) {
+      throw new HttpError(404, "Archivo no encontrado");
+    }
     const inline = row.mediaType.startsWith("image/") || row.mediaType === "application/pdf";
     return new Response(new Uint8Array(row.data), {
       headers: {

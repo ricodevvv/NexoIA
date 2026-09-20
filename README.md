@@ -122,6 +122,40 @@ Al registrarse se manda un enlace de verificación, pero por defecto se puede en
 - **Dictado**: usa la Web Speech API del navegador (Chrome, Edge, Safari). En Firefox el botón no aparece.
 - **Exportar**: Ajustes → Cuenta descarga un JSON con todo, menos los secretos y los binarios de los adjuntos.
 
+## Ejecución de código
+
+La tool `run_python` deja que cualquier modelo corra Python para calcular, analizar los archivos adjuntos o hacer gráficas. Trae numpy, pandas, matplotlib, scipy, sympy y scikit-learn. Las figuras se guardan solas y lo que el código escriba en `/mnt/output` le llega al usuario como archivo.
+
+Cómo está aislado:
+
+- Python corre en WebAssembly (Pyodide) dentro de un proceso Node aparte (`sandbox/python-runner.mjs`).
+- Ese proceso arranca con el modelo de permisos de Node (`--permission`): no puede escribir a disco, crear procesos ni workers, y solo lee `node_modules`, `sandbox/` y la caché de paquetes. No ve el `.env` ni ningún archivo del proyecto.
+- Arranca sin variables de entorno, con 60 s de límite y 512 MB de heap.
+- Los paquetes se descargan una vez a una caché (`/tmp/nexo-pyodide-cache`) al levantar el servidor. Esa es la única ejecución con permiso de escritura y no corre código del usuario.
+
+Lo que **no** cubre: la red. El modelo de permisos de Node no la limita. Se bloquea `fetch` antes de correr el código, pero alguien decidido podría abrir sockets desde JS. Por eso:
+
+- En desarrollo está prendida. En producción viene apagada y se activa con `CODE_EXECUTION=1`.
+- Para producción, envuélvela sin red con `CODE_SANDBOX_WRAPPER`, por ejemplo `CODE_SANDBOX_WRAPPER="bwrap --unshare-net --ro-bind / / --dev /dev --tmpfs /tmp --bind /tmp/nexo-pyodide-cache /tmp/nexo-pyodide-cache"`, o córrela en un contenedor sin salida a la red interna.
+- Al desplegar, copia la carpeta `sandbox/` junto a la app.
+
+## Equipos
+
+Cualquiera puede crear un equipo desde el selector de arriba del sidebar. Dentro de un equipo:
+
+- **Invitaciones** por correo con rol de miembro o admin, válidas 7 días. El enlace lleva a `/invite/:id`; si no hay sesión, primero pasa por el login.
+- **Roles**: el dueño lo puede todo; los admins invitan, quitan miembros y manejan conectores y plan; los miembros usan lo compartido.
+- **Proyectos compartidos**: al crear un proyecto con un equipo activo se puede compartir. Todos ven y usan las instrucciones y archivos; solo quien lo creó o un admin lo edita. Los chats de cada quien son privados.
+- **Conectores de equipo**: los agrega un admin en `/workspace` y sus tools quedan disponibles para todos mientras tengan ese equipo activo. Nadie ve los headers.
+- **Uso**: `/workspace` muestra mensajes y tokens por miembro de los últimos 30 días.
+- **Plan Team**: se cobra por asiento con `STRIPE_PRICE_TEAM` (precio mensual por unidad). Todos los miembros tienen límites de Pro mientras esté activo. Al entrar o salir alguien, la cantidad se ajusta sola en Stripe con prorrateo. El webhook distingue la suscripción del equipo por `metadata.organizationId`.
+
+El equipo activo se guarda por sesión: al entrar desde otro dispositivo se empieza en el espacio personal.
+
+## Límites de peticiones
+
+Hay un limitador de ventana fija guardado en Postgres (tabla `rate_limit`), así funciona igual con varias instancias. Se usa en el chat (30/min por usuario y 60/min por IP), subidas, búsqueda, conectores, exportación, enlaces públicos y ejecución de código. También lo usa Better Auth para login (10/min), registro y correos de recuperación. Los valores están en `src/lib/rate-limit.ts`. Detrás de un proxy, la IP se toma de `X-Forwarded-For`.
+
 ## Login con Google y GitHub
 
 Opcional. Si pones `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` o `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`, aparece el botón en el login. La URL de callback es `{BETTER_AUTH_URL}/api/auth/callback/google` (o `/github`).
@@ -131,6 +165,25 @@ Opcional. Si pones `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` o `GITHUB_CLIENT_ID
 - Los adjuntos se guardan en Postgres (máximo 20 MB por archivo). Para mucho volumen conviene moverlos a S3/R2.
 - No hay verificación de email todavía: Better Auth la soporta, pero falta conectar un servicio de envío de correos.
 - El límite diario se reinicia a las 00:00 UTC.
+
+## Despliegue en esta VM
+
+Producción corre desde una copia aparte en `/opt/nexo`, así editar el repo no rompe lo que está publicado.
+
+- `nexo.service`: la app con `next start` en `127.0.0.1:3000`, como el usuario `ricodevvv`. Sus variables están en `/etc/nexo/nexo.env` (solo root), con secretos distintos a los de desarrollo.
+- `nexo-tunnel.service`: un túnel rápido de Cloudflare que da HTTPS sin abrir puertos en Azure. Al arrancar, `deploy/tunnel.sh` lee la URL asignada, la guarda en `/etc/nexo/public-url`, actualiza `BETTER_AUTH_URL` y reinicia la app.
+- Para publicar cambios: `./deploy/redeploy.sh`. Copia el código, instala, migra, compila y reinicia. Hay aproximadamente un minuto sin servicio mientras compila.
+- Desarrollo usa otra base (`nexo_dev`) y el puerto 3001, para no mezclar datos de prueba con los reales.
+
+Comandos útiles:
+
+```bash
+cat /etc/nexo/public-url                 # URL pública actual
+journalctl -u nexo -f                    # logs de la app (aquí salen los enlaces de correo si no hay Resend)
+sudo systemctl restart nexo              # reiniciar la app tras cambiar /etc/nexo/nexo.env
+```
+
+La URL de `trycloudflare.com` **cambia si se reinicia el túnel** (por ejemplo, si se reinicia la VM). Para una URL fija: un túnel con nombre de Cloudflare apuntando a un dominio tuyo, o abrir los puertos 80/443 en el NSG de Azure y poner Caddy con Let's Encrypt.
 
 ## Scripts
 

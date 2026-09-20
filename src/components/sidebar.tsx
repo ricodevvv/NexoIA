@@ -25,6 +25,7 @@ import { notifyConversationsChanged, onConversationsChanged } from "./events";
 import styles from "./sidebar.module.css";
 import { useShell } from "./shell";
 import { useTheme } from "./use-theme";
+import { WorkspaceSwitcher, type WorkspaceOption } from "./workspace-switcher";
 
 type Conversation = { id: string; title: string; starred: boolean; updatedAt: string };
 
@@ -32,6 +33,8 @@ type Props = {
   user: { name: string; email: string; image: string | null };
   plan: "free" | "pro";
   onToggle: () => void;
+  workspaces: WorkspaceOption[];
+  activeWorkspace: string | null;
 };
 
 function groupOf(date: Date) {
@@ -46,7 +49,7 @@ function groupOf(date: Date) {
   return "Anteriores";
 }
 
-export function Sidebar({ user, plan, onToggle }: Props) {
+export function Sidebar({ user, plan, onToggle, workspaces, activeWorkspace }: Props) {
   const router = useRouter();
   const params = useParams<{ id?: string }>();
   const pathname = usePathname();
@@ -107,6 +110,10 @@ export function Sidebar({ user, plan, onToggle }: Props) {
         <button className="icon-btn" onClick={onToggle} aria-label="Ocultar barra lateral">
           <PanelLeft />
         </button>
+      </div>
+
+      <div className={styles.switcherSlot}>
+        <WorkspaceSwitcher workspaces={workspaces} active={activeWorkspace} />
       </div>
 
       <div className={styles.actions}>

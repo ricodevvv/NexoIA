@@ -1,6 +1,7 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { getSettings, listMemories } from "@/lib/settings";
+import { enforce, LIMITS } from "@/lib/rate-limit";
 import { apiUser, handleError } from "@/lib/session";
 
 /**
@@ -11,6 +12,7 @@ import { apiUser, handleError } from "@/lib/session";
 export async function GET() {
   try {
     const user = await apiUser();
+    await enforce([{ key: `export:u:${user.id}`, ...LIMITS.export }]);
     const [conversations, projects, styles, servers, files, settings, memories] = await Promise.all([
       db.query.conversation.findMany({ where: eq(schema.conversation.userId, user.id), orderBy: asc(schema.conversation.createdAt) }),
       db.query.project.findMany({ where: eq(schema.project.userId, user.id), orderBy: asc(schema.project.createdAt) }),

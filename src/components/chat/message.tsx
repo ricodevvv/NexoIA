@@ -1,12 +1,12 @@
 "use client";
 
-import { AlertTriangle, Brain, Check, Code2, FileText, Globe, Loader2, Pencil, RefreshCw, Wrench, X } from "lucide-react";
+import { AlertTriangle, Brain, Check, Code2, Download, FileText, Globe, Loader2, Pencil, RefreshCw, Terminal, Wrench, X } from "lucide-react";
 import Image from "next/image";
 import { createContext, useContext, useState } from "react";
 import type { MessagePart } from "@/lib/ai/types";
 import { readArtifact } from "../artifacts/artifacts";
 import artifactStyles from "../artifacts/artifacts.module.css";
-import { CopyButton } from "./code-block";
+import { CodeBlock, CopyButton } from "./code-block";
 import { Markdown } from "./markdown";
 import styles from "./chat.module.css";
 
@@ -78,6 +78,63 @@ function pretty(value: unknown) {
   } catch {
     return String(value);
   }
+}
+
+function stripSections(output: string) {
+  return output.replace(/\n*\(\d+(\.\d+)? s\)\s*$/, "").replace(/\n*archivos entregados al usuario[^\n]*/, "").trim();
+}
+
+function CodeRun({ part, live }: { part: ToolCallPart; live: boolean }) {
+  const ctx = useContext(MessageContext);
+  const running = part.output === undefined && live;
+  const code = (part.input as { code?: string } | null)?.code ?? "";
+  const images = part.files?.filter((f) => f.mediaType.startsWith("image/") && f.mediaType !== "image/svg+xml") ?? [];
+  const others = part.files?.filter((f) => !images.includes(f)) ?? [];
+  const duration = part.output?.match(/\((\d+(?:\.\d+)?) s\)\s*$/)?.[1];
+  return (
+    <div className={styles.codeRun} data-state={running ? "running" : part.isError ? "error" : "done"}>
+      <details className={styles.tool} data-state={running ? "running" : part.isError ? "error" : "done"}>
+        <summary>
+          <Terminal size={14} aria-hidden="true" />
+          <span className={styles.toolName}>Python</span>
+          <span className={styles.toolQuery}>{running ? "ejecutando…" : duration ? `${duration} s` : ""}</span>
+          <span className={styles.toolStatus}>
+            {running ? (
+              <Loader2 size={13} className={styles.spin} aria-label="Ejecutando" />
+            ) : part.isError ? (
+              <X size={13} aria-label="Falló" />
+            ) : (
+              <Check size={13} aria-label="Listo" />
+            )}
+          </span>
+        </summary>
+        <div className={styles.toolBody}>
+          <CodeBlock code={code} lang="python" />
+          {part.output !== undefined && (
+            <>
+              <p className="label">Salida</p>
+              <pre>{stripSections(part.output) || "(sin salida)"}</pre>
+            </>
+          )}
+        </div>
+      </details>
+      {images.map((f) => (
+        <a key={f.attachmentId} href={ctx.attachmentUrl(f.attachmentId)} target="_blank" rel="noopener noreferrer" className={styles.figure}>
+          <Image src={ctx.attachmentUrl(f.attachmentId)} alt={f.name} width={720} height={480} unoptimized />
+        </a>
+      ))}
+      {others.length > 0 && (
+        <div className={styles.runFiles}>
+          {others.map((f) => (
+            <a key={f.attachmentId} href={ctx.attachmentUrl(f.attachmentId)} download={f.name} className={styles.fileChip}>
+              <Download size={14} aria-hidden="true" />
+              <span>{f.name}</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ToolCall({ part, live }: { part: ToolCallPart; live: boolean }) {
@@ -206,6 +263,7 @@ export function Message({ message, live, isLast, busy, modelLabel, onRegenerate,
         if (part.type === "tool_call" && part.name === "artifact" && part.output !== undefined) {
           return <ArtifactCard key={part.id} part={part} />;
         }
+        if (part.type === "tool_call" && part.name === "run_python") return <CodeRun key={part.id} part={part} live={live} />;
         if (part.type === "tool_call") return <ToolCall key={part.id} part={part} live={live} />;
         if (part.type === "notice") {
           return (

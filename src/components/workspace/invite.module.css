@@ -1,0 +1,53 @@
+.page {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: var(--space-4) var(--space-3);
+  overflow-y: auto;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: min(460px, 100%);
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  background: var(--bg);
+  animation: rise 0.5s var(--ease) both;
+}
+
+.card h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 2.25rem;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-2);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.warning {
+  margin-top: var(--space-2);
+  padding: 10px 12px;
+  border-radius: var(--radius-2);
+  background: var(--warning-soft);
+  font-size: var(--text-sm);
+}

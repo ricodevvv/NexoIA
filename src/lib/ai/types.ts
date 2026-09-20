@@ -1,5 +1,7 @@
 export type ProviderId = "anthropic" | "openai" | "compat";
 
+export type FileRef = { attachmentId: string; name: string; mediaType: string };
+
 export type Effort = "low" | "medium" | "high";
 
 export type MessagePart =
@@ -14,6 +16,7 @@ export type MessagePart =
       output?: string;
       isError?: boolean;
       server?: boolean;
+      files?: FileRef[];
     }
   | { type: "notice"; level: "warning" | "error"; text: string };
 
@@ -45,7 +48,7 @@ export type ToolSpec = {
 
 export type ToolCall = { id: string; name: string; input: unknown };
 
-export type ToolResult = { id: string; name: string; output: string; isError: boolean };
+export type ToolResult = { id: string; name: string; output: string; isError: boolean; files?: FileRef[] };
 
 export type Usage = { inputTokens: number; outputTokens: number };
 

@@ -3,10 +3,12 @@ import { nanoid } from "nanoid";
 import { db, schema } from "@/lib/db";
 import type { ModelInfo, Usage } from "@/lib/ai/types";
 import { PLANS, type PlanId } from "./plans";
+import { hasActiveTeam } from "./team";
 
 export async function getPlan(userId: string): Promise<PlanId> {
   const sub = await db.query.subscription.findFirst({ where: eq(schema.subscription.userId, userId) });
   if (sub?.plan === "pro" && ["active", "trialing", "past_due"].includes(sub.status)) return "pro";
+  if (await hasActiveTeam(userId)) return "pro";
   return "free";
 }
 

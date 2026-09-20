@@ -1,12 +1,15 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { clientIp, consume, LIMITS } from "@/lib/rate-limit";
 
 /**
  * Sirve un adjunto de un chat compartido. Solo entrega archivos que aparecen
  * en la copia compartida, así un enlace público no abre otros archivos.
  */
-export async function GET(_request: Request, ctx: RouteContext<"/api/share/[id]/files/[fileId]">) {
+export async function GET(request: Request, ctx: RouteContext<"/api/share/[id]/files/[fileId]">) {
   const { id, fileId } = await ctx.params;
+  const limit = await consume(`share:ip:${clientIp(request.headers)}`, LIMITS.share);
+  if (!limit.allowed) return new Response("Demasiadas peticiones", { status: 429, headers: { "Retry-After": String(limit.retryAfter) } });
   const share = await db.query.share.findFirst({ where: eq(schema.share.id, id) });
   const included = share?.messages.some((m) => m.parts.some((p) => p.type === "attachment" && p.attachmentId === fileId));
   if (!share || !included) return new Response("No encontrado", { status: 404 });

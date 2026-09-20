@@ -250,3 +250,67 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+.switcherSlot {
+  padding: 0 12px 10px;
+}
+
+.workspace {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  background: var(--bg);
+  text-align: start;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.workspace:hover,
+.workspace[data-state="open"] {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.workspaceIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-1);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.workspaceText {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.workspaceName {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.workspaceMenu {
+  width: 256px;
+}
+
+.grow {
+  flex: 1;
+}
+
+.createForm {
+  margin-top: var(--space-3);
+}

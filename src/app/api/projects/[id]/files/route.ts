@@ -1,16 +1,16 @@
 import { and, count, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/lib/db";
+import { projectAccess } from "@/lib/projects";
 import { apiUser, handleError, HttpError } from "@/lib/session";
 
 const MAX_FILES = 30;
 
 async function ownedProject(userId: string, id: string) {
-  const project = await db.query.project.findFirst({
-    where: and(eq(schema.project.id, id), eq(schema.project.userId, userId)),
-  });
-  if (!project) throw new HttpError(404, "Proyecto no encontrado");
-  return project;
+  const access = await projectAccess(userId, id);
+  if (!access) throw new HttpError(404, "Proyecto no encontrado");
+  if (!access.canEdit) throw new HttpError(403, "Solo quien creó el proyecto o un admin del equipo puede cambiar sus archivos");
+  return access.project;
 }
 
 export async function POST(request: Request, ctx: RouteContext<"/api/projects/[id]/files">) {

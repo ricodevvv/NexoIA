@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import { isTextLike } from "@/lib/ai/history";
 import { db, schema } from "@/lib/db";
+import { enforce, LIMITS } from "@/lib/rate-limit";
 import { apiUser, handleError, HttpError } from "@/lib/session";
 
 const MAX_BYTES = 20 * 1024 * 1024;
@@ -16,6 +17,7 @@ function mediaTypeOf(file: File) {
 export async function POST(request: Request) {
   try {
     const user = await apiUser();
+    await enforce([{ key: `upload:u:${user.id}`, ...LIMITS.upload }]);
     const form = await request.formData();
     const file = form.get("file");
     if (!(file instanceof File)) throw new HttpError(400, "Falta el archivo");

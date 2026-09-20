@@ -1,12 +1,15 @@
-import { desc, eq } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { db, schema } from "@/lib/db";
-import { apiUser, handleError } from "@/lib/session";
+import { visibleProjectsFilter } from "@/lib/projects";
+import { apiSession, apiUser, handleError, HttpError } from "@/lib/session";
+import { activeWorkspace } from "@/lib/workspace";
 
 const Create = z.object({
   name: z.string().trim().min(1).max(80),
   description: z.string().trim().max(300).default(""),
+  shared: z.boolean().default(false),
 });
 
 export async function GET() {
@@ -20,7 +23,7 @@ export async function GET() {
         updatedAt: schema.project.updatedAt,
       })
       .from(schema.project)
-      .where(eq(schema.project.userId, user.id))
+      .where(await visibleProjectsFilter(user.id))
       .orderBy(desc(schema.project.updatedAt));
     return Response.json(rows);
   } catch (err) {
@@ -30,11 +33,13 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const user = await apiUser();
-    const data = Create.parse(await request.json());
+    const auth = await apiSession();
+    const { shared, ...data } = Create.parse(await request.json());
+    const workspace = shared ? await activeWorkspace(auth) : null;
+    if (shared && !workspace) throw new HttpError(400, "Activa un equipo para crear proyectos compartidos");
     const [row] = await db
       .insert(schema.project)
-      .values({ id: nanoid(), userId: user.id, ...data })
+      .values({ id: nanoid(), userId: auth.user.id, organizationId: workspace?.id ?? null, ...data })
       .returning({ id: schema.project.id });
     return Response.json(row);
   } catch (err) {

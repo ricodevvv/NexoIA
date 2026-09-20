@@ -19,7 +19,8 @@ type Props = {
   user: { name: string; email: string; emailVerified: boolean };
   keys: KeyRow[];
   personalization: {
-    settings: { preferences: string; memoryEnabled: boolean; artifactsEnabled: boolean };
+    settings: { preferences: string; memoryEnabled: boolean; artifactsEnabled: boolean; codeEnabled: boolean };
+    codeAvailable: boolean;
     memories: { id: string; content: string; createdAt: string }[];
     shares: { id: string; conversationId: string; title: string; createdAt: string }[];
     styles: { id: string; name: string; instructions: string }[];
@@ -97,7 +98,7 @@ export function Settings(props: Props) {
   );
 }
 
-function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+export function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
     <div className={styles.section}>
       <div className={styles.sectionHead}>
@@ -406,6 +407,14 @@ function Personalization({ data }: { data: Props["personalization"] }) {
             description="Páginas, componentes, diagramas y documentos en un panel aparte con vista previa."
             onChange={(v) => save({ artifactsEnabled: v })}
           />
+          {data.codeAvailable && (
+            <Toggle
+              checked={data.settings.codeEnabled}
+              label="Ejecución de código"
+              description="Nexo corre Python en un sandbox para calcular, analizar tus archivos y hacer gráficas."
+              onChange={(v) => save({ codeEnabled: v })}
+            />
+          )}
           <Toggle
             checked={data.settings.memoryEnabled}
             label="Memoria"
@@ -584,7 +593,11 @@ function parseHeaders(raw: string) {
   return headers;
 }
 
-function Connectors({ servers }: { servers: Server[] }) {
+/**
+ * Lista y alta de conectores MCP. Con `workspace` opera sobre los del equipo
+ * activo; si `readOnly`, solo se pueden probar.
+ */
+export function Connectors({ servers, workspace = false, readOnly = false }: { servers: Server[]; workspace?: boolean; readOnly?: boolean }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -597,7 +610,7 @@ function Connectors({ servers }: { servers: Server[] }) {
     setError(null);
     setAdding(true);
     try {
-      await api("/api/mcp", {
+      await api(workspace ? "/api/mcp?workspace=1" : "/api/mcp", {
         method: "POST",
         body: JSON.stringify({
           name: String(data.get("name")),
@@ -638,13 +651,17 @@ function Connectors({ servers }: { servers: Server[] }) {
   return (
     <>
       <Section
-        title="Conectores MCP"
-        description="Conecta servidores MCP remotos y sus tools quedan disponibles en todos tus chats, con cualquier modelo."
+        title={workspace ? "Conectores del equipo" : "Conectores MCP"}
+        description={
+          workspace
+            ? "Sus tools quedan disponibles para todo el equipo mientras tengan este equipo activo. Los headers no se muestran a nadie."
+            : "Conecta servidores MCP remotos y sus tools quedan disponibles en todos tus chats, con cualquier modelo."
+        }
       >
         {servers.length === 0 ? (
           <div className={styles.empty}>
             <Plug size={20} aria-hidden="true" />
-            <p>Todavía no tienes conectores.</p>
+            <p>{workspace ? "El equipo todavía no tiene conectores." : "Todavía no tienes conectores."}</p>
           </div>
         ) : (
           <ul className={styles.rows}>
@@ -655,7 +672,12 @@ function Connectors({ servers }: { servers: Server[] }) {
                   <div className={styles.rowHead}>
                     <strong>{s.name}</strong>
                     <label className={styles.switch}>
-                      <input type="checkbox" checked={s.enabled} onChange={(e) => setEnabled(s.id, e.target.checked)} />
+                      <input
+                        type="checkbox"
+                        checked={s.enabled}
+                        disabled={readOnly}
+                        onChange={(e) => setEnabled(s.id, e.target.checked)}
+                      />
                       <span aria-hidden="true" />
                       <span className="sr-only">Activar {s.name}</span>
                     </label>
@@ -666,9 +688,11 @@ function Connectors({ servers }: { servers: Server[] }) {
                       {t?.loading ? <Loader2 size={12} className={styles.spin} /> : null}
                       Probar conexión
                     </button>
-                    <button className="btn btn-sm btn-ghost btn-danger" onClick={() => remove(s.id)}>
-                      <Trash2 size={12} /> Quitar
-                    </button>
+                    {!readOnly && (
+                      <button className="btn btn-sm btn-ghost btn-danger" onClick={() => remove(s.id)}>
+                        <Trash2 size={12} /> Quitar
+                      </button>
+                    )}
                   </div>
                   {t && !t.loading && (
                     <p className={t.ok ? styles.ok : "error-text"}>
@@ -682,6 +706,7 @@ function Connectors({ servers }: { servers: Server[] }) {
         )}
       </Section>
 
+      {!readOnly && (
       <Section title="Agregar conector" description="Soporta Streamable HTTP y SSE.">
         <form className={styles.stack} onSubmit={add}>
           <div className={styles.grid2}>
@@ -707,6 +732,7 @@ function Connectors({ servers }: { servers: Server[] }) {
           </div>
         </form>
       </Section>
+      )}
     </>
   );
 }

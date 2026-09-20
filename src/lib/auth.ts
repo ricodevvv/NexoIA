@@ -1,8 +1,11 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { organization } from "better-auth/plugins";
 import { db, schema } from "@/lib/db";
 import { sendMail } from "@/lib/email";
+import { syncSeats } from "@/lib/billing/team";
+import { consume } from "@/lib/rate-limit";
 
 function social() {
   const providers: Record<string, { clientId: string; clientSecret: string }> = {};
@@ -23,6 +26,9 @@ export const auth = betterAuth({
       session: schema.session,
       account: schema.account,
       verification: schema.verification,
+      organization: schema.organization,
+      member: schema.member,
+      invitation: schema.invitation,
     },
   }),
   emailAndPassword: {
@@ -56,7 +62,42 @@ export const auth = betterAuth({
   socialProviders: social(),
   user: { deleteUser: { enabled: true } },
   session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
-  plugins: [nextCookies()],
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customStorage: { consume: (key, rule) => consume(`auth:${key}`, rule) },
+    customRules: {
+      "/sign-in/email": { window: 60, max: 10 },
+      "/sign-up/email": { window: 3600, max: 10 },
+      "/request-password-reset": { window: 3600, max: 5 },
+      "/send-verification-email": { window: 3600, max: 5 },
+    },
+  },
+  plugins: [
+    organization({
+      creatorRole: "owner",
+      membershipLimit: 200,
+      invitationExpiresIn: 60 * 60 * 24 * 7,
+      cancelPendingInvitationsOnReInvite: true,
+      sendInvitationEmail: async ({ id, email, organization: org, inviter }) => {
+        const base = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+        await sendMail({
+          to: email,
+          subject: `${inviter.user.name} te invitó a ${org.name} en Nexo`,
+          title: `Únete a ${org.name}`,
+          body: `${inviter.user.name} te invitó a su equipo en Nexo. Vas a compartir proyectos y conectores con el resto del equipo; tus chats siguen siendo privados.`,
+          action: { label: "Ver invitación", url: `${base}/invite/${id}` },
+        });
+      },
+      organizationHooks: {
+        afterAddMember: async ({ organization: org }) => syncSeats(org.id),
+        afterRemoveMember: async ({ organization: org }) => syncSeats(org.id),
+        afterAcceptInvitation: async ({ organization: org }) => syncSeats(org.id),
+      },
+    }),
+    nextCookies(),
+  ],
 });
 
 export function enabledSocialProviders() {

@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { FileText, Image as ImageIcon, Loader2, MessageSquare, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
+import { FileText, Image as ImageIcon, Loader2, MessageSquare, MoreHorizontal, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -11,6 +11,8 @@ import styles from "./projects.module.css";
 
 type Props = {
   project: { id: string; name: string; description: string; instructions: string };
+  canEdit: boolean;
+  team: string | null;
   files: { id: string; name: string; mediaType: string; size: number }[];
   chats: { id: string; title: string; updatedAt: string }[];
 };
@@ -34,7 +36,7 @@ async function uploadFile(file: File) {
  * Lo que se ve debajo del composer en un proyecto: sus chats, instrucciones y
  * archivos de conocimiento.
  */
-export function ProjectDetails({ project, files, chats }: Props) {
+export function ProjectDetails({ project, files, chats, canEdit, team }: Props) {
   const router = useRouter();
   const [instructions, setInstructions] = useState(project.instructions);
   const [editing, setEditing] = useState(false);
@@ -90,7 +92,8 @@ export function ProjectDetails({ project, files, chats }: Props) {
     <div className={styles.details}>
       <div className={styles.detailsMain}>
         <div className={styles.blockHead}>
-          <h3 className="label">Chats del proyecto</h3>
+          <h3 className="label">{team ? "Tus chats en este proyecto" : "Chats del proyecto"}</h3>
+          {canEdit && (
           <Menu.Root>
             <Menu.Trigger className="icon-btn" aria-label="Opciones del proyecto">
               <MoreHorizontal />
@@ -107,7 +110,13 @@ export function ProjectDetails({ project, files, chats }: Props) {
               </Menu.Content>
             </Menu.Portal>
           </Menu.Root>
+          )}
         </div>
+        {team && (
+          <p className={styles.sharedNote}>
+            <Users size={14} aria-hidden="true" /> Compartido con {team}. Tus chats aquí solo los ves tú.
+          </p>
+        )}
         {chats.length === 0 ? (
           <p className={styles.hintBox}>Empieza un chat arriba. Todos usarán las instrucciones y archivos de este proyecto.</p>
         ) : (
@@ -131,7 +140,7 @@ export function ProjectDetails({ project, files, chats }: Props) {
         <section className={styles.block}>
           <div className={styles.blockHead}>
             <h3 className="label">Instrucciones</h3>
-            {!editing && (
+            {!editing && canEdit && (
               <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}>
                 {instructions ? "Editar" : "Agregar"}
               </button>
@@ -180,9 +189,11 @@ export function ProjectDetails({ project, files, chats }: Props) {
         <section className={styles.block}>
           <div className={styles.blockHead}>
             <h3 className="label">Archivos · {files.length}</h3>
-            <button className="btn btn-ghost btn-sm" onClick={() => fileRef.current?.click()} disabled={uploading > 0}>
-              {uploading > 0 ? <Loader2 size={12} className={styles.spin} /> : <Plus size={12} />} Agregar
-            </button>
+            {canEdit && (
+              <button className="btn btn-ghost btn-sm" onClick={() => fileRef.current?.click()} disabled={uploading > 0}>
+                {uploading > 0 ? <Loader2 size={12} className={styles.spin} /> : <Plus size={12} />} Agregar
+              </button>
+            )}
             <input
               ref={fileRef}
               type="file"
@@ -206,9 +217,11 @@ export function ProjectDetails({ project, files, chats }: Props) {
                     {f.name}
                   </a>
                   <span className="label">{formatSize(f.size)}</span>
-                  <button className={styles.fileRemove} onClick={() => removeFile(f.id)} aria-label={`Quitar ${f.name}`}>
-                    <X size={12} />
-                  </button>
+                  {canEdit && (
+                    <button className={styles.fileRemove} onClick={() => removeFile(f.id)} aria-label={`Quitar ${f.name}`}>
+                      <X size={12} />
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>

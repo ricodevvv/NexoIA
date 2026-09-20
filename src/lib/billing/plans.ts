@@ -1,5 +1,16 @@
 export type PlanId = "free" | "pro";
 
+export const TEAM_PLAN = {
+  name: "Team",
+  price: "$25/asiento/mes",
+  features: [
+    "Todo lo de Pro para cada miembro",
+    "Proyectos y conectores compartidos",
+    "Panel de uso por miembro",
+    "Se cobra por asiento, ajustado solo",
+  ],
+};
+
 export type Plan = {
   id: PlanId;
   name: string;

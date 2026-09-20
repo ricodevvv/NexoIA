@@ -1,5 +1,6 @@
 import { and, desc, eq, ilike, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { enforce, LIMITS } from "@/lib/rate-limit";
 import { apiUser, handleError } from "@/lib/session";
 
 type Result = { id: string; title: string; updatedAt: Date; snippet: string | null };
@@ -26,6 +27,7 @@ function snippetOf(texts: string[], q: string) {
 export async function GET(request: Request) {
   try {
     const user = await apiUser();
+    await enforce([{ key: `search:u:${user.id}`, ...LIMITS.search }]);
     const q = new URL(request.url).searchParams.get("q")?.trim().slice(0, 100) ?? "";
     if (q.length < 2) return Response.json([]);
     const pattern = `%${escapeLike(q)}%`;

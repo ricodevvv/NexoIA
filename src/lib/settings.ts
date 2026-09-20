@@ -5,14 +5,20 @@ export type UserSettings = {
   preferences: string;
   memoryEnabled: boolean;
   artifactsEnabled: boolean;
+  codeEnabled: boolean;
 };
 
-const DEFAULTS: UserSettings = { preferences: "", memoryEnabled: true, artifactsEnabled: true };
+const DEFAULTS: UserSettings = { preferences: "", memoryEnabled: true, artifactsEnabled: true, codeEnabled: true };
 
 export async function getSettings(userId: string): Promise<UserSettings> {
   const row = await db.query.userSettings.findFirst({ where: eq(schema.userSettings.userId, userId) });
   if (!row) return DEFAULTS;
-  return { preferences: row.preferences, memoryEnabled: row.memoryEnabled, artifactsEnabled: row.artifactsEnabled };
+  return {
+    preferences: row.preferences,
+    memoryEnabled: row.memoryEnabled,
+    artifactsEnabled: row.artifactsEnabled,
+    codeEnabled: row.codeEnabled,
+  };
 }
 
 export async function saveSettings(userId: string, data: Partial<UserSettings>) {

@@ -1,0 +1,13 @@
+[Unit]
+Description=Túnel de Cloudflare para Nexo
+After=network-online.target nexo.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/nexo/deploy/tunnel.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

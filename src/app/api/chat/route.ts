@@ -2,6 +2,7 @@ import { and, asc, eq, gte, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { builtinTools } from "@/lib/ai/builtins";
+import { codeExecutionEnabled } from "@/lib/code-exec";
 import { runTurn } from "@/lib/ai/engine";
 import { resolveKey } from "@/lib/ai/keys";
 import { findModel } from "@/lib/ai/models";
@@ -11,9 +12,12 @@ import type { AttachmentData, ChatStreamEvent, HistoryMessage, MessagePart } fro
 import { checkQuota, recordUsage } from "@/lib/billing/usage";
 import { db, schema } from "@/lib/db";
 import { openToolbox } from "@/lib/mcp";
+import { projectAccess, sharedAttachmentIds } from "@/lib/projects";
 import { getSettings, listMemories } from "@/lib/settings";
 import { presetStyle } from "@/lib/styles";
-import { apiUser, handleError, HttpError } from "@/lib/session";
+import { clientIp, enforce, LIMITS } from "@/lib/rate-limit";
+import { apiSession, handleError, HttpError } from "@/lib/session";
+import { activeWorkspace } from "@/lib/workspace";
 
 export const maxDuration = 800;
 
@@ -55,10 +59,9 @@ async function resolveStyle(userId: string, id: string) {
 
 async function loadProject(userId: string, projectId: string | null) {
   if (!projectId) return null;
-  const project = await db.query.project.findFirst({
-    where: and(eq(schema.project.id, projectId), eq(schema.project.userId, userId)),
-  });
-  if (!project) return null;
+  const access = await projectAccess(userId, projectId);
+  if (!access) return null;
+  const { project } = access;
   const files = await db
     .select({ id: schema.attachment.id, name: schema.attachment.name, mediaType: schema.attachment.mediaType })
     .from(schema.projectFile)
@@ -99,7 +102,9 @@ async function dropTrailingAssistant(conversationId: string) {
 
 export async function POST(request: Request) {
   try {
-    const user = await apiUser();
+    const auth = await apiSession();
+    const { user } = auth;
+    await enforce([{ key: `chat:u:${user.id}`, ...LIMITS.chatUser }, { key: `chat:ip:${clientIp(request.headers)}`, ...LIMITS.chatIp }]);
     const body = Body.parse(await request.json());
 
     const model = findModel(body.model);
@@ -159,12 +164,13 @@ export async function POST(request: Request) {
     const attachmentIds = history.flatMap((m) =>
       m.parts.flatMap((p) => (p.type === "attachment" ? [p.attachmentId] : [])),
     );
-    const files = attachmentIds.length
-      ? await db
-          .select()
-          .from(schema.attachment)
-          .where(and(eq(schema.attachment.userId, user.id), inArray(schema.attachment.id, attachmentIds)))
-      : [];
+    const [found, shared] = attachmentIds.length
+      ? await Promise.all([
+          db.select().from(schema.attachment).where(inArray(schema.attachment.id, attachmentIds)),
+          sharedAttachmentIds(user.id, attachmentIds),
+        ])
+      : [[], new Set<string>()];
+    const files = found.filter((f) => f.userId === user.id || shared.has(f.id));
     const attachments = new Map<string, AttachmentData>(files.map((f) => [f.id, f]));
 
     const assistantMessageId = nanoid();
@@ -189,8 +195,15 @@ export async function POST(request: Request) {
 
         const titleJob =
           isNew && body.text.trim() ? generateTitle(model, key.apiKey, body.text, controller.signal) : Promise.resolve(null);
-        const toolbox = await openToolbox(user.id);
-        const builtins = builtinTools({ userId: user.id, artifacts: settings.artifactsEnabled, memory: settings.memoryEnabled });
+        const workspace = await activeWorkspace(auth);
+        const toolbox = await openToolbox(user.id, workspace?.id ?? null);
+        const builtins = builtinTools({
+          userId: user.id,
+          artifacts: settings.artifactsEnabled,
+          memory: settings.memoryEnabled,
+          code: settings.codeEnabled && codeExecutionEnabled(),
+          files: [...attachments.values()],
+        });
         for (const error of toolbox.errors) send({ type: "notice", level: "warning", text: error });
 
         const outcome = await runTurn(

@@ -1,10 +1,11 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import type { Metadata } from "next";
 import { Settings } from "@/components/settings/settings";
 import { PLANS } from "@/lib/billing/plans";
 import { stripeEnabled } from "@/lib/billing/stripe";
 import { getPlan, usedToday } from "@/lib/billing/usage";
 import { db, schema } from "@/lib/db";
+import { codeExecutionEnabled } from "@/lib/code-exec";
 import { requireUser } from "@/lib/session";
 import { getSettings, listMemories } from "@/lib/settings";
 
@@ -22,7 +23,7 @@ export default async function SettingsPage(props: PageProps<"/settings">) {
     db
       .select({ id: schema.mcpServer.id, name: schema.mcpServer.name, url: schema.mcpServer.url, enabled: schema.mcpServer.enabled })
       .from(schema.mcpServer)
-      .where(eq(schema.mcpServer.userId, user.id))
+      .where(and(eq(schema.mcpServer.userId, user.id), isNull(schema.mcpServer.organizationId)))
       .orderBy(desc(schema.mcpServer.createdAt)),
     getPlan(user.id),
     usedToday(user.id),
@@ -52,6 +53,7 @@ export default async function SettingsPage(props: PageProps<"/settings">) {
         memories: memories.map((m) => ({ id: m.id, content: m.content, createdAt: m.createdAt.toISOString() })),
         shares: shares.map((x) => ({ ...x, createdAt: x.createdAt.toISOString() })),
         styles: customStyles,
+        codeAvailable: codeExecutionEnabled(),
       }}
       servers={servers}
       serverKeys={{
