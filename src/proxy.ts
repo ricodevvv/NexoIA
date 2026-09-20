@@ -1,12 +1,13 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC = ["/login", "/signup"];
+const PUBLIC = ["/login", "/signup", "/forgot-password"];
+const ALWAYS = ["/reset-password"];
 
 export function proxy(request: NextRequest) {
   const hasSession = Boolean(getSessionCookie(request));
   const { pathname } = request.nextUrl;
-  if (pathname.startsWith("/share/")) return NextResponse.next();
+  if (pathname.startsWith("/share/") || ALWAYS.includes(pathname)) return NextResponse.next();
   const isPublic = PUBLIC.includes(pathname);
   if (!hasSession && !isPublic) return NextResponse.redirect(new URL("/login", request.url));
   if (hasSession && isPublic) return NextResponse.redirect(new URL("/", request.url));

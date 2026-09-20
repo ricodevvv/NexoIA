@@ -6,11 +6,13 @@ import { runTurn } from "@/lib/ai/engine";
 import { resolveKey } from "@/lib/ai/keys";
 import { findModel } from "@/lib/ai/models";
 import { systemPrompt } from "@/lib/ai/system";
+import { generateTitle } from "@/lib/ai/title";
 import type { AttachmentData, ChatStreamEvent, HistoryMessage, MessagePart } from "@/lib/ai/types";
 import { checkQuota, recordUsage } from "@/lib/billing/usage";
 import { db, schema } from "@/lib/db";
 import { openToolbox } from "@/lib/mcp";
 import { getSettings, listMemories } from "@/lib/settings";
+import { presetStyle } from "@/lib/styles";
 import { apiUser, handleError, HttpError } from "@/lib/session";
 
 export const maxDuration = 800;
@@ -25,6 +27,7 @@ const Body = z.object({
   webSearch: z.boolean().default(false),
   regenerate: z.boolean().default(false),
   editMessageId: z.string().optional(),
+  style: z.string().max(40).default("normal"),
 });
 
 function titleFrom(text: string) {
@@ -39,6 +42,15 @@ async function loadConversation(userId: string, id: string) {
   });
   if (!conv) throw new HttpError(404, "Conversación no encontrada");
   return conv;
+}
+
+async function resolveStyle(userId: string, id: string) {
+  const preset = presetStyle(id);
+  if (preset) return preset.instructions ? { name: preset.name, instructions: preset.instructions } : null;
+  const custom = await db.query.responseStyle.findFirst({
+    where: and(eq(schema.responseStyle.id, id), eq(schema.responseStyle.userId, userId)),
+  });
+  return custom ? { name: custom.name, instructions: custom.instructions } : null;
 }
 
 async function loadProject(userId: string, projectId: string | null) {
@@ -133,13 +145,14 @@ export async function POST(request: Request) {
       await db.insert(schema.message).values({ id: userMessageId, conversationId: conversation.id, role: "user", parts });
     }
 
-    const [stored, project, settings] = await Promise.all([
+    const [stored, project, settings, style] = await Promise.all([
       db.query.message.findMany({
         where: eq(schema.message.conversationId, conversation.id),
         orderBy: asc(schema.message.createdAt),
       }),
       loadProject(user.id, conversation.projectId),
       getSettings(user.id),
+      resolveStyle(user.id, body.style),
     ]);
     const memories = settings.memoryEnabled ? await listMemories(user.id) : null;
     const history = withProjectFiles(stored, project?.files ?? []);
@@ -174,6 +187,8 @@ export async function POST(request: Request) {
         send({ type: "start", conversationId: conversation.id, userMessageId, assistantMessageId });
         if (isNew) send({ type: "title", title: conversation.title });
 
+        const titleJob =
+          isNew && body.text.trim() ? generateTitle(model, key.apiKey, body.text, controller.signal) : Promise.resolve(null);
         const toolbox = await openToolbox(user.id);
         const builtins = builtinTools({ userId: user.id, artifacts: settings.artifactsEnabled, memory: settings.memoryEnabled });
         for (const error of toolbox.errors) send({ type: "notice", level: "warning", text: error });
@@ -188,6 +203,7 @@ export async function POST(request: Request) {
               memories,
               project: project ? { name: project.name, instructions: project.instructions } : null,
               artifacts: settings.artifactsEnabled,
+              style,
             }),
             history,
             attachments,
@@ -217,6 +233,12 @@ export async function POST(request: Request) {
           .where(eq(schema.conversation.id, conversation.id));
         if (outcome.usage.inputTokens || outcome.usage.outputTokens) {
           await recordUsage(user.id, model.id, outcome.usage, key.byok);
+        }
+
+        const aiTitle = await titleJob;
+        if (aiTitle) {
+          await db.update(schema.conversation).set({ title: aiTitle }).where(eq(schema.conversation.id, conversation.id));
+          send({ type: "title", title: aiTitle });
         }
 
         send({ type: "done", usage: outcome.usage });

@@ -17,6 +17,8 @@ export function AuthForm({ mode, providers }: Props) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [unverified, setUnverified] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -31,11 +33,27 @@ export function AuthForm({ mode, providers }: Props) {
         : await authClient.signIn.email({ email, password });
     setBusy(false);
     if (result.error) {
-      setError(result.error.message ?? "No se pudo continuar");
+      if (result.error.code === "EMAIL_NOT_VERIFIED") {
+        setUnverified(email);
+        setError("Confirma tu correo antes de entrar. Te mandamos un enlace al registrarte.");
+      } else {
+        setError(result.error.message ?? "No se pudo continuar");
+      }
+      return;
+    }
+    if (mode === "signup" && !("token" in result.data && result.data.token)) {
+      setNotice(`Te mandamos un enlace a ${email}. Ábrelo para confirmar tu cuenta y entrar.`);
       return;
     }
     router.replace("/");
     router.refresh();
+  }
+
+  async function resend() {
+    if (!unverified) return;
+    await authClient.sendVerificationEmail({ email: unverified, callbackURL: "/" });
+    setError(null);
+    setNotice(`Listo, revisa ${unverified}.`);
   }
 
   async function social(provider: "google" | "github") {
@@ -84,11 +102,27 @@ export function AuthForm({ mode, providers }: Props) {
             minLength={8}
             autoComplete={isSignup ? "new-password" : "current-password"}
           />
-          {isSignup && <small className="hint">Mínimo 8 caracteres.</small>}
+          {isSignup ? (
+            <small className="hint">Mínimo 8 caracteres.</small>
+          ) : (
+            <Link href="/forgot-password" className={styles.forgot}>
+              ¿Olvidaste tu contraseña?
+            </Link>
+          )}
         </label>
         {error && (
           <p className="error-text" role="alert">
-            {error}
+            {error}{" "}
+            {unverified && (
+              <button type="button" className={styles.linkButton} onClick={resend}>
+                Reenviar enlace
+              </button>
+            )}
+          </p>
+        )}
+        {notice && (
+          <p className={styles.notice} role="status">
+            {notice}
           </p>
         )}
         <button className={`btn btn-primary ${styles.submit}`} disabled={busy} aria-busy={busy}>

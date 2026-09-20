@@ -258,6 +258,32 @@
   gap: 6px;
 }
 
+.styleTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-2);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.styleTrigger:hover,
+.styleTrigger[data-state="open"] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.styleTrigger[data-active="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
 .effort select {
   height: 32px;
   padding: 0 8px;
@@ -913,4 +939,30 @@
 .projectDescription {
   margin-top: calc(var(--space-2) * -1);
   color: var(--text-2);
+}
+
+.listening {
+  position: relative;
+  color: var(--danger) !important;
+  background: var(--danger-soft) !important;
+}
+
+.listening::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-2);
+  animation: ring 1.4s var(--ease) infinite;
+}
+
+@keyframes ring {
+  from {
+    opacity: 0.8;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.25);
+  }
 }

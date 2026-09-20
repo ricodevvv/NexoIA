@@ -9,6 +9,7 @@ import { modelOptions } from "@/lib/ai/options";
 import { getPlan } from "@/lib/billing/usage";
 import { db, schema } from "@/lib/db";
 import { getUser, requireUser } from "@/lib/session";
+import { listStyles } from "@/lib/styles-server";
 
 async function findProject(userId: string, id: string) {
   return db.query.project.findFirst({ where: and(eq(schema.project.id, id), eq(schema.project.userId, userId)) });
@@ -27,7 +28,7 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
   const project = await findProject(user.id, id);
   if (!project) notFound();
 
-  const [files, chats, models, plan] = await Promise.all([
+  const [files, chats, models, plan, styles] = await Promise.all([
     db
       .select({
         id: schema.attachment.id,
@@ -46,6 +47,7 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
       .orderBy(desc(schema.conversation.updatedAt)),
     modelOptions(user.id),
     getPlan(user.id),
+    listStyles(user.id),
   ]);
 
   const usable = models.filter((m) => m.available && (m.tier === "free" || plan === "pro" || m.byok));
@@ -59,6 +61,7 @@ export default async function ProjectPage(props: PageProps<"/projects/[id]">) {
       models={models}
       userName={user.name}
       plan={plan}
+      styles={styles}
       project={{ id, name: project.name, description: project.description }}
       emptyExtra={
         <ProjectDetails

@@ -16,12 +16,13 @@ type KeyRow = { provider: "anthropic" | "openai"; hint: string };
 type Props = {
   initialTab: string;
   checkoutOk: boolean;
-  user: { name: string; email: string };
+  user: { name: string; email: string; emailVerified: boolean };
   keys: KeyRow[];
   personalization: {
     settings: { preferences: string; memoryEnabled: boolean; artifactsEnabled: boolean };
     memories: { id: string; content: string; createdAt: string }[];
     shares: { id: string; conversationId: string; title: string; createdAt: string }[];
+    styles: { id: string; name: string; instructions: string }[];
   };
   servers: Server[];
   serverKeys: { anthropic: boolean; openai: boolean };
@@ -114,6 +115,13 @@ function Account({ user }: { user: Props["user"] }) {
   const [pwMsg, setPwMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const [verifySent, setVerifySent] = useState(false);
+
+  async function resendVerification() {
+    await authClient.sendVerificationEmail({ email: user.email, callbackURL: "/settings" });
+    setVerifySent(true);
+  }
+
   async function saveName(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const name = String(new FormData(e.currentTarget).get("name")).trim();
@@ -143,6 +151,18 @@ function Account({ user }: { user: Props["user"] }) {
 
   return (
     <>
+      {!user.emailVerified && (
+        <p className={styles.warning} role="status">
+          Tu correo no está confirmado. Confírmalo para poder recuperar la cuenta si olvidas la contraseña.{" "}
+          {verifySent ? (
+            <strong>Enlace enviado.</strong>
+          ) : (
+            <button className={styles.linkButton} onClick={resendVerification}>
+              Enviar enlace
+            </button>
+          )}
+        </p>
+      )}
       <Section title="Perfil" description={user.email}>
         <form className={styles.inline} onSubmit={saveName}>
           <label className="field">
@@ -169,6 +189,14 @@ function Account({ user }: { user: Props["user"] }) {
           </div>
           {pwMsg && <p className={pwMsg.kind === "ok" ? styles.ok : "error-text"}>{pwMsg.text}</p>}
         </form>
+      </Section>
+
+      <Section title="Tus datos" description="Descarga todos tus chats, proyectos, memoria y ajustes en un archivo JSON.">
+        <div>
+          <a className="btn" href="/api/export" download>
+            Exportar mis datos
+          </a>
+        </div>
       </Section>
 
       <Section title="Zona de peligro" description="Borra tu cuenta, tus chats, archivos y conectores. No se puede deshacer.">
@@ -222,6 +250,84 @@ function Toggle({
         <span aria-hidden="true" />
       </span>
     </label>
+  );
+}
+
+function StylesSection({ styles: list }: { styles: Props["personalization"]["styles"] }) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function create(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    setBusy(true);
+    setError(null);
+    try {
+      await api("/api/styles", {
+        method: "POST",
+        body: JSON.stringify({ name: data.get("name"), instructions: data.get("instructions") }),
+      });
+      form.reset();
+      router.refresh();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: string) {
+    await api(`/api/styles?id=${id}`, { method: "DELETE" });
+    router.refresh();
+  }
+
+  return (
+    <Section
+      title="Estilos de respuesta"
+      description="Además de Normal, Conciso, Explicativo y Formal, crea los tuyos y elígelos desde el botón de pluma del composer."
+    >
+      {list.length > 0 && (
+        <ul className={styles.memories}>
+          {list.map((s) => (
+            <li key={s.id}>
+              <span>
+                <strong>{s.name}</strong>
+                <span className={styles.styleText}>{s.instructions}</span>
+              </span>
+              <button className="icon-btn" onClick={() => remove(s.id)} aria-label={`Borrar estilo ${s.name}`}>
+                <Trash2 />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className={styles.stack} onSubmit={create}>
+        <label className="field">
+          <span>Nombre</span>
+          <input className="input" name="name" required maxLength={40} placeholder="Tutor socrático" />
+        </label>
+        <label className="field">
+          <span>Instrucciones</span>
+          <textarea
+            className={`textarea ${styles.prefs}`}
+            name="instructions"
+            required
+            minLength={10}
+            maxLength={4000}
+            rows={4}
+            placeholder="En vez de darme la respuesta, guíame con preguntas hasta que llegue yo solo."
+          />
+        </label>
+        {error && <p className="error-text">{error}</p>}
+        <div>
+          <button className="btn" disabled={busy}>
+            Crear estilo
+          </button>
+        </div>
+      </form>
+    </Section>
   );
 }
 
@@ -287,6 +393,10 @@ function Personalization({ data }: { data: Props["personalization"] }) {
           </div>
         </form>
       </Section>
+
+      <div id="estilos">
+        <StylesSection styles={data.styles} />
+      </div>
 
       <Section title="Funciones">
         <div className={styles.rows}>

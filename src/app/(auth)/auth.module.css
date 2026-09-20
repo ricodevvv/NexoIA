@@ -145,3 +145,25 @@
     display: none;
   }
 }
+
+.forgot {
+  align-self: flex-end;
+  font-size: var(--text-xs);
+}
+
+.linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.notice {
+  padding: 10px 12px;
+  border-radius: var(--radius-2);
+  background: var(--accent-soft);
+  font-size: var(--text-sm);
+}

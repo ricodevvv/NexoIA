@@ -193,3 +193,15 @@ export const share = pgTable(
   },
   (t) => [index("share_conversation_idx").on(t.conversationId)],
 );
+
+export const responseStyle = pgTable(
+  "response_style",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    instructions: text("instructions").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("response_style_user_idx").on(t.userId)],
+);

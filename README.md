@@ -108,6 +108,20 @@ Para activar los pagos:
 
 En local puedes usar `stripe listen --forward-to localhost:3000/api/billing/webhook`.
 
+## Correos: verificar cuenta y recuperar contraseña
+
+Con `RESEND_API_KEY` (y `EMAIL_FROM` con un dominio verificado en Resend) se mandan de verdad. Sin key, el enlace sale en la consola del servidor, que sirve para probar en local.
+
+Al registrarse se manda un enlace de verificación, pero por defecto se puede entrar sin confirmar. Para exigirlo pon `REQUIRE_EMAIL_VERIFICATION=1`. Al restablecer la contraseña se cierran todas las sesiones abiertas.
+
+## Estilos, títulos, búsqueda y dictado
+
+- **Estilos de respuesta**: el botón de pluma del composer. Vienen Normal, Conciso, Explicativo y Formal, y en Personalización cada quien crea los suyos. El estilo va al final del system prompt.
+- **Títulos**: al empezar un chat se pide un título al modelo más barato del mismo proveedor (Haiku en Anthropic, el `mini`/`nano` de `OPENAI_MODELS` en OpenAI), en paralelo con la respuesta. Si falla, se queda el título provisional.
+- **Búsqueda**: `Ctrl/Cmd + K` busca en títulos y en el texto de todos los mensajes. Es un `ILIKE` sobre el JSON de las partes: va bien para miles de chats. Si crece mucho, conviene un índice `pg_trgm` o full-text.
+- **Dictado**: usa la Web Speech API del navegador (Chrome, Edge, Safari). En Firefox el botón no aparece.
+- **Exportar**: Ajustes → Cuenta descarga un JSON con todo, menos los secretos y los binarios de los adjuntos.
+
 ## Login con Google y GitHub
 
 Opcional. Si pones `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` o `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`, aparece el botón en el login. La URL de callback es `{BETTER_AUTH_URL}/api/auth/callback/google` (o `/github`).

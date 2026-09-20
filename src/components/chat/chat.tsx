@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { applyEvent } from "@/lib/ai/parts";
 import type { ChatStreamEvent, Effort, MessagePart } from "@/lib/ai/types";
+import type { StyleOption } from "@/lib/styles";
 import { useArtifactViewer } from "../artifacts/use-artifact-viewer";
 import { notifyConversationsChanged } from "../events";
 import { useShell } from "../shell";
@@ -25,6 +26,7 @@ type Props = {
   plan: "free" | "pro";
   project?: { id: string; name: string; description?: string } | null;
   emptyExtra?: ReactNode;
+  styles: StyleOption[];
 };
 
 type SendArgs = {
@@ -58,6 +60,8 @@ export function Chat(props: Props) {
   const [effort, setEffort] = useStoredState<Effort>("nexo-effort", "medium");
   const [web, setWeb] = useStoredState<"on" | "off">("nexo-web", "off");
   const webSearch = web === "on";
+  const [storedStyle, setStyle] = useStoredState<string>("nexo-style", "normal");
+  const style = props.styles.some((s) => s.id === storedStyle) ? storedStyle : "normal";
   const model =
     chosenModel ??
     (!props.conversationId && models.some((m) => m.id === storedModel && m.available) ? storedModel : props.initialModel);
@@ -132,6 +136,7 @@ export function Chat(props: Props) {
           model,
           effort,
           webSearch,
+          style,
           regenerate,
           editMessageId,
         }),
@@ -228,6 +233,9 @@ export function Chat(props: Props) {
       plan={props.plan}
       effort={effort}
       webSearch={webSearch}
+      styles={props.styles}
+      style={style}
+      onStyle={setStyle}
       busy={busy}
       autoFocus
       onModel={changeModel}

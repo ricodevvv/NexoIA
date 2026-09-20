@@ -1,9 +1,12 @@
 "use client";
 
-import { ArrowUp, FileText, Globe, Image as ImageIcon, Loader2, Paperclip, Square, X } from "lucide-react";
+import { ArrowUp, FileText, Globe, Image as ImageIcon, Loader2, Mic, Paperclip, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Effort } from "@/lib/ai/types";
+import type { StyleOption } from "@/lib/styles";
 import { ModelPicker, type ModelOption } from "./model-picker";
+import { StylePicker } from "./style-picker";
+import { useDictation } from "./use-dictation";
 import styles from "./chat.module.css";
 
 export type PendingFile = {
@@ -20,6 +23,9 @@ type Props = {
   plan: "free" | "pro";
   effort: Effort;
   webSearch: boolean;
+  styles: StyleOption[];
+  style: string;
+  onStyle: (id: string) => void;
   busy: boolean;
   autoFocus?: boolean;
   onModel: (id: string) => void;
@@ -52,6 +58,16 @@ export function Composer(props: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const current = models.find((m) => m.id === model);
+  const baseTextRef = useRef("");
+  const dictation = useDictation((spoken) => {
+    const base = baseTextRef.current;
+    setText(base ? `${base} ${spoken}` : spoken);
+  });
+
+  function toggleDictation() {
+    if (!dictation.listening) baseTextRef.current = text.trim();
+    dictation.toggle();
+  }
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -76,6 +92,7 @@ export function Composer(props: Props) {
 
   function send() {
     if (!canSend) return;
+    if (dictation.listening) dictation.toggle();
     props.onSend(text, ready);
     setText("");
     setFiles([]);
@@ -165,6 +182,19 @@ export function Composer(props: Props) {
           <button type="button" className="icon-btn" aria-label="Adjuntar archivos" title="Adjuntar" onClick={() => fileRef.current?.click()}>
             <Paperclip />
           </button>
+          <StylePicker options={props.styles} value={props.style} onChange={props.onStyle} />
+          {dictation.supported && (
+            <button
+              type="button"
+              className={`icon-btn ${dictation.listening ? styles.listening : ""}`}
+              aria-pressed={dictation.listening}
+              aria-label={dictation.listening ? "Dejar de dictar" : "Dictar por voz"}
+              title={dictation.error ?? (dictation.listening ? "Escuchando… toca para parar" : "Dictar por voz")}
+              onClick={toggleDictation}
+            >
+              <Mic />
+            </button>
+          )}
           {current?.webSearch && (
             <button
               type="button"

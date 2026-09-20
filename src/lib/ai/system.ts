@@ -17,6 +17,7 @@ type PromptInput = {
   memories: { id: string; content: string }[] | null;
   project: { name: string; instructions: string } | null;
   artifacts: boolean;
+  style: { name: string; instructions: string } | null;
 };
 
 /**
@@ -42,6 +43,9 @@ export function systemPrompt(input: PromptInput) {
     sections.push(
       `## Memoria\nEstos son datos que guardaste de conversaciones anteriores. Úsalos con naturalidad, sin mencionarlos a cada rato. Puedes guardar nuevos con memory_save o borrar con memory_delete.\n${list}`,
     );
+  }
+  if (input.style?.instructions.trim()) {
+    sections.push(`## Estilo de respuesta: ${input.style.name}\nEl usuario eligió este estilo; aplícalo a tus respuestas salvo que pida otra cosa:\n${input.style.instructions.trim()}`);
   }
   const today = new Date().toISOString().slice(0, 10);
   sections.push(`El usuario se llama ${input.user.name}. Fecha de hoy: ${today}.`);

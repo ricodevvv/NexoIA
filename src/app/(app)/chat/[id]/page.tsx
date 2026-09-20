@@ -6,6 +6,7 @@ import { modelOptions } from "@/lib/ai/options";
 import { getPlan } from "@/lib/billing/usage";
 import { db, schema } from "@/lib/db";
 import { getUser, requireUser } from "@/lib/session";
+import { listStyles } from "@/lib/styles-server";
 
 async function findConversation(userId: string, id: string) {
   return db.query.conversation.findFirst({
@@ -26,7 +27,7 @@ export default async function ChatPage(props: PageProps<"/chat/[id]">) {
   const conversation = await findConversation(user.id, id);
   if (!conversation) notFound();
 
-  const [rows, models, plan, project] = await Promise.all([
+  const [rows, models, plan, project, styles] = await Promise.all([
     db
       .select({ id: schema.message.id, role: schema.message.role, parts: schema.message.parts, model: schema.message.model })
       .from(schema.message)
@@ -37,6 +38,7 @@ export default async function ChatPage(props: PageProps<"/chat/[id]">) {
     conversation.projectId
       ? db.query.project.findFirst({ where: eq(schema.project.id, conversation.projectId) })
       : Promise.resolve(undefined),
+    listStyles(user.id),
   ]);
 
   return (
@@ -49,6 +51,7 @@ export default async function ChatPage(props: PageProps<"/chat/[id]">) {
       models={models}
       userName={user.name}
       plan={plan}
+      styles={styles}
       project={project ? { id: project.id, name: project.name } : null}
     />
   );

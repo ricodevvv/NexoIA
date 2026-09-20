@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { Settings } from "@/components/settings/settings";
 import { PLANS } from "@/lib/billing/plans";
@@ -14,7 +14,7 @@ export default async function SettingsPage(props: PageProps<"/settings">) {
   const user = await requireUser();
   const { tab, checkout } = await props.searchParams;
 
-  const [keys, servers, plan, used, sub, settings, memories, shares] = await Promise.all([
+  const [keys, servers, plan, used, sub, settings, memories, shares, customStyles] = await Promise.all([
     db
       .select({ provider: schema.apiKey.provider, hint: schema.apiKey.hint })
       .from(schema.apiKey)
@@ -34,18 +34,24 @@ export default async function SettingsPage(props: PageProps<"/settings">) {
       .from(schema.share)
       .where(eq(schema.share.userId, user.id))
       .orderBy(desc(schema.share.createdAt)),
+    db
+      .select({ id: schema.responseStyle.id, name: schema.responseStyle.name, instructions: schema.responseStyle.instructions })
+      .from(schema.responseStyle)
+      .where(eq(schema.responseStyle.userId, user.id))
+      .orderBy(asc(schema.responseStyle.createdAt)),
   ]);
 
   return (
     <Settings
       initialTab={typeof tab === "string" ? tab : "account"}
       checkoutOk={checkout === "ok"}
-      user={{ name: user.name, email: user.email }}
+      user={{ name: user.name, email: user.email, emailVerified: user.emailVerified }}
       keys={keys}
       personalization={{
         settings,
         memories: memories.map((m) => ({ id: m.id, content: m.content, createdAt: m.createdAt.toISOString() })),
         shares: shares.map((x) => ({ ...x, createdAt: x.createdAt.toISOString() })),
+        styles: customStyles,
       }}
       servers={servers}
       serverKeys={{

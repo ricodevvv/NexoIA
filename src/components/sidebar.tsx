@@ -23,6 +23,7 @@ import { useEffect, useMemo, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { notifyConversationsChanged, onConversationsChanged } from "./events";
 import styles from "./sidebar.module.css";
+import { useShell } from "./shell";
 import { useTheme } from "./use-theme";
 
 type Conversation = { id: string; title: string; starred: boolean; updatedAt: string };
@@ -50,7 +51,7 @@ export function Sidebar({ user, plan, onToggle }: Props) {
   const params = useParams<{ id?: string }>();
   const pathname = usePathname();
   const [items, setItems] = useState<Conversation[]>([]);
-  const [query, setQuery] = useState("");
+  const { openSearch } = useShell();
   const [renaming, setRenaming] = useState<Conversation | null>(null);
   const [deleting, setDeleting] = useState<Conversation | null>(null);
 
@@ -71,17 +72,15 @@ export function Sidebar({ user, plan, onToggle }: Props) {
   }, []);
 
   const groups = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const filtered = q ? items.filter((c) => c.title.toLowerCase().includes(q)) : items;
     const map = new Map<string, Conversation[]>();
-    const starred = filtered.filter((c) => c.starred);
+    const starred = items.filter((c) => c.starred);
     if (starred.length) map.set("Destacados", starred);
-    for (const c of filtered.filter((c) => !c.starred)) {
+    for (const c of items.filter((c) => !c.starred)) {
       const g = groupOf(new Date(c.updatedAt));
       map.set(g, [...(map.get(g) ?? []), c]);
     }
     return [...map.entries()];
-  }, [items, query]);
+  }, [items]);
 
   async function patch(id: string, data: Partial<Pick<Conversation, "title" | "starred">>) {
     await fetch(`/api/conversations/${id}`, {
@@ -119,16 +118,16 @@ export function Sidebar({ user, plan, onToggle }: Props) {
           <FolderClosed size={15} aria-hidden="true" />
           Proyectos
         </Link>
-        <label className={styles.search}>
+        <button type="button" className={styles.search} onClick={openSearch}>
           <Search size={14} aria-hidden="true" />
-          <span className="sr-only">Buscar chats</span>
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar chats" />
-        </label>
+          <span>Buscar chats</span>
+          <kbd className={styles.kbd}>Ctrl K</kbd>
+        </button>
       </div>
 
       <div className={styles.list}>
         {groups.length === 0 && (
-          <p className={styles.empty}>{query ? "Nada coincide con tu búsqueda." : "Tus chats van a aparecer aquí."}</p>
+          <p className={styles.empty}>Tus chats van a aparecer aquí.</p>
         )}
         {groups.map(([group, convs]) => (
           <section key={group} className={styles.group}>
