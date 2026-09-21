@@ -40,3 +40,39 @@ test("la ejecución de Python lee un adjunto y devuelve una gráfica", async ({ 
   await expect(page.getByAltText("figura_1.png")).toBeVisible({ timeout: 110_000 });
   await expect(page.getByRole("article", { name: "Respuesta" })).toContainText("valor final: 360");
 });
+
+test("un conector con OAuth se autoriza, se usa en el chat y renueva su token solo", async ({ page, request }) => {
+  await signup(page, "Oauth");
+  await page.goto("/settings?tab=connectors");
+  await page.getByLabel("Nombre").fill("Privado");
+  await page.getByLabel("URL del servidor").fill("http://127.0.0.1:4120/mcp");
+  await page.getByText("Iniciar sesión (OAuth)").click();
+  await page.getByRole("button", { name: "Agregar y autorizar" }).click();
+
+  await expect(page).toHaveURL(/oauth=ok/);
+  await expect(page.getByText("Listo, Privado quedó autorizado.")).toBeVisible();
+  await expect(page.getByText("OAuth · conectado")).toBeVisible();
+
+  await page.goto("/");
+  await send(page, "#quien soy");
+  await waitForIdle(page);
+  await expect(page.getByRole("article", { name: "Respuesta" })).toContainText("usuario autenticado por OAuth");
+
+  await page.waitForTimeout(6000);
+  await send(page, "#quien soy otra vez");
+  await waitForIdle(page);
+  await expect(page.getByRole("article", { name: "Respuesta" }).last()).toContainText("usuario autenticado por OAuth");
+  const stats = await (await request.get("http://127.0.0.1:4120/stats")).json();
+  expect(stats.refreshed).toBeGreaterThanOrEqual(1);
+});
+
+test("el modelo puede buscar en chats anteriores", async ({ page }) => {
+  await signup(page, "Memoria");
+  await send(page, "Hablemos del ornitorrinco australiano");
+  await waitForIdle(page);
+  await page.goto("/");
+  await send(page, "#busca ornitorrinco");
+  await waitForIdle(page);
+  await expect(page.getByText("Chats anteriores · buscar")).toBeVisible();
+  await expect(page.getByRole("article", { name: "Respuesta" })).toContainText("Hablemos del ornitorrinco");
+});

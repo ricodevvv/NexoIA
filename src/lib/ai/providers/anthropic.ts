@@ -112,7 +112,10 @@ export function createAnthropicSession(opts: SessionOptions): ProviderSession {
     input_schema: { type: "object", ...t.inputSchema },
   }));
   if (opts.webSearch && model.webSearch && model.webSearch !== "openai") {
-    tools.push({ type: model.webSearch, name: "web_search", max_uses: 5 });
+    tools.push({ type: model.webSearch, name: "web_search", max_uses: opts.research ? 25 : 5 });
+  }
+  if (opts.research && model.webFetch) {
+    tools.push({ type: model.webFetch, name: "web_fetch", max_uses: 15, max_content_tokens: 20_000 });
   }
 
   function params(): BetaMessageStreamParams {
@@ -148,6 +151,11 @@ export function createAnthropicSession(opts: SessionOptions): ProviderSession {
         const block = stream.currentMessage?.content[event.index];
         if (block?.type === "server_tool_use") {
           yield { type: "tool_call", server: true, call: { id: block.id, name: block.name, input: block.input } };
+        }
+        if (block?.type === "web_fetch_tool_result") {
+          const failed = block.content.type === "web_fetch_tool_result_error";
+          const output = block.content.type === "web_fetch_result" ? `Leída: ${block.content.url}` : `No se pudo leer (${block.content.error_code})`;
+          yield { type: "tool_result", server: true, result: { id: block.tool_use_id, name: "web_fetch", output, isError: failed } };
         }
         if (block?.type === "web_search_tool_result") {
           const { output, isError } = searchSummary(block);

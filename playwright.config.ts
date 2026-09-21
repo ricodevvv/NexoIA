@@ -15,6 +15,7 @@ export default defineConfig({
   webServer: [
     { command: "node tests/mocks/llm.mjs", port: 4010, env: { MOCK_LLM_PORT: "4010" }, reuseExistingServer: false },
     { command: "node tests/mocks/mcp.mjs", port: 4110, env: { MOCK_MCP_PORT: "4110" }, reuseExistingServer: false },
+    { command: "node tests/mocks/mcp-oauth.mjs", port: 4120, env: { MOCK_OAUTH_PORT: "4120", MOCK_OAUTH_TTL: "5" }, reuseExistingServer: false },
     {
       command: `pnpm exec next dev -p ${PORT}`,
       url: `${BASE}/login`,

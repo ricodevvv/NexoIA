@@ -6,6 +6,7 @@ import { stripeEnabled } from "@/lib/billing/stripe";
 import { getPlan, usedToday } from "@/lib/billing/usage";
 import { db, schema } from "@/lib/db";
 import { codeExecutionEnabled } from "@/lib/code-exec";
+import { isConnected } from "@/lib/mcp-oauth";
 import { requireUser } from "@/lib/session";
 import { getSettings, listMemories } from "@/lib/settings";
 
@@ -21,7 +22,14 @@ export default async function SettingsPage(props: PageProps<"/settings">) {
       .from(schema.apiKey)
       .where(eq(schema.apiKey.userId, user.id)),
     db
-      .select({ id: schema.mcpServer.id, name: schema.mcpServer.name, url: schema.mcpServer.url, enabled: schema.mcpServer.enabled })
+      .select({
+        id: schema.mcpServer.id,
+        name: schema.mcpServer.name,
+        url: schema.mcpServer.url,
+        enabled: schema.mcpServer.enabled,
+        authType: schema.mcpServer.authType,
+        oauth: schema.mcpServer.oauth,
+      })
       .from(schema.mcpServer)
       .where(and(eq(schema.mcpServer.userId, user.id), isNull(schema.mcpServer.organizationId)))
       .orderBy(desc(schema.mcpServer.createdAt)),
@@ -55,7 +63,7 @@ export default async function SettingsPage(props: PageProps<"/settings">) {
         styles: customStyles,
         codeAvailable: codeExecutionEnabled(),
       }}
-      servers={servers}
+      servers={servers.map(({ oauth, ...s }) => ({ ...s, connected: isConnected({ authType: s.authType, oauth }) }))}
       serverKeys={{
         anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
         openai: Boolean(process.env.OPENAI_API_KEY),

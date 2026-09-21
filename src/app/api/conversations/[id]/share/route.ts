@@ -1,5 +1,6 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { conversationView } from "@/lib/conversation-view";
 import { db, schema } from "@/lib/db";
 import type { SharedMessage } from "@/lib/db/schema";
 import { apiUser, handleError, HttpError } from "@/lib/session";
@@ -33,11 +34,7 @@ export async function POST(_request: Request, ctx: RouteContext<"/api/conversati
     const user = await apiUser();
     const { id } = await ctx.params;
     const conv = await ownedConversation(user.id, id);
-    const rows = await db
-      .select({ role: schema.message.role, parts: schema.message.parts, model: schema.message.model })
-      .from(schema.message)
-      .where(eq(schema.message.conversationId, id))
-      .orderBy(asc(schema.message.createdAt));
+    const rows = await conversationView(id, conv.currentLeafId);
     if (!rows.length) throw new HttpError(400, "No hay nada que compartir todavía");
     const messages: SharedMessage[] = rows.map((m) => ({
       role: m.role,

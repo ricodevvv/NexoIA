@@ -4,6 +4,7 @@ import { z } from "zod";
 import { encrypt } from "@/lib/crypto";
 import { db, schema } from "@/lib/db";
 import { assertSafeUrl } from "@/lib/mcp";
+import { isConnected } from "@/lib/mcp-oauth";
 import { enforce, LIMITS } from "@/lib/rate-limit";
 import { apiSession, handleError, HttpError } from "@/lib/session";
 import { activeWorkspace, canManage } from "@/lib/workspace";
@@ -12,6 +13,7 @@ const McpInput = z.object({
   name: z.string().trim().min(1).max(40),
   url: z.string().trim().url(),
   headers: z.record(z.string(), z.string()).default({}),
+  authType: z.enum(["headers", "oauth"]).default("headers"),
 });
 
 async function scope(request: Request, write: boolean) {
@@ -35,11 +37,15 @@ export async function GET(request: Request) {
         url: schema.mcpServer.url,
         enabled: schema.mcpServer.enabled,
         hasHeaders: schema.mcpServer.headers,
+        authType: schema.mcpServer.authType,
+        oauth: schema.mcpServer.oauth,
       })
       .from(schema.mcpServer)
       .where(filter)
       .orderBy(desc(schema.mcpServer.createdAt));
-    return Response.json(rows.map((r) => ({ ...r, hasHeaders: Boolean(r.hasHeaders) })));
+    return Response.json(
+      rows.map(({ oauth, ...r }) => ({ ...r, hasHeaders: Boolean(r.hasHeaders), connected: isConnected({ authType: r.authType, oauth }) })),
+    );
   } catch (err) {
     return handleError(err);
   }
@@ -63,7 +69,8 @@ export async function POST(request: Request) {
         organizationId,
         name: input.name,
         url: input.url,
-        headers: Object.keys(input.headers).length ? encrypt(JSON.stringify(input.headers)) : null,
+        authType: input.authType,
+        headers: input.authType === "headers" && Object.keys(input.headers).length ? encrypt(JSON.stringify(input.headers)) : null,
       })
       .returning({ id: schema.mcpServer.id });
     return Response.json(row);

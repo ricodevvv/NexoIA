@@ -1,11 +1,21 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { lookup } from "node:dns/promises";
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { and, eq, isNull, or } from "drizzle-orm";
-import { db, schema } from "@/lib/db";
-import { decrypt } from "@/lib/crypto";
 import type { ToolResult, ToolSpec } from "@/lib/ai/types";
+import { decrypt } from "@/lib/crypto";
+import { db, schema } from "@/lib/db";
+import { DbOAuthProvider } from "@/lib/mcp-oauth";
+import { assertSafeUrl, safeFetch } from "@/lib/safe-url";
+
+export { assertSafeUrl };
+
+export class NeedsAuthorization extends Error {
+  constructor() {
+    super("Este conector necesita que lo autorices de nuevo.");
+  }
+}
 
 type ServerRow = typeof schema.mcpServer.$inferSelect;
 
@@ -31,42 +41,33 @@ function parseHeaders(row: ServerRow): Record<string, string> {
   }
 }
 
-function isPrivateAddress(address: string) {
-  if (address === "::1" || address.startsWith("fe80:") || /^f[cd]/i.test(address)) return true;
-  const v4 = address.replace(/^::ffff:/, "");
-  const [a, b] = v4.split(".").map(Number);
-  if ([a, b].some(Number.isNaN)) return false;
-  return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
-}
-
-/**
- * Valida que la URL de un servidor MCP apunte a internet y no a la red interna
- * del servidor. Se puede desactivar con `ALLOW_PRIVATE_MCP=1` para desarrollo.
- */
-export async function assertSafeUrl(raw: string) {
-  const url = new URL(raw);
-  if (!["http:", "https:"].includes(url.protocol)) throw new Error("La URL debe ser http o https");
-  if (process.env.ALLOW_PRIVATE_MCP === "1") return url;
-  if (url.protocol !== "https:") throw new Error("Solo se permiten servidores MCP con https");
-  const records = await lookup(url.hostname, { all: true });
-  if (records.some((r) => isPrivateAddress(r.address))) throw new Error("La URL apunta a una red privada");
-  return url;
-}
 
 /**
  * Conecta con un servidor MCP remoto. Prueba primero Streamable HTTP y, si
- * falla, cae a SSE para servidores viejos.
+ * falla, cae a SSE para servidores viejos. Los conectores OAuth usan sus
+ * tokens guardados y los renuevan solos; si no hay forma de renovarlos, lanza
+ * NeedsAuthorization.
  */
 export async function connectServer(row: ServerRow) {
   const url = await assertSafeUrl(row.url);
   const requestInit = { headers: parseHeaders(row) };
   const client = new Client({ name: "nexo", version: "1.0.0" });
+  if (row.authType === "oauth") {
+    const authProvider = new DbOAuthProvider(row);
+    try {
+      await client.connect(new StreamableHTTPClientTransport(url, { authProvider, fetch: safeFetch }));
+      return client;
+    } catch (err) {
+      if (err instanceof UnauthorizedError || authProvider.authorizationUrl) throw new NeedsAuthorization();
+      throw err;
+    }
+  }
   try {
-    await client.connect(new StreamableHTTPClientTransport(url, { requestInit }));
+    await client.connect(new StreamableHTTPClientTransport(url, { requestInit, fetch: safeFetch }));
     return client;
   } catch {
     const fallback = new Client({ name: "nexo", version: "1.0.0" });
-    await fallback.connect(new SSEClientTransport(url, { requestInit }));
+    await fallback.connect(new SSEClientTransport(url, { requestInit, fetch: safeFetch }));
     return fallback;
   }
 }
@@ -129,7 +130,11 @@ export async function openToolbox(userId: string, organizationId: string | null)
           });
         }
       } catch (err) {
-        errors.push(`No se pudo conectar con "${row.name}": ${(err as Error).message}`);
+        errors.push(
+          err instanceof NeedsAuthorization
+            ? `El conector "${row.name}" necesita que lo autorices de nuevo en Ajustes → Conectores.`
+            : `No se pudo conectar con "${row.name}": ${(err as Error).message}`,
+        );
       }
     }),
   );

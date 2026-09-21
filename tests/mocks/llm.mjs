@@ -64,6 +64,10 @@ const server = http.createServer(async (req, res) => {
   } else if (/#hora/.test(user) && tools.some((t) => t.endsWith("__get_time"))) {
     send(res, { reasoning_content: "Necesito la hora." });
     callTool(res, tools.find((t) => t.endsWith("__get_time")), { zone: "UTC" });
+  } else if (/#quien/.test(user) && tools.some((t) => t.endsWith("__whoami"))) {
+    callTool(res, tools.find((t) => t.endsWith("__whoami")), {});
+  } else if (/#busca (.+)/.test(user) && tools.includes("conversation_search")) {
+    callTool(res, "conversation_search", { query: user.match(/#busca (.+)/)[1].trim() });
   } else if (/#artifact/.test(user) && tools.includes("artifact")) {
     callTool(res, "artifact", { identifier: "contador", title: "Contador", type: "react", content: COUNTER });
   } else if (/#python/.test(user) && tools.includes("run_python")) {

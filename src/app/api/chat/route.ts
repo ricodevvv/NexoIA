@@ -1,9 +1,10 @@
-import { and, asc, eq, gte, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { builtinTools } from "@/lib/ai/builtins";
 import { codeExecutionEnabled } from "@/lib/code-exec";
 import { runTurn } from "@/lib/ai/engine";
+import { defaultLeaf, pathTo } from "@/lib/branches";
 import { resolveKey } from "@/lib/ai/keys";
 import { findModel } from "@/lib/ai/models";
 import { systemPrompt } from "@/lib/ai/system";
@@ -30,6 +31,7 @@ const Body = z.object({
   model: z.string(),
   effort: z.enum(["low", "medium", "high"]).default("medium"),
   webSearch: z.boolean().default(false),
+  research: z.boolean().default(false),
   regenerate: z.boolean().default(false),
   editMessageId: z.string().optional(),
   style: z.string().max(40).default("normal"),
@@ -80,25 +82,27 @@ function withProjectFiles(history: HistoryMessage[], files: { id: string; name: 
   return history.map((m, i) => (i === first ? { ...m, parts: [...parts, ...m.parts] } : m));
 }
 
-async function truncateFrom(conversationId: string, messageId: string) {
-  const target = await db.query.message.findFirst({
-    where: and(eq(schema.message.id, messageId), eq(schema.message.conversationId, conversationId)),
-  });
-  if (!target) throw new HttpError(404, "Mensaje no encontrado");
-  await db
-    .delete(schema.message)
-    .where(and(eq(schema.message.conversationId, conversationId), gte(schema.message.createdAt, target.createdAt)));
-}
-
-async function dropTrailingAssistant(conversationId: string) {
-  const rows = await db.query.message.findMany({
-    where: eq(schema.message.conversationId, conversationId),
-    orderBy: asc(schema.message.createdAt),
-  });
-  const lastUser = rows.findLastIndex((m) => m.role === "user");
-  if (lastUser === -1) throw new HttpError(400, "No hay mensaje que regenerar");
-  const stale = rows.slice(lastUser + 1).map((m) => m.id);
-  if (stale.length) await db.delete(schema.message).where(inArray(schema.message.id, stale));
+/**
+ * Decide de qué mensaje cuelga lo nuevo. Editar crea una versión hermana del
+ * mensaje editado; regenerar, una versión hermana de la respuesta; si no, se
+ * sigue la rama activa. Nunca se borra nada.
+ */
+function resolveParent(
+  rows: { id: string; parentId: string | null; role: string; createdAt: Date }[],
+  leaf: string | null,
+  body: { editMessageId?: string; regenerate: boolean },
+) {
+  if (body.editMessageId) {
+    const target = rows.find((m) => m.id === body.editMessageId);
+    if (!target || target.role !== "user") throw new HttpError(404, "Mensaje no encontrado");
+    return target.parentId;
+  }
+  if (body.regenerate) {
+    const lastUser = pathTo(rows, leaf).findLast((m) => m.role === "user");
+    if (!lastUser) throw new HttpError(400, "No hay mensaje que regenerar");
+    return lastUser.id;
+  }
+  return leaf;
 }
 
 export async function POST(request: Request) {
@@ -115,6 +119,7 @@ export async function POST(request: Request) {
     const blocked = await checkQuota(user.id, model, key.byok);
     if (blocked) throw new HttpError(402, blocked);
 
+    const researching = body.research && model.webSearch !== null;
     const isNew = !body.conversationId;
     const conversation = body.conversationId
       ? await loadConversation(user.id, body.conversationId)
@@ -131,8 +136,12 @@ export async function POST(request: Request) {
             .returning()
         )[0];
 
-    if (body.editMessageId) await truncateFrom(conversation.id, body.editMessageId);
-    if (body.regenerate) await dropTrailingAssistant(conversation.id);
+    const tree = await db.query.message.findMany({
+      where: eq(schema.message.conversationId, conversation.id),
+      orderBy: asc(schema.message.createdAt),
+    });
+    const leaf = conversation.currentLeafId && tree.some((m) => m.id === conversation.currentLeafId) ? conversation.currentLeafId : defaultLeaf(tree);
+    const parentId = resolveParent(tree, leaf, body);
 
     const owned = body.attachmentIds.length
       ? await db
@@ -148,14 +157,15 @@ export async function POST(request: Request) {
         ...owned.map((a) => ({ type: "attachment" as const, attachmentId: a.id, name: a.name, mediaType: a.mediaType })),
         ...(body.text.trim() ? [{ type: "text" as const, text: body.text }] : []),
       ];
-      await db.insert(schema.message).values({ id: userMessageId, conversationId: conversation.id, role: "user", parts });
+      await db.insert(schema.message).values({ id: userMessageId, conversationId: conversation.id, parentId, role: "user", parts });
     }
+    const assistantParentId = body.regenerate ? parentId : userMessageId;
+    const activeTip = body.regenerate ? parentId : userMessageId;
 
     const [stored, project, settings, style] = await Promise.all([
-      db.query.message.findMany({
-        where: eq(schema.message.conversationId, conversation.id),
-        orderBy: asc(schema.message.createdAt),
-      }),
+      db.query.message
+        .findMany({ where: eq(schema.message.conversationId, conversation.id), orderBy: asc(schema.message.createdAt) })
+        .then((rows) => pathTo(rows, activeTip)),
       loadProject(user.id, conversation.projectId),
       getSettings(user.id),
       resolveStyle(user.id, body.style),
@@ -208,6 +218,7 @@ export async function POST(request: Request) {
           memory: settings.memoryEnabled,
           code: settings.codeEnabled && codeExecutionEnabled(),
           files: [...attachments.values()],
+          conversationId: conversation.id,
         });
         for (const error of toolbox.errors) send({ type: "notice", level: "warning", text: error });
 
@@ -222,12 +233,14 @@ export async function POST(request: Request) {
               project: project ? { name: project.name, instructions: project.instructions } : null,
               artifacts: settings.artifactsEnabled,
               style,
+              research: researching,
             }),
             history,
             attachments,
             tools: [...builtins.specs, ...toolbox.tools],
-            effort: body.effort,
-            webSearch: body.webSearch,
+            effort: researching ? "high" : body.effort,
+            webSearch: body.webSearch || researching,
+            research: researching,
           },
           (call, signal) => (builtins.handles(call.name) ? builtins.run(call) : toolbox.call(call.id, call.name, call.input, signal)),
           send,
@@ -239,6 +252,7 @@ export async function POST(request: Request) {
           await db.insert(schema.message).values({
             id: assistantMessageId,
             conversationId: conversation.id,
+            parentId: assistantParentId,
             role: "assistant",
             parts: outcome.parts,
             model: model.id,
@@ -247,7 +261,7 @@ export async function POST(request: Request) {
         }
         await db
           .update(schema.conversation)
-          .set({ updatedAt: new Date(), model: model.id })
+          .set({ updatedAt: new Date(), model: model.id, currentLeafId: outcome.parts.length ? assistantMessageId : activeTip })
           .where(eq(schema.conversation.id, conversation.id));
         if (outcome.usage.inputTokens || outcome.usage.outputTokens) {
           await recordUsage(user.id, model.id, outcome.usage, key.byok);

@@ -1,4 +1,4 @@
-import { boolean, customType, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { type AnyPgColumn, boolean, customType, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import type { MessagePart, NativeTurn } from "@/lib/ai/types";
 
 const bytea = customType<{ data: Buffer }>({
@@ -89,6 +89,7 @@ export const conversation = pgTable(
     title: text("title").notNull().default("Nuevo chat"),
     model: text("model").notNull(),
     starred: boolean("starred").notNull().default(false),
+    currentLeafId: text("current_leaf_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -100,13 +101,14 @@ export const message = pgTable(
   {
     id: text("id").primaryKey(),
     conversationId: text("conversation_id").notNull().references(() => conversation.id, { onDelete: "cascade" }),
+    parentId: text("parent_id").references((): AnyPgColumn => message.id, { onDelete: "cascade" }),
     role: text("role", { enum: ["user", "assistant"] }).notNull(),
     parts: jsonb("parts").$type<MessagePart[]>().notNull(),
     model: text("model"),
     native: jsonb("native").$type<NativeTurn | null>(),
     createdAt: createdAt(),
   },
-  (t) => [index("message_conversation_idx").on(t.conversationId, t.createdAt)],
+  (t) => [index("message_conversation_idx").on(t.conversationId, t.createdAt), index("message_parent_idx").on(t.parentId)],
 );
 
 export const attachment = pgTable("attachment", {
@@ -136,6 +138,9 @@ export const mcpServer = pgTable("mcp_server", {
   name: text("name").notNull(),
   url: text("url").notNull(),
   headers: text("headers"),
+  authType: text("auth_type", { enum: ["headers", "oauth"] }).notNull().default("headers"),
+  oauth: text("oauth"),
+  oauthState: text("oauth_state").unique(),
   enabled: boolean("enabled").notNull().default(true),
   createdAt: createdAt(),
 });

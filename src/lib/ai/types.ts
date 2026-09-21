@@ -74,6 +74,7 @@ export type SessionOptions = {
   tools: ToolSpec[];
   effort: Effort;
   webSearch: boolean;
+  research: boolean;
 };
 
 export interface ProviderSession {
@@ -92,6 +93,7 @@ export type ModelInfo = {
   pdf: boolean;
   reasoning: "adaptive" | "budget" | "openai" | "none";
   webSearch: "web_search_20260209" | "web_search_20250305" | "openai" | null;
+  webFetch: "web_fetch_20260209" | "web_fetch_20250910" | null;
   fallbacks: boolean;
   maxOutput: number;
 };

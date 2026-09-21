@@ -5,6 +5,7 @@ import { WorkspaceAdmin } from "@/components/workspace/workspace-admin";
 import { TEAM_PLAN } from "@/lib/billing/plans";
 import { getTeamSubscription, teamBillingEnabled } from "@/lib/billing/team";
 import { db, schema } from "@/lib/db";
+import { isConnected } from "@/lib/mcp-oauth";
 import { requireSession } from "@/lib/session";
 import { activeWorkspace, canManage } from "@/lib/workspace";
 
@@ -41,7 +42,14 @@ export default async function WorkspacePage(props: PageProps<"/workspace">) {
       .where(and(eq(schema.invitation.organizationId, workspace.id), eq(schema.invitation.status, "pending")))
       .orderBy(desc(schema.invitation.createdAt)),
     db
-      .select({ id: schema.mcpServer.id, name: schema.mcpServer.name, url: schema.mcpServer.url, enabled: schema.mcpServer.enabled })
+      .select({
+        id: schema.mcpServer.id,
+        name: schema.mcpServer.name,
+        url: schema.mcpServer.url,
+        enabled: schema.mcpServer.enabled,
+        authType: schema.mcpServer.authType,
+        oauth: schema.mcpServer.oauth,
+      })
       .from(schema.mcpServer)
       .where(eq(schema.mcpServer.organizationId, workspace.id))
       .orderBy(desc(schema.mcpServer.createdAt)),
@@ -75,7 +83,7 @@ export default async function WorkspacePage(props: PageProps<"/workspace">) {
         tokens: usageByUser.get(m.userId)?.tokens ?? 0,
       }))}
       invitations={invitations.map((i) => ({ ...i, role: i.role ?? "member", expiresAt: i.expiresAt.toISOString() }))}
-      servers={servers}
+      servers={servers.map(({ oauth, ...s }) => ({ ...s, connected: isConnected({ authType: s.authType, oauth }) }))}
       billing={{
         enabled: teamBillingEnabled(),
         status: sub?.status ?? null,

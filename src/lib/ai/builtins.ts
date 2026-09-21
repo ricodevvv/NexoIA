@@ -4,6 +4,8 @@ import { z } from "zod";
 import { runPython } from "@/lib/code-exec";
 import { db, schema } from "@/lib/db";
 import { consume, LIMITS } from "@/lib/rate-limit";
+import { conversationView } from "@/lib/conversation-view";
+import { searchConversations } from "@/lib/search";
 import { putFile } from "@/lib/storage";
 import type { AttachmentData, FileRef, ToolCall, ToolResult, ToolSpec } from "./types";
 
@@ -41,6 +43,30 @@ function describeRun(out: Awaited<ReturnType<typeof runPython>>, files: FileRef[
   if (files.length) sections.push(`archivos entregados al usuario (ya los ve en el chat): ${files.map((f) => f.name).join(", ")}`);
   if (!sections.length) sections.push("Se ejecutó sin salida.");
   return `${sections.join("\n\n")}\n\n(${(out.durationMs / 1000).toFixed(1)} s)`;
+}
+
+const ConversationSearch = z.object({ query: z.string().trim().min(2).max(100) });
+const ConversationRead = z.object({ id: z.string().min(1) });
+
+const conversationSpecs: ToolSpec[] = [
+  {
+    name: "conversation_search",
+    description:
+      "Busca en las conversaciones anteriores del usuario por palabras clave. Úsala cuando el usuario haga referencia a algo que hablaron antes (\"lo que vimos la otra vez\", \"el proyecto del que te conté\") y no esté en esta conversación. Devuelve títulos, fechas, ids y un fragmento.",
+    inputSchema: {
+      properties: { query: { type: "string", description: "Palabras clave concretas, no una pregunta completa." } },
+      required: ["query"],
+    },
+  },
+  {
+    name: "conversation_read",
+    description: "Lee el contenido de una conversación anterior por su id (sacado de conversation_search) cuando el fragmento no alcanza.",
+    inputSchema: { properties: { id: { type: "string" } }, required: ["id"] },
+  },
+];
+
+function day(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
 
 const MemorySave = z.object({ content: z.string().trim().min(3).max(500) });
@@ -91,6 +117,7 @@ export type BuiltinOptions = {
   memory: boolean;
   code: boolean;
   files: AttachmentData[];
+  conversationId: string;
 };
 
 /**
@@ -101,6 +128,7 @@ export function builtinTools(opts: BuiltinOptions): { specs: ToolSpec[]; handles
     ...(opts.artifacts ? [artifactSpec] : []),
     ...(opts.code ? [runPythonSpec] : []),
     ...(opts.memory ? memorySpecs : []),
+    ...(opts.memory ? conversationSpecs : []),
   ];
   const names = new Set(specs.map((s) => s.name));
 
@@ -138,6 +166,28 @@ export function builtinTools(opts: BuiltinOptions): { specs: ToolSpec[]; handles
       } catch (err) {
         return { ...base, output: `No se pudo ejecutar: ${(err as Error).message}`, isError: true };
       }
+    }
+    if (call.name === "conversation_search") {
+      const parsed = ConversationSearch.safeParse(call.input);
+      if (!parsed.success) return { ...base, output: "Dame al menos dos caracteres para buscar.", isError: true };
+      const results = await searchConversations(opts.userId, parsed.data.query, { limit: 6, exclude: opts.conversationId, radius: 300 });
+      if (!results.length) return { ...base, output: `No hay conversaciones anteriores que mencionen "${parsed.data.query}".`, isError: false };
+      const lines = results.map((r) => `- [${r.id}] ${r.title} (${day(r.updatedAt)})${r.snippet ? `\n  ${r.snippet}` : ""}`);
+      return { ...base, output: lines.join("\n"), isError: false };
+    }
+    if (call.name === "conversation_read") {
+      const parsed = ConversationRead.safeParse(call.input);
+      if (!parsed.success) return { ...base, output: "Falta el id.", isError: true };
+      const conv = await db.query.conversation.findFirst({
+        where: and(eq(schema.conversation.id, parsed.data.id), eq(schema.conversation.userId, opts.userId)),
+      });
+      if (!conv) return { ...base, output: "No existe esa conversación.", isError: true };
+      const view = await conversationView(conv.id, conv.currentLeafId);
+      const text = view
+        .map((m) => `${m.role === "user" ? "Usuario" : "Asistente"}: ${m.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("")}`)
+        .join("\n\n");
+      const clipped = text.length > 20_000 ? `…${text.slice(-20_000)}` : text;
+      return { ...base, output: `# ${conv.title} (${day(conv.updatedAt)})\n\n${clipped}`, isError: false };
     }
     if (call.name === "memory_save") {
       const parsed = MemorySave.safeParse(call.input);

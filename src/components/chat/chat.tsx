@@ -60,6 +60,7 @@ export function Chat(props: Props) {
   const [effort, setEffort] = useStoredState<Effort>("nexo-effort", "medium");
   const [web, setWeb] = useStoredState<"on" | "off">("nexo-web", "off");
   const webSearch = web === "on";
+  const [research, setResearch] = useState(false);
   const [storedStyle, setStyle] = useStoredState<string>("nexo-style", "normal");
   const style = props.styles.some((s) => s.id === storedStyle) ? storedStyle : "normal";
   const model =
@@ -98,6 +99,7 @@ export function Chat(props: Props) {
     const userTmp = `tmp-u-${crypto.randomUUID()}`;
     const assistantTmp = `tmp-a-${crypto.randomUUID()}`;
     let assistantId = assistantTmp;
+    let finalConversation = conversationId;
 
     setMessages((all) => {
       let base = all;
@@ -136,6 +138,7 @@ export function Chat(props: Props) {
           model,
           effort,
           webSearch,
+          research: research && Boolean(models.find((m) => m.id === model)?.webSearch),
           style,
           regenerate,
           editMessageId,
@@ -178,6 +181,7 @@ export function Chat(props: Props) {
           if (!line.trim()) continue;
           const event = JSON.parse(line) as ChatStreamEvent;
           if (event.type === "start") {
+            finalConversation = event.conversationId;
             if (!conversationId) {
               setConversationId(event.conversationId);
               window.history.replaceState(null, "", `/chat/${event.conversationId}`);
@@ -213,7 +217,23 @@ export function Chat(props: Props) {
       abortRef.current = null;
       setStreamingId(null);
       notifyConversationsChanged();
+      if (finalConversation && (regenerate || editMessageId)) await refreshBranch(finalConversation);
     }
+  }
+
+  async function refreshBranch(id: string) {
+    const res = await fetch(`/api/conversations/${id}/branch`, { cache: "no-store" });
+    if (res.ok) setMessages(await res.json());
+  }
+
+  async function switchBranch(messageId: string) {
+    if (!conversationId || streamingId) return;
+    const res = await fetch(`/api/conversations/${conversationId}/branch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId }),
+    });
+    if (res.ok) setMessages(await res.json());
   }
 
   function changeModel(id: string) {
@@ -233,6 +253,8 @@ export function Chat(props: Props) {
       plan={props.plan}
       effort={effort}
       webSearch={webSearch}
+      research={research}
+      onResearch={setResearch}
       styles={props.styles}
       style={style}
       onStyle={setStyle}
@@ -268,6 +290,7 @@ export function Chat(props: Props) {
                   editMessageId: m.id,
                 });
               }}
+              onSwitch={switchBranch}
             />
           ))}
         </div>

@@ -170,7 +170,9 @@ Opcional. Si pones `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` o `GITHUB_CLIENT_ID
 Producción corre desde una copia aparte en `/opt/nexo`, así editar el repo no rompe lo que está publicado.
 
 - `nexo.service`: la app con `next start` en `127.0.0.1:3000`, como el usuario `ricodevvv`. Sus variables están en `/etc/nexo/nexo.env` (solo root), con secretos distintos a los de desarrollo.
-- `nexo-tunnel.service`: un túnel rápido de Cloudflare que da HTTPS sin abrir puertos en Azure. Al arrancar, `deploy/tunnel.sh` lee la URL asignada, la guarda en `/etc/nexo/public-url`, actualiza `BETTER_AUTH_URL` y reinicia la app.
+- **Caddy** recibe en los puertos 80 y 443, saca y renueva solo el certificado de Let's Encrypt, y pasa todo a la app. La config está en `deploy/Caddyfile`; el dominio y el correo para Let's Encrypt van en `/etc/systemd/system/caddy.service.d/nexo.conf` (`NEXO_HOST`, `ACME_EMAIL`).
+- Mientras no haya dominio propio se usa `158-23-57-63.sslip.io`, que resuelve solo a la IP de la VM. Para cambiar a un dominio tuyo: apunta un registro A a la IP, cambia `NEXO_HOST` y `BETTER_AUTH_URL`, y reinicia `caddy` y `nexo`.
+- `nexo-tunnel.service` (túnel de Cloudflare) quedó apagado; sirve si algún día no hay puertos abiertos.
 - Para publicar cambios: `./deploy/redeploy.sh`. Copia el código, instala, migra, compila y reinicia. Hay aproximadamente un minuto sin servicio mientras compila.
 - Desarrollo usa otra base (`nexo_dev`) y el puerto 3001, para no mezclar datos de prueba con los reales.
 
@@ -178,11 +180,11 @@ Comandos útiles:
 
 ```bash
 cat /etc/nexo/public-url                 # URL pública actual
+journalctl -u caddy -f                   # logs del proxy y del certificado
 journalctl -u nexo -f                    # logs de la app (aquí salen los enlaces de correo si no hay Resend)
 sudo systemctl restart nexo              # reiniciar la app tras cambiar /etc/nexo/nexo.env
 ```
 
-La URL de `trycloudflare.com` **cambia si se reinicia el túnel** (por ejemplo, si se reinicia la VM). Para una URL fija: un túnel con nombre de Cloudflare apuntando a un dominio tuyo, o abrir los puertos 80/443 en el NSG de Azure y poner Caddy con Let's Encrypt.
 
 ## Almacenamiento de adjuntos
 

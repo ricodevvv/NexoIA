@@ -22,8 +22,8 @@ test("chat con streaming, markdown, título, regenerar y persistencia", async ({
   await expect(page.getByRole("article", { name: "Respuesta" })).toContainText("Eco: hola mundo");
 });
 
-test("editar un mensaje reemplaza lo que venía después", async ({ page }) => {
-  await signup(page, "Editar");
+test("editar y regenerar crean versiones y se puede volver a las anteriores", async ({ page }) => {
+  await signup(page, "Ramas");
   await send(page, "primera versión");
   await waitForIdle(page);
   const mine = page.getByRole("article", { name: "Tu mensaje" });
@@ -32,6 +32,22 @@ test("editar un mensaje reemplaza lo que venía después", async ({ page }) => {
   await mine.locator("textarea").fill("segunda versión");
   await mine.getByRole("button", { name: "Enviar" }).click();
   await waitForIdle(page);
-  await expect(page.getByRole("article", { name: "Respuesta" })).toHaveCount(1);
-  await expect(page.getByRole("article", { name: "Respuesta" })).toContainText("Eco: segunda versión");
+
+  const answer = page.getByRole("article", { name: "Respuesta" });
+  await expect(answer).toHaveCount(1);
+  await expect(answer).toContainText("Eco: segunda versión");
+  await expect(mine.getByText("2/2")).toBeVisible();
+
+  await mine.getByRole("button", { name: "Versión anterior" }).click();
+  await expect(answer).toContainText("Eco: primera versión");
+  await expect(mine.getByText("1/2")).toBeVisible();
+
+  await answer.getByRole("button", { name: "Regenerar respuesta" }).click();
+  await waitForIdle(page);
+  await expect(answer.getByText("2/2")).toBeVisible();
+  await expect(mine.getByText("1/2")).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("article", { name: "Tu mensaje" })).toContainText("primera versión");
+  await expect(page.getByRole("article", { name: "Respuesta" }).getByText("2/2")).toBeVisible();
 });

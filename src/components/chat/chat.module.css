@@ -1000,3 +1000,95 @@
   flex-wrap: wrap;
   gap: 6px;
 }
+
+.branch {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-end: 4px;
+}
+
+.branch :global(.icon-btn) {
+  width: 26px;
+  height: 26px;
+}
+
+.branch :global(.icon-btn:disabled) {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.branchCount {
+  min-width: 30px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.webList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 10px 12px 12px 34px;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+
+.webList li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--text-2);
+}
+
+.webList li::marker {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.webList li[data-error] {
+  color: var(--danger);
+  text-decoration: line-through;
+}
+
+.webList li :global(.label) {
+  flex: none;
+  width: 42px;
+}
+
+.researchBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-2);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.researchBtn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.researchOn {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+@media (max-width: 480px) {
+  .researchBtn span {
+    display: none;
+  }
+}

@@ -484,3 +484,51 @@
   background: var(--accent);
   border-radius: var(--radius-1);
 }
+
+.connectorName {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.authChoice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.authChoice legend {
+  margin-bottom: 6px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.authOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.authOption:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.authOption input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.authOption span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}

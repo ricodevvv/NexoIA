@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Brain, Check, Code2, Download, FileText, Globe, Loader2, Pencil, RefreshCw, Terminal, Wrench, X } from "lucide-react";
+import { AlertTriangle, Brain, Check, ChevronLeft, ChevronRight, Code2, Download, FileText, Globe, Loader2, Pencil, RefreshCw, Terminal, Wrench, X } from "lucide-react";
 import Image from "next/image";
 import { createContext, useContext, useState } from "react";
 import type { MessagePart } from "@/lib/ai/types";
@@ -8,6 +8,8 @@ import { readArtifact } from "../artifacts/artifacts";
 import artifactStyles from "../artifacts/artifacts.module.css";
 import { CodeBlock, CopyButton } from "./code-block";
 import { Markdown } from "./markdown";
+import { groupParts } from "./group-parts";
+import { SpeakButton } from "./speak-button";
 import styles from "./chat.module.css";
 
 export type UIMessage = {
@@ -15,7 +17,36 @@ export type UIMessage = {
   role: "user" | "assistant";
   parts: MessagePart[];
   model?: string | null;
+  siblings?: { index: number; total: number; ids: string[] };
 };
+
+function BranchSwitcher({ message, disabled, onSwitch }: { message: UIMessage; disabled: boolean; onSwitch?: (id: string) => void }) {
+  const s = message.siblings;
+  if (!s || !onSwitch) return null;
+  return (
+    <span className={styles.branch} role="group" aria-label="Versiones">
+      <button
+        className="icon-btn"
+        disabled={disabled || s.index === 0}
+        onClick={() => onSwitch(s.ids[s.index - 1])}
+        aria-label="Versión anterior"
+      >
+        <ChevronLeft />
+      </button>
+      <span className={styles.branchCount}>
+        {s.index + 1}/{s.total}
+      </span>
+      <button
+        className="icon-btn"
+        disabled={disabled || s.index === s.total - 1}
+        onClick={() => onSwitch(s.ids[s.index + 1])}
+        aria-label="Versión siguiente"
+      >
+        <ChevronRight />
+      </button>
+    </span>
+  );
+}
 
 type ToolCallPart = Extract<MessagePart, { type: "tool_call" }>;
 
@@ -67,6 +98,8 @@ function toolLabel(name: string) {
   if (name === "web_search") return "Búsqueda web";
   if (name === "memory_save") return "Memoria · guardar";
   if (name === "memory_delete") return "Memoria · borrar";
+  if (name === "conversation_search") return "Chats anteriores · buscar";
+  if (name === "conversation_read") return "Chats anteriores · leer";
   const [server, ...rest] = name.split("__");
   return rest.length ? `${server} · ${rest.join("__")}` : name;
 }
@@ -137,9 +170,63 @@ function CodeRun({ part, live }: { part: ToolCallPart; live: boolean }) {
   );
 }
 
+function hostOf(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+function WebGroup({ calls, live }: { calls: ToolCallPart[]; live: boolean }) {
+  const searches = calls.filter((c) => c.name === "web_search");
+  const reads = calls.filter((c) => c.name === "web_fetch");
+  const running = live && calls.some((c) => c.output === undefined);
+  const summary = [
+    searches.length ? `${searches.length} ${searches.length === 1 ? "búsqueda" : "búsquedas"}` : null,
+    reads.length ? `${reads.length} ${reads.length === 1 ? "página leída" : "páginas leídas"}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <details className={styles.tool} data-state={running ? "running" : "done"}>
+      <summary>
+        <Globe size={14} aria-hidden="true" />
+        <span className={styles.toolName}>{running ? "Investigando en la web" : "Investigación web"}</span>
+        <span className={styles.toolQuery}>{summary}</span>
+        <span className={styles.toolStatus}>
+          {running ? <Loader2 size={13} className={styles.spin} aria-label="En curso" /> : <Check size={13} aria-label="Listo" />}
+        </span>
+      </summary>
+      <ol className={styles.webList}>
+        {calls.map((c) => {
+          const input = (c.input ?? {}) as { query?: string; url?: string };
+          return (
+            <li key={c.id} data-error={c.isError || undefined}>
+              {c.name === "web_fetch" && input.url ? (
+                <>
+                  <span className="label">Lee</span>
+                  <a href={input.url} target="_blank" rel="noopener noreferrer">
+                    {hostOf(input.url)}
+                  </a>
+                </>
+              ) : (
+                <>
+                  <span className="label">Busca</span>
+                  <span>“{input.query ?? "…"}”</span>
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </details>
+  );
+}
+
 function ToolCall({ part, live }: { part: ToolCallPart; live: boolean }) {
   const running = part.output === undefined && live;
-  const Icon = part.name === "web_search" ? Globe : part.name.startsWith("memory_") ? Brain : Wrench;
+  const Icon = part.name === "web_search" ? Globe : part.name.startsWith("memory_") || part.name.startsWith("conversation_") ? Brain : Wrench;
   const query = part.name === "web_search" && part.input && typeof part.input === "object" ? (part.input as { query?: string }).query : null;
   return (
     <details className={styles.tool} data-state={running ? "running" : part.isError ? "error" : "done"}>
@@ -208,13 +295,14 @@ type Props = {
   modelLabel?: string;
   onRegenerate?: () => void;
   onEdit?: (text: string) => void;
+  onSwitch?: (id: string) => void;
 };
 
 /**
  * Pinta un mensaje del chat con todas sus partes: texto, razonamiento,
  * llamadas a tools, adjuntos y avisos.
  */
-export function Message({ message, live, isLast, busy, modelLabel, onRegenerate, onEdit }: Props) {
+export function Message({ message, live, isLast, busy, modelLabel, onRegenerate, onEdit, onSwitch }: Props) {
   const [editing, setEditing] = useState(false);
   const text = plainText(message.parts);
 
@@ -241,6 +329,7 @@ export function Message({ message, live, isLast, busy, modelLabel, onRegenerate,
         )}
         {!editing && (
           <div className={styles.actions}>
+            <BranchSwitcher message={message} disabled={busy} onSwitch={onSwitch} />
             {text && <CopyButton text={text} />}
             {onEdit && !busy && !message.id.startsWith("tmp-") && (
               <button className="icon-btn" aria-label="Editar mensaje" title="Editar" onClick={() => setEditing(true)}>
@@ -256,7 +345,9 @@ export function Message({ message, live, isLast, busy, modelLabel, onRegenerate,
   const lastIndex = message.parts.length - 1;
   return (
     <article className={styles.assistant} aria-label="Respuesta" aria-busy={live}>
-      {message.parts.map((part, i) => {
+      {groupParts(message.parts).map((item) => {
+        if (item.kind === "web") return <WebGroup key={`web-${item.index}`} calls={item.calls} live={live} />;
+        const { part, index: i } = item;
         const partLive = live && i === lastIndex;
         if (part.type === "text") return <Markdown key={i} text={part.text} />;
         if (part.type === "reasoning") return <Reasoning key={i} text={part.text} live={partLive} />;
@@ -285,7 +376,9 @@ export function Message({ message, live, isLast, busy, modelLabel, onRegenerate,
       )}
       {!live && (
         <div className={styles.actions}>
+          <BranchSwitcher message={message} disabled={busy} onSwitch={onSwitch} />
           {text && <CopyButton text={text} />}
+          <SpeakButton text={text} />
           {isLast && onRegenerate && !busy && (
             <button className="icon-btn" aria-label="Regenerar respuesta" title="Regenerar" onClick={onRegenerate}>
               <RefreshCw />

@@ -50,3 +50,15 @@ describe("applyEvent", () => {
     expect(after[0]).toMatchObject({ output: "ok", isError: false, files });
   });
 });
+
+describe("speakableText", async () => {
+  const { speakableText } = await import("@/components/chat/speak-button");
+  it("quita formato y código para leer en voz alta", () => {
+    const md = "## Título\n\nMira **esto** y [la guía](https://x.dev).\n\n```ts\nconst a = 1;\n```\n\n- uno\n- dos";
+    const spoken = speakableText(md);
+    expect(spoken).toContain("Título. Mira esto y la guía.");
+    expect(spoken).toContain("(bloque de código)");
+    expect(spoken).toMatch(/uno dos$/);
+    expect(spoken).not.toMatch(/\.\s*\.|\*|https|const a|#/);
+  });
+});

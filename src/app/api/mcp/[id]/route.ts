@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/lib/db";
-import { connectServer } from "@/lib/mcp";
+import { connectServer, NeedsAuthorization } from "@/lib/mcp";
 import { enforce, LIMITS } from "@/lib/rate-limit";
 import { apiUser, handleError, HttpError } from "@/lib/session";
 import { canManage, membership } from "@/lib/workspace";
@@ -35,7 +35,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/mcp/[id]">)
       await client.close();
       return Response.json({ ok: true, tools: tools.map((t) => ({ name: t.name, description: t.description ?? "" })) });
     } catch (e) {
-      return Response.json({ ok: false, error: (e as Error).message });
+      return Response.json({ ok: false, needsAuth: e instanceof NeedsAuthorization, error: (e as Error).message });
     }
   } catch (err) {
     return handleError(err);

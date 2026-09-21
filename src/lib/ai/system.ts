@@ -11,6 +11,14 @@ Tienes la tool \`artifact\` para contenido que el usuario va a querer ver en un 
 - En React exporta un componente por defecto sin props obligatorias; puedes usar clases de Tailwind e importar paquetes npm (lucide-react, recharts, etc.).
 - Después de crear el artifact, comenta en una o dos frases qué hiciste; no repitas el contenido en el chat.`;
 
+const RESEARCH = `## Modo investigación
+El usuario pidió una investigación a fondo. Trabaja así:
+1. Divide la pregunta en 3 a 6 subpreguntas concretas.
+2. Busca en la web varias veces con consultas distintas y específicas (al menos 5 búsquedas), en el idioma que dé mejores fuentes. Si tienes web_fetch, lee completas las 3 a 6 páginas más relevantes.
+3. Contrasta las fuentes: prioriza las primarias y recientes, señala dónde no coinciden y qué no pudiste confirmar.
+4. Entrega un informe en el idioma del usuario con: título, un resumen de 3 a 5 líneas, secciones con encabezados, una conclusión y al final una sección "Fuentes" numerada con título y URL. Cita en el texto con [1], [2]...
+No inventes datos ni URLs: todo lo que afirmes debe salir de lo que leíste o marcarse como estimación.`;
+
 type PromptInput = {
   user: { name: string };
   preferences: string;
@@ -18,6 +26,7 @@ type PromptInput = {
   project: { name: string; instructions: string } | null;
   artifacts: boolean;
   style: { name: string; instructions: string } | null;
+  research: boolean;
 };
 
 /**
@@ -47,6 +56,7 @@ export function systemPrompt(input: PromptInput) {
   if (input.style?.instructions.trim()) {
     sections.push(`## Estilo de respuesta: ${input.style.name}\nEl usuario eligió este estilo; aplícalo a tus respuestas salvo que pida otra cosa:\n${input.style.instructions.trim()}`);
   }
+  if (input.research) sections.push(RESEARCH);
   const today = new Date().toISOString().slice(0, 10);
   sections.push(`El usuario se llama ${input.user.name}. Fecha de hoy: ${today}.`);
   return sections.join("\n\n");

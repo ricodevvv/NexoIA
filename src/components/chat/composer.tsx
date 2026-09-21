@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, FileText, Globe, Image as ImageIcon, Loader2, Mic, Paperclip, Square, X } from "lucide-react";
+import { ArrowUp, FileText, Globe, Image as ImageIcon, Loader2, Mic, Paperclip, Square, Telescope, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Effort } from "@/lib/ai/types";
 import type { StyleOption } from "@/lib/styles";
@@ -23,6 +23,8 @@ type Props = {
   plan: "free" | "pro";
   effort: Effort;
   webSearch: boolean;
+  research: boolean;
+  onResearch: (v: boolean) => void;
   styles: StyleOption[];
   style: string;
   onStyle: (id: string) => void;
@@ -149,7 +151,13 @@ export function Composer(props: Props) {
         value={text}
         rows={1}
         autoFocus={props.autoFocus}
-        placeholder={current?.available ? "Escribe lo que quieras…" : "Configura una API key en Ajustes para usar este modelo"}
+        placeholder={
+          !current?.available
+            ? "Configura una API key en Ajustes para usar este modelo"
+            : props.research
+              ? "¿Qué quieres investigar? Sé específico: tema, alcance, para qué lo necesitas…"
+              : "Escribe lo que quieras…"
+        }
         onChange={(e) => setText(e.target.value)}
         onPaste={(e) => {
           const pasted = Array.from(e.clipboardData.files);
@@ -196,6 +204,18 @@ export function Composer(props: Props) {
             </button>
           )}
           {current?.webSearch && (
+            <button
+              type="button"
+              className={`${styles.researchBtn} ${props.research ? styles.researchOn : ""}`}
+              aria-pressed={props.research}
+              title="Investigación a fondo: muchas búsquedas y un informe con fuentes"
+              onClick={() => props.onResearch(!props.research)}
+            >
+              <Telescope size={15} aria-hidden="true" />
+              <span>Investigar</span>
+            </button>
+          )}
+          {current?.webSearch && !props.research && (
             <button
               type="button"
               className="icon-btn"

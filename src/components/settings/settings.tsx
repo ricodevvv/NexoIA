@@ -1,9 +1,9 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Brain, Check, ExternalLink, Link2, Loader2, PanelLeft, Plug, Trash2 } from "lucide-react";
+import { Brain, Check, ExternalLink, KeyRound, Link2, Loader2, PanelLeft, Plug, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import type { Plan, PlanId } from "@/lib/billing/plans";
@@ -11,7 +11,7 @@ import { useShell } from "../shell";
 import styles from "./settings.module.css";
 import { authErrorMessage } from "@/lib/auth-errors";
 
-type Server = { id: string; name: string; url: string; enabled: boolean };
+type Server = { id: string; name: string; url: string; enabled: boolean; authType?: "headers" | "oauth"; connected?: boolean };
 type KeyRow = { provider: "anthropic" | "openai"; hint: string };
 
 type Props = {
@@ -418,8 +418,8 @@ function Personalization({ data }: { data: Props["personalization"] }) {
           )}
           <Toggle
             checked={data.settings.memoryEnabled}
-            label="Memoria"
-            description="Nexo guarda datos útiles sobre ti y los recuerda en chats futuros."
+            label="Memoria y chats anteriores"
+            description="Nexo guarda datos útiles sobre ti y puede buscar en tus conversaciones pasadas cuando haces referencia a ellas."
             onChange={(v) => save({ memoryEnabled: v })}
           />
         </div>
@@ -600,8 +600,28 @@ function parseHeaders(raw: string) {
  */
 export function Connectors({ servers, workspace = false, readOnly = false }: { servers: Server[]; workspace?: boolean; readOnly?: boolean }) {
   const router = useRouter();
+  const params = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [authType, setAuthType] = useState<"none" | "headers" | "oauth">("none");
+  const [authorizing, setAuthorizing] = useState<string | null>(null);
+  const oauthResult = params.get("oauth");
+
+  async function authorize(id: string) {
+    setAuthorizing(id);
+    setError(null);
+    try {
+      const res = await api(`/api/mcp/${id}/oauth`, { method: "POST" });
+      if (res.url) {
+        window.location.href = res.url;
+        return;
+      }
+      router.refresh();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+    setAuthorizing(null);
+  }
   const [tests, setTests] = useState<Record<string, { loading?: boolean; ok?: boolean; text?: string }>>({});
 
   async function add(e: React.FormEvent<HTMLFormElement>) {
@@ -611,15 +631,20 @@ export function Connectors({ servers, workspace = false, readOnly = false }: { s
     setError(null);
     setAdding(true);
     try {
-      await api(workspace ? "/api/mcp?workspace=1" : "/api/mcp", {
+      const created = await api(workspace ? "/api/mcp?workspace=1" : "/api/mcp", {
         method: "POST",
         body: JSON.stringify({
           name: String(data.get("name")),
           url: String(data.get("url")),
-          headers: parseHeaders(String(data.get("headers") ?? "")),
+          headers: authType === "headers" ? parseHeaders(String(data.get("headers") ?? "")) : {},
+          authType: authType === "oauth" ? "oauth" : "headers",
         }),
       });
       form.reset();
+      if (authType === "oauth" && created?.id) {
+        await authorize(created.id);
+        return;
+      }
       router.refresh();
     } catch (err) {
       setError((err as Error).message);
@@ -635,7 +660,7 @@ export function Connectors({ servers, workspace = false, readOnly = false }: { s
       ...t,
       [id]: res.ok
         ? { ok: true, text: res.tools.length ? res.tools.map((x: { name: string }) => x.name).join(", ") : "Sin tools" }
-        : { ok: false, text: res.error },
+        : { ok: false, text: res.needsAuth ? "falta autorizar" : res.error },
     }));
   }
 
@@ -651,6 +676,16 @@ export function Connectors({ servers, workspace = false, readOnly = false }: { s
 
   return (
     <>
+      {oauthResult === "ok" && (
+        <p className={styles.banner} role="status">
+          <Check size={15} aria-hidden="true" /> Listo, {params.get("name") ?? "el conector"} quedó autorizado.
+        </p>
+      )}
+      {oauthResult === "error" && (
+        <p className={styles.warning} role="alert">
+          No se pudo autorizar: {params.get("reason") ?? "algo falló"}.
+        </p>
+      )}
       <Section
         title={workspace ? "Conectores del equipo" : "Conectores MCP"}
         description={
@@ -671,7 +706,12 @@ export function Connectors({ servers, workspace = false, readOnly = false }: { s
               return (
                 <li key={s.id} className={styles.row}>
                   <div className={styles.rowHead}>
-                    <strong>{s.name}</strong>
+                    <strong className={styles.connectorName}>
+                      {s.name}
+                      {s.authType === "oauth" && (
+                        <span className={`tag ${s.connected ? "tag-accent" : ""}`}>{s.connected ? "OAuth · conectado" : "OAuth · sin autorizar"}</span>
+                      )}
+                    </strong>
                     <label className={styles.switch}>
                       <input
                         type="checkbox"
@@ -685,6 +725,16 @@ export function Connectors({ servers, workspace = false, readOnly = false }: { s
                   </div>
                   <code className={styles.url}>{s.url}</code>
                   <div className={styles.rowActions}>
+                    {s.authType === "oauth" && !readOnly && (
+                      <button
+                        className={`btn btn-sm ${s.connected ? "" : "btn-accent"}`}
+                        onClick={() => authorize(s.id)}
+                        disabled={authorizing === s.id}
+                        aria-busy={authorizing === s.id}
+                      >
+                        <KeyRound size={12} /> {s.connected ? "Reautorizar" : "Autorizar"}
+                      </button>
+                    )}
                     <button className="btn btn-sm" onClick={() => test(s.id)} disabled={t?.loading}>
                       {t?.loading ? <Loader2 size={12} className={styles.spin} /> : null}
                       Probar conexión
@@ -720,15 +770,35 @@ export function Connectors({ servers, workspace = false, readOnly = false }: { s
               <input className="input" name="url" type="url" required placeholder="https://ejemplo.com/mcp" />
             </label>
           </div>
-          <label className="field">
-            <span>Headers (opcional)</span>
-            <textarea className="textarea" name="headers" rows={3} placeholder={"Authorization: Bearer tu-token"} />
-            <small className="hint">Uno por línea. Se guardan cifrados.</small>
-          </label>
+          <fieldset className={styles.authChoice}>
+            <legend>Autenticación</legend>
+            {(
+              [
+                ["none", "Ninguna", "El servidor es público."],
+                ["oauth", "Iniciar sesión (OAuth)", "Te manda al servicio para que des permiso. Lo usan Linear, Notion, GitHub y la mayoría."],
+                ["headers", "Token en headers", "Pegas una API key o token del servicio."],
+              ] as const
+            ).map(([value, label, hint]) => (
+              <label key={value} className={styles.authOption}>
+                <input type="radio" name="auth" value={value} checked={authType === value} onChange={() => setAuthType(value)} />
+                <span>
+                  <strong>{label}</strong>
+                  <small className="hint">{hint}</small>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+          {authType === "headers" && (
+            <label className="field">
+              <span>Headers</span>
+              <textarea className="textarea" name="headers" rows={3} placeholder={"Authorization: Bearer tu-token"} />
+              <small className="hint">Uno por línea. Se guardan cifrados.</small>
+            </label>
+          )}
           {error && <p className="error-text">{error}</p>}
           <div>
             <button className="btn btn-primary" disabled={adding} aria-busy={adding}>
-              {adding ? "Agregando…" : "Agregar conector"}
+              {adding ? "Agregando…" : authType === "oauth" ? "Agregar y autorizar" : "Agregar conector"}
             </button>
           </div>
         </form>
