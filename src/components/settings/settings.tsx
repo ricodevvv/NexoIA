@@ -8,6 +8,7 @@ import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import type { Plan, PlanId } from "@/lib/billing/plans";
 import { useShell } from "../shell";
+import { Endpoints } from "./endpoints";
 import styles from "./settings.module.css";
 import { authErrorMessage } from "@/lib/auth-errors";
 
@@ -19,6 +20,7 @@ type Props = {
   checkoutOk: boolean;
   user: { name: string; email: string; emailVerified: boolean };
   keys: KeyRow[];
+  endpoints: { id: string; name: string; baseUrl: string; models: string[]; hasKey: boolean }[];
   personalization: {
     settings: { preferences: string; memoryEnabled: boolean; artifactsEnabled: boolean; codeEnabled: boolean };
     codeAvailable: boolean;
@@ -77,7 +79,7 @@ export function Settings(props: Props) {
         <button className={`icon-btn ${styles.mobileMenu}`} onClick={toggle} aria-label="Mostrar barra lateral">
           <PanelLeft />
         </button>
-        <h1>Ajustes</h1>
+        <h1>Configuración</h1>
       </header>
       <div className={styles.layout}>
         <nav className={styles.tabs} role="tablist" aria-label="Secciones de ajustes">
@@ -90,7 +92,12 @@ export function Settings(props: Props) {
         <section className={styles.panel} role="tabpanel">
           {tab === "account" && <Account user={props.user} />}
           {tab === "personalization" && <Personalization data={props.personalization} />}
-          {tab === "keys" && <Keys keys={props.keys} serverKeys={props.serverKeys} />}
+          {tab === "keys" && (
+            <>
+              <Keys keys={props.keys} serverKeys={props.serverKeys} />
+              <Endpoints endpoints={props.endpoints} />
+            </>
+          )}
           {tab === "connectors" && <Connectors servers={props.servers} />}
           {tab === "billing" && <Billing billing={props.billing} checkoutOk={props.checkoutOk} />}
         </section>
@@ -288,7 +295,7 @@ function StylesSection({ styles: list }: { styles: Props["personalization"]["sty
   return (
     <Section
       title="Estilos de respuesta"
-      description="Además de Normal, Conciso, Explicativo y Formal, crea los tuyos y elígelos desde el botón de pluma del composer."
+      description="Además de Normal, Conciso, Explicativo y Formal, crea los tuyos y elígelos desde el botón + del composer, en Estilo."
     >
       {list.length > 0 && (
         <ul className={styles.memories}>

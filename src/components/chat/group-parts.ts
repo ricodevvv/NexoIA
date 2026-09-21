@@ -2,38 +2,49 @@ import type { MessagePart } from "@/lib/ai/types";
 
 type ToolCallPart = Extract<MessagePart, { type: "tool_call" }>;
 
-export type RenderItem = { kind: "part"; part: MessagePart; index: number } | { kind: "web"; calls: ToolCallPart[]; index: number };
+export type ActivityEntry =
+  | { kind: "reasoning"; text: string; index: number }
+  | { kind: "tool"; part: ToolCallPart; index: number }
+  | { kind: "web"; calls: ToolCallPart[]; index: number };
+
+export type RenderItem = { kind: "part"; part: MessagePart; index: number } | { kind: "activity"; entries: ActivityEntry[]; index: number };
 
 const WEB_TOOLS = new Set(["web_search", "web_fetch"]);
 
-function isWeb(part: MessagePart): part is ToolCallPart {
-  return part.type === "tool_call" && WEB_TOOLS.has(part.name);
+
+function isStandalone(part: MessagePart) {
+  return part.type === "text" || part.type === "notice" || (part.type === "tool_call" && part.name === "artifact");
 }
 
 /**
- * Junta en un solo bloque las búsquedas y lecturas web seguidas (el razonamiento
- * entre ellas no corta el grupo). Así una investigación con veinte búsquedas no
- * llena el chat de filas.
+ * Arma lo que se pinta de una respuesta: el texto, los avisos y los artifacts
+ * van sueltos; todo lo que hace el agente entre medio (razonar, usar tools,
+ * buscar en la web) se junta en una caja de actividad. Las búsquedas web
+ * seguidas se juntan en una sola fila.
  */
 export function groupParts(parts: MessagePart[]): RenderItem[] {
   const items: RenderItem[] = [];
-  let group: { calls: ToolCallPart[]; index: number } | null = null;
+  let activity: { entries: ActivityEntry[]; index: number } | null = null;
+
   parts.forEach((part, index) => {
-    if (isWeb(part)) {
-      group ??= { calls: [], index };
-      group.calls.push(part);
+    if (isStandalone(part)) {
+      if (part.type === "text" && !part.text.trim()) return;
+      if (activity) items.push({ kind: "activity", ...activity });
+      activity = null;
+      items.push({ kind: "part", part, index });
       return;
     }
-    if (group && part.type === "reasoning") return;
-    if (group) {
-      items.push(group.calls.length > 1 ? { kind: "web", ...group } : { kind: "part", part: group.calls[0], index: group.index });
-      group = null;
+    activity ??= { entries: [], index };
+    const last = activity.entries.at(-1);
+    if (part.type === "reasoning") {
+      if (part.text.trim() || !last) activity.entries.push({ kind: "reasoning", text: part.text, index });
+    } else if (part.type === "tool_call" && WEB_TOOLS.has(part.name)) {
+      if (last?.kind === "web") last.calls.push(part);
+      else activity.entries.push({ kind: "web", calls: [part], index });
+    } else if (part.type === "tool_call") {
+      activity.entries.push({ kind: "tool", part, index });
     }
-    items.push({ kind: "part", part, index });
   });
-  if (group) {
-    const g = group as { calls: ToolCallPart[]; index: number };
-    items.push(g.calls.length > 1 ? { kind: "web", ...g } : { kind: "part", part: g.calls[0], index: g.index });
-  }
+  if (activity) items.push({ kind: "activity", ...(activity as { entries: ActivityEntry[]; index: number }) });
   return items;
 }

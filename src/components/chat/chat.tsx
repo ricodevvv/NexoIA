@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, FolderClosed, PanelLeft } from "lucide-react";
+import { ArrowDown, Code2, FolderClosed, GraduationCap, Lightbulb, PanelLeft, PenLine } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { applyEvent } from "@/lib/ai/parts";
@@ -11,9 +11,10 @@ import { notifyConversationsChanged } from "../events";
 import { useShell } from "../shell";
 import { useStoredState } from "../use-stored-state";
 import { Composer } from "./composer";
-import { Message, MessageContext, type UIMessage } from "./message";
+import { type Feedback, Message, MessageContext, type UIMessage } from "./message";
 import type { ModelOption } from "./model-picker";
 import { ShareDialog } from "./share-dialog";
+import { ArtifactsButton, TitleMenu } from "./chat-header";
 import styles from "./chat.module.css";
 
 type Props = {
@@ -36,6 +37,13 @@ type SendArgs = {
   regenerate?: boolean;
   editMessageId?: string;
 };
+
+const SUGGESTIONS = [
+  { label: "Escribir", Icon: PenLine, text: "Ayúdame a escribir " },
+  { label: "Aprender", Icon: GraduationCap, text: "Explícame de forma sencilla " },
+  { label: "Código", Icon: Code2, text: "Ayúdame con este código: " },
+  { label: "Ideas", Icon: Lightbulb, text: "Dame ideas para " },
+];
 
 function greeting() {
   const h = new Date().getHours();
@@ -101,6 +109,7 @@ export function Chat(props: Props) {
     let assistantId = assistantTmp;
     let finalConversation = conversationId;
 
+    const now = new Date().toISOString();
     setMessages((all) => {
       let base = all;
       if (editMessageId) base = all.slice(0, all.findIndex((m) => m.id === editMessageId));
@@ -110,10 +119,11 @@ export function Chat(props: Props) {
         next.push({
           id: userTmp,
           role: "user",
+          createdAt: now,
           parts: [...attachmentParts, ...(text.trim() ? [{ type: "text" as const, text }] : [])],
         });
       }
-      next.push({ id: assistantTmp, role: "assistant", parts: [], model });
+      next.push({ id: assistantTmp, role: "assistant", parts: [], model, createdAt: now });
       return next;
     });
     setStreamingId(assistantTmp);
@@ -221,6 +231,17 @@ export function Chat(props: Props) {
     }
   }
 
+  async function sendFeedback(id: string, value: Feedback) {
+    const previous = messages.find((m) => m.id === id)?.feedback ?? null;
+    updateMessage(id, (m) => ({ ...m, feedback: value }));
+    const res = await fetch(`/api/messages/${id}/feedback`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value }),
+    }).catch(() => null);
+    if (!res?.ok) updateMessage(id, (m) => ({ ...m, feedback: previous }));
+  }
+
   async function refreshBranch(id: string) {
     const res = await fetch(`/api/conversations/${id}/branch`, { cache: "no-store" });
     if (res.ok) setMessages(await res.json());
@@ -245,9 +266,12 @@ export function Chat(props: Props) {
   const empty = messages.length === 0;
   const labels = new Map(models.map((m) => [m.id, m.label]));
   const firstName = props.userName.split(" ")[0];
+  const [draft, setDraft] = useState({ text: "", n: 0 });
 
   const composer = (
     <Composer
+      key={draft.n}
+      initialText={draft.text}
       models={models}
       model={model}
       plan={props.plan}
@@ -291,6 +315,7 @@ export function Chat(props: Props) {
                 });
               }}
               onSwitch={switchBranch}
+              onFeedback={(value) => sendFeedback(m.id, value)}
             />
           ))}
         </div>
@@ -302,7 +327,6 @@ export function Chat(props: Props) {
       )}
       <div className={styles.dock}>
         {composer}
-        <p className={styles.disclaimer}>Los modelos pueden equivocarse. Verifica lo importante.</p>
       </div>
     </>
   );
@@ -319,15 +343,21 @@ export function Chat(props: Props) {
         </>
       ) : (
         <>
-          <p className="label">
-            Nexo · {new Date().toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" })}
-          </p>
           <h2 className={styles.greeting}>
-            {greeting()}, <em>{firstName}</em>.
+            {greeting()}, {firstName}
           </h2>
         </>
       )}
       <div className={styles.welcomeComposer}>{composer}</div>
+      {!props.project && (
+        <div className={styles.suggestions}>
+          {SUGGESTIONS.map(({ label, Icon, text }) => (
+            <button key={label} type="button" className={styles.suggestion} onClick={() => setDraft((d) => ({ text, n: d.n + 1 }))}>
+              <Icon size={16} aria-hidden="true" /> {label}
+            </button>
+          ))}
+        </div>
+      )}
       {!models.some((m) => m.available) && (
         <p className={styles.setup}>
           No hay ningún proveedor configurado. <Link href="/settings?tab=keys">Agrega una API key</Link> para empezar.
@@ -351,11 +381,18 @@ export function Chat(props: Props) {
                   <Link href={`/projects/${props.project.id}`} className={styles.crumb}>
                     {props.project.name}
                   </Link>
-                  <span aria-hidden="true"> / </span>
+                  <span aria-hidden="true" className={styles.crumbSep}>
+                    /
+                  </span>
                 </>
               )}
-              {empty ? "" : title}
+              {!empty && conversationId && title ? (
+                <TitleMenu conversationId={conversationId} title={title} onRenamed={setTitle} />
+              ) : (
+                !empty && <span className={styles.titleText}>{title}</span>
+              )}
             </h1>
+            <ArtifactsButton items={viewer.latest} onOpen={viewer.openLatest} />
             {conversationId && !empty && !busy && <ShareDialog conversationId={conversationId} />}
           </header>
           {empty ? welcome : thread}

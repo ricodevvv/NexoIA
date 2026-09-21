@@ -1,7 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Check, Copy, Link2, Share } from "lucide-react";
+import { Check, Copy, Link2 } from "lucide-react";
 import { useState } from "react";
 import styles from "./chat.module.css";
 
@@ -58,9 +58,7 @@ export function ShareDialog({ conversationId }: { conversationId: string }) {
         if (o) load();
       }}
     >
-      <Dialog.Trigger className="btn btn-ghost btn-sm">
-        <Share size={13} /> Compartir
-      </Dialog.Trigger>
+      <Dialog.Trigger className={`btn btn-sm ${styles.shareBtn}`}>Compartir</Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
         <Dialog.Content className="dialog">

@@ -41,9 +41,10 @@ export function CopyButton({ text, label = "Copiar" }: { text: string; label?: s
 
 /**
  * Bloque de código con resaltado de Shiki. Mientras llega el stream se
- * resalta con un pequeño retraso para no recalcular en cada token.
+ * resalta con un pequeño retraso para no recalcular en cada token. Con
+ * `numbered` se pinta sin cabecera y con números de línea, como en el visor.
  */
-export function CodeBlock({ code, lang }: { code: string; lang: string }) {
+export function CodeBlock({ code, lang, numbered = false }: { code: string; lang: string; numbered?: boolean }) {
   const [html, setHtml] = useState<string | null>(null);
 
   useEffect(() => {
@@ -60,11 +61,13 @@ export function CodeBlock({ code, lang }: { code: string; lang: string }) {
   }, [code, lang]);
 
   return (
-    <div className={styles.code}>
-      <div className={styles.codeHeader}>
-        <span className="label">{lang || "texto"}</span>
-        <CopyButton text={code} label="Copiar código" />
-      </div>
+    <div className={styles.code} data-numbered={numbered || undefined}>
+      {!numbered && (
+        <div className={styles.codeHeader}>
+          <span className="label">{lang || "texto"}</span>
+          <CopyButton text={code} label="Copiar código" />
+        </div>
+      )}
       {html ? (
         <div className={styles.codeBody} dangerouslySetInnerHTML={{ __html: html }} />
       ) : (

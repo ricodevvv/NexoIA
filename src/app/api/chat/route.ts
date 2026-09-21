@@ -5,8 +5,7 @@ import { builtinTools } from "@/lib/ai/builtins";
 import { codeExecutionEnabled } from "@/lib/code-exec";
 import { runTurn } from "@/lib/ai/engine";
 import { defaultLeaf, pathTo } from "@/lib/branches";
-import { resolveKey } from "@/lib/ai/keys";
-import { findModel } from "@/lib/ai/models";
+import { findModelForUser, resolveModelKey } from "@/lib/ai/user-models";
 import { systemPrompt } from "@/lib/ai/system";
 import { generateTitle } from "@/lib/ai/title";
 import type { AttachmentData, ChatStreamEvent, HistoryMessage, MessagePart } from "@/lib/ai/types";
@@ -112,9 +111,9 @@ export async function POST(request: Request) {
     await enforce([{ key: `chat:u:${user.id}`, ...LIMITS.chatUser }, { key: `chat:ip:${clientIp(request.headers)}`, ...LIMITS.chatIp }]);
     const body = Body.parse(await request.json());
 
-    const model = findModel(body.model);
+    const model = await findModelForUser(user.id, body.model);
     if (!model) throw new HttpError(400, "Modelo desconocido");
-    const key = await resolveKey(user.id, model.provider);
+    const key = await resolveModelKey(user.id, model);
     if (!key) throw new HttpError(400, `No hay API key configurada para ${model.label}. Agrégala en Ajustes.`);
     const blocked = await checkQuota(user.id, model, key.byok);
     if (blocked) throw new HttpError(402, blocked);

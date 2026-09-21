@@ -106,6 +106,7 @@ export const message = pgTable(
     parts: jsonb("parts").$type<MessagePart[]>().notNull(),
     model: text("model"),
     native: jsonb("native").$type<NativeTurn | null>(),
+    feedback: text("feedback", { enum: ["up", "down"] }),
     createdAt: createdAt(),
   },
   (t) => [index("message_conversation_idx").on(t.conversationId, t.createdAt), index("message_parent_idx").on(t.parentId)],
@@ -271,3 +272,17 @@ export const orgSubscription = pgTable("org_subscription", {
   currentPeriodEnd: timestamp("current_period_end"),
   updatedAt: updatedAt(),
 });
+
+export const userEndpoint = pgTable(
+  "user_endpoint",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    baseUrl: text("base_url").notNull(),
+    apiKey: text("api_key"),
+    models: jsonb("models").$type<string[]>().notNull().default([]),
+    createdAt: createdAt(),
+  },
+  (t) => [index("user_endpoint_user_idx").on(t.userId)],
+);

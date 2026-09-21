@@ -38,6 +38,7 @@ test("la ejecución de Python lee un adjunto y devuelve una gráfica", async ({ 
   await expect(page.getByText("ventas.csv")).toBeVisible();
   await send(page, "#python");
   await expect(page.getByAltText("figura_1.png")).toBeVisible({ timeout: 110_000 });
+  await page.getByRole("button", { name: "Ejecutó código" }).click();
   await expect(page.getByRole("article", { name: "Respuesta" })).toContainText("valor final: 360");
 });
 
@@ -73,6 +74,6 @@ test("el modelo puede buscar en chats anteriores", async ({ page }) => {
   await page.goto("/");
   await send(page, "#busca ornitorrinco");
   await waitForIdle(page);
-  await expect(page.getByText("Chats anteriores · buscar")).toBeVisible();
+  await page.getByRole("button", { name: "Buscó en tus chats" }).click();
   await expect(page.getByRole("article", { name: "Respuesta" })).toContainText("Hablemos del ornitorrinco");
 });

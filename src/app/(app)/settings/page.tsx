@@ -5,6 +5,7 @@ import { PLANS } from "@/lib/billing/plans";
 import { stripeEnabled } from "@/lib/billing/stripe";
 import { getPlan, usedToday } from "@/lib/billing/usage";
 import { db, schema } from "@/lib/db";
+import { listEndpoints } from "@/lib/ai/user-models";
 import { codeExecutionEnabled } from "@/lib/code-exec";
 import { isConnected } from "@/lib/mcp-oauth";
 import { requireUser } from "@/lib/session";
@@ -56,6 +57,7 @@ export default async function SettingsPage(props: PageProps<"/settings">) {
       checkoutOk={checkout === "ok"}
       user={{ name: user.name, email: user.email, emailVerified: user.emailVerified }}
       keys={keys}
+      endpoints={(await listEndpoints(user.id)).map((e) => ({ id: e.id, name: e.name, baseUrl: e.baseUrl, models: e.models, hasKey: Boolean(e.apiKey) }))}
       personalization={{
         settings,
         memories: memories.map((m) => ({ id: m.id, content: m.content, createdAt: m.createdAt.toISOString() })),

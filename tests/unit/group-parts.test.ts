@@ -3,30 +3,38 @@ import { groupParts } from "@/components/chat/group-parts";
 import type { MessagePart } from "@/lib/ai/types";
 
 const search = (id: string): MessagePart => ({ type: "tool_call", id, name: "web_search", input: { query: id }, server: true, output: "ok" });
-const fetchPage = (id: string): MessagePart => ({ type: "tool_call", id, name: "web_fetch", input: { url: `https://${id}.dev` }, server: true, output: "ok" });
+const tool = (id: string, name = "reloj__get_time"): MessagePart => ({ type: "tool_call", id, name, input: {}, output: "ok" });
 
 describe("groupParts", () => {
-  it("agrupa búsquedas y lecturas seguidas aunque haya razonamiento en medio", () => {
+  it("junta razonamiento y tools en una caja entre textos", () => {
     const items = groupParts([
-      { type: "text", text: "Voy a investigar." },
-      search("a"),
-      { type: "reasoning", text: "sigo" },
-      search("b"),
-      fetchPage("c"),
-      { type: "text", text: "Informe" },
+      { type: "reasoning", text: "Pienso" },
+      tool("t1"),
+      { type: "text", text: "Listo." },
+      tool("t2"),
+      { type: "text", text: "Fin." },
     ]);
-    expect(items.map((i) => i.kind)).toEqual(["part", "web", "part"]);
-    const web = items[1];
-    expect(web.kind === "web" && web.calls.map((c) => c.id)).toEqual(["a", "b", "c"]);
+    expect(items.map((i) => i.kind)).toEqual(["activity", "part", "activity", "part"]);
+    const first = items[0];
+    expect(first.kind === "activity" && first.entries.map((e) => e.kind)).toEqual(["reasoning", "tool"]);
   });
 
-  it("deja una búsqueda suelta como fila normal", () => {
-    const items = groupParts([search("solo"), { type: "text", text: "listo" }]);
-    expect(items.map((i) => i.kind)).toEqual(["part", "part"]);
+  it("junta búsquedas web seguidas en una sola fila", () => {
+    const items = groupParts([search("a"), search("b"), tool("x"), search("c")]);
+    const box = items[0];
+    expect(box.kind === "activity" && box.entries.map((e) => (e.kind === "web" ? `web:${e.calls.length}` : e.kind))).toEqual(["web:2", "tool", "web:1"]);
   });
 
-  it("no toca otras tools", () => {
-    const mcp: MessagePart = { type: "tool_call", id: "m", name: "reloj__get_time", input: {} };
-    expect(groupParts([mcp, search("a"), search("b")]).map((i) => i.kind)).toEqual(["part", "web"]);
+  it("deja los artifacts y los avisos fuera de la caja", () => {
+    const artifact: MessagePart = { type: "tool_call", id: "a", name: "artifact", input: {}, output: "ok" };
+    const items = groupParts([tool("t"), artifact, { type: "notice", level: "warning", text: "ojo" }]);
+    expect(items.map((i) => i.kind)).toEqual(["activity", "part", "part"]);
+  });
+
+  it("ignora texto vacío y razonamiento vacío después del primero", () => {
+    const items = groupParts([{ type: "reasoning", text: "" }, { type: "text", text: "  " }, { type: "reasoning", text: "" }, tool("t")]);
+    expect(items).toHaveLength(1);
+    const box = items[0];
+    expect(box.kind === "activity" && box.entries.map((e) => e.kind)).toEqual(["reasoning", "tool"]);
   });
 });

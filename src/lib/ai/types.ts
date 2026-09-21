@@ -96,6 +96,9 @@ export type ModelInfo = {
   webFetch: "web_fetch_20260209" | "web_fetch_20250910" | null;
   fallbacks: boolean;
   maxOutput: number;
+  baseURL?: string;
+  endpointId?: string;
+  group?: string;
 };
 
 export type ChatStreamEvent =

@@ -1,6 +1,7 @@
 import type { ModelOption } from "@/components/chat/model-picker";
 import { resolveKey } from "./keys";
 import { listModels } from "./models";
+import { userModels } from "./user-models";
 import type { ProviderId } from "./types";
 
 /**
@@ -13,7 +14,21 @@ export async function modelOptions(userId: string): Promise<ModelOption[]> {
   const keys = new Map<ProviderId, Awaited<ReturnType<typeof resolveKey>>>(
     await Promise.all(providers.map(async (p) => [p, await resolveKey(userId, p)] as const)),
   );
-  return models.map((m) => {
+  const own = (await userModels(userId)).map((m) => ({
+    id: m.id,
+    group: m.group,
+    provider: m.provider,
+    label: m.label,
+    description: m.description,
+    tier: m.tier,
+    available: true,
+    byok: true,
+    reasoning: false,
+    webSearch: false,
+    vision: false,
+    pdf: false,
+  }));
+  return [...own, ...models.map((m) => {
     const key = keys.get(m.provider);
     return {
       id: m.id,
@@ -28,5 +43,5 @@ export async function modelOptions(userId: string): Promise<ModelOption[]> {
       vision: m.vision,
       pdf: m.pdf,
     };
-  });
+  })];
 }

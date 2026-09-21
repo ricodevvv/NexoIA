@@ -4,7 +4,9 @@ import type {
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
+import { safeFetch } from "@/lib/safe-url";
 import { fileAsText, isTextLike, splitAssistant, toolOutput } from "../history";
+import { remoteModelId } from "../models";
 import type {
   HistoryMessage,
   NativeTurn,
@@ -66,8 +68,10 @@ function reasoningDelta(delta: object): string {
  * (OpenRouter, Ollama, Groq, LM Studio, DeepSeek...).
  */
 export function createCompatSession(opts: SessionOptions): ProviderSession {
-  const client = new OpenAI({ apiKey: opts.apiKey || "sin-key", baseURL: process.env.COMPAT_BASE_URL });
-  const modelId = opts.model.id.replace(/^compat:/, "");
+  const client = new OpenAI({ apiKey: opts.apiKey || "sin-key", baseURL: opts.model.baseURL ?? process.env.COMPAT_BASE_URL,
+    ...(opts.model.endpointId ? { fetch: safeFetch } : {}),
+  });
+  const modelId = remoteModelId(opts.model.id);
   const messages: ChatCompletionMessageParam[] = [{ role: "system", content: opts.system }];
   const turnItems: ChatCompletionMessageParam[] = [];
 

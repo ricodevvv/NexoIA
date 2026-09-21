@@ -8,6 +8,8 @@ export type ViewMessage = {
   role: "user" | "assistant";
   parts: MessagePart[];
   model: string | null;
+  createdAt: string;
+  feedback: "up" | "down" | null;
   siblings?: Siblings;
 };
 
@@ -19,6 +21,7 @@ async function loadTree(conversationId: string) {
       role: schema.message.role,
       parts: schema.message.parts,
       model: schema.message.model,
+      feedback: schema.message.feedback,
       createdAt: schema.message.createdAt,
     })
     .from(schema.message)
@@ -39,6 +42,8 @@ export async function conversationView(conversationId: string, currentLeafId: st
     role: m.role,
     parts: m.parts,
     model: m.model,
+    createdAt: m.createdAt.toISOString(),
+    feedback: m.feedback,
     ...(siblings.has(m.id) ? { siblings: siblings.get(m.id) } : {}),
   }));
 }

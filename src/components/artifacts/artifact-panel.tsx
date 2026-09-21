@@ -1,8 +1,9 @@
 "use client";
 
-import { Download, RotateCw, X } from "lucide-react";
+import * as Menu from "@radix-ui/react-dropdown-menu";
+import { Check, ChevronDown, Code2, Download, Eye, RotateCw, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import { CodeBlock, CopyButton } from "../chat/code-block";
+import { CodeBlock } from "../chat/code-block";
 import { Markdown } from "../chat/markdown";
 import { useIsDark } from "../use-is-dark";
 import { codeLanguage, fileName, hasPreview, type ArtifactVersion } from "./artifacts";
@@ -26,9 +27,8 @@ function download(artifact: ArtifactVersion) {
   URL.revokeObjectURL(url);
 }
 
-function Preview({ artifact }: { artifact: ArtifactVersion }) {
+function Preview({ artifact, reloads }: { artifact: ArtifactVersion; reloads: number }) {
   const dark = useIsDark();
-  const [reloads, setReloads] = useState(0);
   const srcDoc = useMemo(() => buildSrcDoc(artifact, dark), [artifact, dark]);
 
   if (artifact.type === "markdown") {
@@ -47,9 +47,6 @@ function Preview({ artifact }: { artifact: ArtifactVersion }) {
         sandbox="allow-scripts allow-modals allow-forms allow-popups allow-downloads"
         srcDoc={srcDoc}
       />
-      <button className={`icon-btn ${styles.reload}`} onClick={() => setReloads((n) => n + 1)} aria-label="Recargar vista previa" title="Recargar">
-        <RotateCw />
-      </button>
     </div>
   );
 }
@@ -62,56 +59,86 @@ export function ArtifactPanel({ versions, selected, onSelect, onClose }: Props) 
   const artifact = versions[selected] ?? versions.at(-1)!;
   const previewable = hasPreview(artifact);
   const [tab, setTab] = useState<"preview" | "code">("preview");
+  const [reloads, setReloads] = useState(0);
+  const [copied, setCopied] = useState(false);
   const view = previewable ? tab : "code";
+  const ext = fileName(artifact).split(".").pop()?.toUpperCase();
+
+  async function copy() {
+    await navigator.clipboard.writeText(artifact.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
 
   return (
     <aside className={styles.panel} aria-label={`Artifact: ${artifact.title}`}>
       <header className={styles.header}>
-        <div className={styles.titleBlock}>
-          <span className="label">{artifact.type}</span>
-          <h2>{artifact.title}</h2>
-        </div>
-        <div className={styles.headerActions}>
-          {versions.length > 1 && (
-            <label className={styles.versions}>
-              <span className="sr-only">Versión</span>
-              <select value={selected} onChange={(e) => onSelect(Number(e.target.value))}>
-                {versions.map((_, i) => (
-                  <option key={i} value={i}>
-                    v{i + 1}
-                    {i === versions.length - 1 ? " · última" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <CopyButton text={artifact.content} label="Copiar contenido" />
-          <button className="icon-btn" onClick={() => download(artifact)} aria-label="Descargar" title="Descargar">
-            <Download />
+        {previewable && (
+          <div className={styles.segmented} role="tablist">
+            <button role="tab" aria-selected={view === "preview"} aria-label="Vista previa" title="Vista previa" onClick={() => setTab("preview")}>
+              <Eye size={17} />
+            </button>
+            <button role="tab" aria-selected={view === "code"} aria-label="Código" title="Código" onClick={() => setTab("code")}>
+              <Code2 size={17} />
+            </button>
+          </div>
+        )}
+        <h2 className={styles.title}>
+          <span className={styles.titleName}>{artifact.title}</span>
+          <span className={styles.titleExt}>
+            {" "}
+            · {ext}
+            {versions.length > 1 ? ` · v${selected + 1}` : ""}
+          </span>
+        </h2>
+        <div className={styles.split}>
+          <button type="button" onClick={copy} aria-label="Copiar contenido">
+            {copied ? "Copiado" : "Copiar"}
           </button>
-          <button className="icon-btn" onClick={onClose} aria-label="Cerrar artifact" title="Cerrar">
-            <X />
-          </button>
+          <Menu.Root>
+            <Menu.Trigger className={styles.splitMore} aria-label="Más acciones">
+              <ChevronDown size={15} />
+            </Menu.Trigger>
+            <Menu.Portal>
+              <Menu.Content className="menu" align="end" sideOffset={6}>
+                <Menu.Item className="menu-item" onSelect={() => download(artifact)}>
+                  <Download /> Descargar {fileName(artifact)}
+                </Menu.Item>
+                {view === "preview" && artifact.type !== "markdown" && (
+                  <Menu.Item className="menu-item" onSelect={() => setReloads((n) => n + 1)}>
+                    <RotateCw /> Recargar vista previa
+                  </Menu.Item>
+                )}
+                {versions.length > 1 && (
+                  <>
+                    <Menu.Separator className="menu-sep" />
+                    <p className="menu-label label">Versiones</p>
+                    {versions.map((_, i) => (
+                      <Menu.Item key={i} className="menu-item" onSelect={() => onSelect(i)}>
+                        <span className={styles.grow}>
+                          Versión {i + 1}
+                          {i === versions.length - 1 ? " · última" : ""}
+                        </span>
+                        {i === selected && <Check />}
+                      </Menu.Item>
+                    ))}
+                  </>
+                )}
+              </Menu.Content>
+            </Menu.Portal>
+          </Menu.Root>
         </div>
+        <button className="icon-btn" onClick={onClose} aria-label="Cerrar artifact" title="Cerrar">
+          <X />
+        </button>
       </header>
-
-      {previewable && (
-        <div className={styles.tabs} role="tablist">
-          <button role="tab" aria-selected={view === "preview"} onClick={() => setTab("preview")}>
-            Vista previa
-          </button>
-          <button role="tab" aria-selected={view === "code"} onClick={() => setTab("code")}>
-            Código
-          </button>
-        </div>
-      )}
 
       <div className={styles.body}>
         {view === "preview" ? (
-          <Preview artifact={artifact} />
+          <Preview artifact={artifact} reloads={reloads} />
         ) : (
           <div className={styles.codeView}>
-            <CodeBlock code={artifact.content} lang={codeLanguage(artifact)} />
+            <CodeBlock code={artifact.content} lang={codeLanguage(artifact)} numbered />
           </div>
         )}
       </div>

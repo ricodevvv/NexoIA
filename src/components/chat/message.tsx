@@ -1,36 +1,79 @@
 "use client";
 
-import { AlertTriangle, Brain, Check, ChevronLeft, ChevronRight, Code2, Download, FileText, Globe, Loader2, Pencil, RefreshCw, Terminal, Wrench, X } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Download, FileText, Pencil, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
 import Image from "next/image";
-import { createContext, useContext, useState } from "react";
+import { useContext, useState, useSyncExternalStore } from "react";
 import type { MessagePart } from "@/lib/ai/types";
 import { readArtifact } from "../artifacts/artifacts";
-import artifactStyles from "../artifacts/artifacts.module.css";
-import { CodeBlock, CopyButton } from "./code-block";
-import { Markdown } from "./markdown";
+import { ActivityBox } from "./activity";
+import { CopyButton } from "./code-block";
 import { groupParts } from "./group-parts";
+import { Markdown } from "./markdown";
+import { MessageContext } from "./message-context";
 import { SpeakButton } from "./speak-button";
 import styles from "./chat.module.css";
+
+export { MessageContext, type MessageContextValue } from "./message-context";
+
+export type Feedback = "up" | "down" | null;
 
 export type UIMessage = {
   id: string;
   role: "user" | "assistant";
   parts: MessagePart[];
   model?: string | null;
+  createdAt?: string;
+  feedback?: Feedback;
   siblings?: { index: number; total: number; ids: string[] };
 };
+
+type ToolCallPart = Extract<MessagePart, { type: "tool_call" }>;
+
+const EXT: Record<string, string> = {
+  markdown: "MD",
+  html: "HTML",
+  react: "JSX",
+  svg: "SVG",
+  mermaid: "MMD",
+};
+
+function subscribeMinute(cb: () => void) {
+  const timer = setInterval(cb, 30_000);
+  return () => clearInterval(timer);
+}
+
+function minuteNow() {
+  return Math.floor(Date.now() / 30_000) * 30_000;
+}
+
+/**
+ * Hora relativa corta al estilo "ahora", "hace 5 min", "ayer".
+ */
+export function relativeTime(iso: string, now: number) {
+  const diff = Math.max(0, now - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return "ahora";
+  if (diff < 3600) return `hace ${Math.floor(diff / 60)} min`;
+  if (diff < 86400) return `hace ${Math.floor(diff / 3600)} h`;
+  if (diff < 172800) return "ayer";
+  return new Date(iso).toLocaleDateString("es", { day: "numeric", month: "short" });
+}
+
+function TimeAgo({ iso }: { iso?: string }) {
+  const now = useSyncExternalStore(subscribeMinute, minuteNow, () => 0);
+  if (!iso || !now) return null;
+  return (
+    <time className={styles.time} dateTime={iso} title={new Date(iso).toLocaleString("es")}>
+      {relativeTime(iso, now)}
+    </time>
+  );
+}
 
 function BranchSwitcher({ message, disabled, onSwitch }: { message: UIMessage; disabled: boolean; onSwitch?: (id: string) => void }) {
   const s = message.siblings;
   if (!s || !onSwitch) return null;
   return (
     <span className={styles.branch} role="group" aria-label="Versiones">
-      <button
-        className="icon-btn"
-        disabled={disabled || s.index === 0}
-        onClick={() => onSwitch(s.ids[s.index - 1])}
-        aria-label="Versión anterior"
-      >
+      <button className="icon-btn" disabled={disabled || s.index === 0} onClick={() => onSwitch(s.ids[s.index - 1])} aria-label="Versión anterior">
         <ChevronLeft />
       </button>
       <span className={styles.branchCount}>
@@ -48,42 +91,40 @@ function BranchSwitcher({ message, disabled, onSwitch }: { message: UIMessage; d
   );
 }
 
-type ToolCallPart = Extract<MessagePart, { type: "tool_call" }>;
-
-export type MessageContextValue = {
-  attachmentUrl: (id: string) => string;
-  openArtifact?: (identifier: string, callId: string) => void;
-  activeArtifactCall?: string | null;
-  artifactVersion?: (identifier: string, callId: string) => { index: number; total: number };
-};
-
-export const MessageContext = createContext<MessageContextValue>({
-  attachmentUrl: (id) => `/api/attachments/${id}`,
-});
-
 function ArtifactCard({ part }: { part: ToolCallPart }) {
   const ctx = useContext(MessageContext);
   const artifact = readArtifact(part);
-  if (!artifact) return <ToolCall part={part} live={false} />;
+  if (!artifact) return <ActivityBox entries={[{ kind: "tool", part, index: 0 }]} live={false} />;
   const version = ctx.artifactVersion?.(artifact.identifier, artifact.callId);
+  const ext = artifact.type === "code" ? (artifact.language ?? "código").toUpperCase() : EXT[artifact.type] ?? artifact.type.toUpperCase();
+  const kind = artifact.type === "code" ? "Código" : artifact.type === "markdown" ? "Documento" : "Artifact";
+  const download = () => {
+    const blob = new Blob([artifact.content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${artifact.identifier}.${ext.toLowerCase()}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   return (
-    <button
-      type="button"
-      className={artifactStyles.card}
-      data-active={ctx.activeArtifactCall === artifact.callId}
-      onClick={() => ctx.openArtifact?.(artifact.identifier, artifact.callId)}
-    >
-      <span className={artifactStyles.cardIcon} aria-hidden="true">
-        <Code2 size={17} />
-      </span>
-      <span className={artifactStyles.cardText}>
-        <span className={artifactStyles.cardTitle}>{artifact.title}</span>
-        <span className="label">
-          {artifact.type}
-          {version && version.total > 1 ? ` · versión ${version.index + 1}` : ""} · abrir
+    <div className={styles.fileCard} data-active={ctx.activeArtifactCall === artifact.callId}>
+      <button type="button" className={styles.fileCardMain} onClick={() => ctx.openArtifact?.(artifact.identifier, artifact.callId)}>
+        <span className={styles.fileCardIcon} aria-hidden="true">
+          <FileText size={18} />
         </span>
-      </span>
-    </button>
+        <span className={styles.fileCardText}>
+          <span className={styles.fileCardTitle}>{artifact.title}</span>
+          <span className={styles.fileCardMeta}>
+            {kind} · {ext}
+            {version && version.total > 1 ? ` · versión ${version.index + 1}` : ""}
+          </span>
+        </span>
+      </button>
+      <button type="button" className={styles.fileCardAction} onClick={download} aria-label="Descargar" title="Descargar">
+        <Download size={16} />
+      </button>
+    </div>
   );
 }
 
@@ -92,182 +133,6 @@ function plainText(parts: MessagePart[]) {
     .filter((p): p is Extract<MessagePart, { type: "text" }> => p.type === "text")
     .map((p) => p.text)
     .join("");
-}
-
-function toolLabel(name: string) {
-  if (name === "web_search") return "Búsqueda web";
-  if (name === "memory_save") return "Memoria · guardar";
-  if (name === "memory_delete") return "Memoria · borrar";
-  if (name === "conversation_search") return "Chats anteriores · buscar";
-  if (name === "conversation_read") return "Chats anteriores · leer";
-  const [server, ...rest] = name.split("__");
-  return rest.length ? `${server} · ${rest.join("__")}` : name;
-}
-
-function pretty(value: unknown) {
-  if (typeof value === "string") return value;
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-}
-
-function stripSections(output: string) {
-  return output.replace(/\n*\(\d+(\.\d+)? s\)\s*$/, "").replace(/\n*archivos entregados al usuario[^\n]*/, "").trim();
-}
-
-function CodeRun({ part, live }: { part: ToolCallPart; live: boolean }) {
-  const ctx = useContext(MessageContext);
-  const running = part.output === undefined && live;
-  const code = (part.input as { code?: string } | null)?.code ?? "";
-  const images = part.files?.filter((f) => f.mediaType.startsWith("image/") && f.mediaType !== "image/svg+xml") ?? [];
-  const others = part.files?.filter((f) => !images.includes(f)) ?? [];
-  const duration = part.output?.match(/\((\d+(?:\.\d+)?) s\)\s*$/)?.[1];
-  return (
-    <div className={styles.codeRun} data-state={running ? "running" : part.isError ? "error" : "done"}>
-      <details className={styles.tool} data-state={running ? "running" : part.isError ? "error" : "done"}>
-        <summary>
-          <Terminal size={14} aria-hidden="true" />
-          <span className={styles.toolName}>Python</span>
-          <span className={styles.toolQuery}>{running ? "ejecutando…" : duration ? `${duration} s` : ""}</span>
-          <span className={styles.toolStatus}>
-            {running ? (
-              <Loader2 size={13} className={styles.spin} aria-label="Ejecutando" />
-            ) : part.isError ? (
-              <X size={13} aria-label="Falló" />
-            ) : (
-              <Check size={13} aria-label="Listo" />
-            )}
-          </span>
-        </summary>
-        <div className={styles.toolBody}>
-          <CodeBlock code={code} lang="python" />
-          {part.output !== undefined && (
-            <>
-              <p className="label">Salida</p>
-              <pre>{stripSections(part.output) || "(sin salida)"}</pre>
-            </>
-          )}
-        </div>
-      </details>
-      {images.map((f) => (
-        <a key={f.attachmentId} href={ctx.attachmentUrl(f.attachmentId)} target="_blank" rel="noopener noreferrer" className={styles.figure}>
-          <Image src={ctx.attachmentUrl(f.attachmentId)} alt={f.name} width={720} height={480} unoptimized />
-        </a>
-      ))}
-      {others.length > 0 && (
-        <div className={styles.runFiles}>
-          {others.map((f) => (
-            <a key={f.attachmentId} href={ctx.attachmentUrl(f.attachmentId)} download={f.name} className={styles.fileChip}>
-              <Download size={14} aria-hidden="true" />
-              <span>{f.name}</span>
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function hostOf(url: string) {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
-
-function WebGroup({ calls, live }: { calls: ToolCallPart[]; live: boolean }) {
-  const searches = calls.filter((c) => c.name === "web_search");
-  const reads = calls.filter((c) => c.name === "web_fetch");
-  const running = live && calls.some((c) => c.output === undefined);
-  const summary = [
-    searches.length ? `${searches.length} ${searches.length === 1 ? "búsqueda" : "búsquedas"}` : null,
-    reads.length ? `${reads.length} ${reads.length === 1 ? "página leída" : "páginas leídas"}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  return (
-    <details className={styles.tool} data-state={running ? "running" : "done"}>
-      <summary>
-        <Globe size={14} aria-hidden="true" />
-        <span className={styles.toolName}>{running ? "Investigando en la web" : "Investigación web"}</span>
-        <span className={styles.toolQuery}>{summary}</span>
-        <span className={styles.toolStatus}>
-          {running ? <Loader2 size={13} className={styles.spin} aria-label="En curso" /> : <Check size={13} aria-label="Listo" />}
-        </span>
-      </summary>
-      <ol className={styles.webList}>
-        {calls.map((c) => {
-          const input = (c.input ?? {}) as { query?: string; url?: string };
-          return (
-            <li key={c.id} data-error={c.isError || undefined}>
-              {c.name === "web_fetch" && input.url ? (
-                <>
-                  <span className="label">Lee</span>
-                  <a href={input.url} target="_blank" rel="noopener noreferrer">
-                    {hostOf(input.url)}
-                  </a>
-                </>
-              ) : (
-                <>
-                  <span className="label">Busca</span>
-                  <span>“{input.query ?? "…"}”</span>
-                </>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-    </details>
-  );
-}
-
-function ToolCall({ part, live }: { part: ToolCallPart; live: boolean }) {
-  const running = part.output === undefined && live;
-  const Icon = part.name === "web_search" ? Globe : part.name.startsWith("memory_") || part.name.startsWith("conversation_") ? Brain : Wrench;
-  const query = part.name === "web_search" && part.input && typeof part.input === "object" ? (part.input as { query?: string }).query : null;
-  return (
-    <details className={styles.tool} data-state={running ? "running" : part.isError ? "error" : "done"}>
-      <summary>
-        <Icon size={14} aria-hidden="true" />
-        <span className={styles.toolName}>{toolLabel(part.name)}</span>
-        {query && <span className={styles.toolQuery}>“{query}”</span>}
-        <span className={styles.toolStatus}>
-          {running ? (
-            <Loader2 size={13} className={styles.spin} aria-label="Ejecutando" />
-          ) : part.isError ? (
-            <X size={13} aria-label="Falló" />
-          ) : (
-            <Check size={13} aria-label="Listo" />
-          )}
-        </span>
-      </summary>
-      <div className={styles.toolBody}>
-        <p className="label">Entrada</p>
-        <pre>{pretty(part.input)}</pre>
-        {part.output !== undefined && (
-          <>
-            <p className="label">Resultado</p>
-            <pre>{part.output.length > 6000 ? `${part.output.slice(0, 6000)}\n…` : part.output}</pre>
-          </>
-        )}
-      </div>
-    </details>
-  );
-}
-
-function Reasoning({ text, live }: { text: string; live: boolean }) {
-  return (
-    <details className={styles.reasoning} data-live={live}>
-      <summary>
-        <span className={styles.reasoningDot} aria-hidden="true" />
-        {live ? "Pensando…" : "Razonamiento"}
-      </summary>
-      <div className={styles.reasoningBody}>{text || "El modelo razonó sin mostrar el detalle."}</div>
-    </details>
-  );
 }
 
 function Attachment({ part }: { part: Extract<MessagePart, { type: "attachment" }> }) {
@@ -287,6 +152,33 @@ function Attachment({ part }: { part: Extract<MessagePart, { type: "attachment" 
   );
 }
 
+function FeedbackButtons({ message, onFeedback }: { message: UIMessage; onFeedback?: (value: Feedback) => void }) {
+  if (!onFeedback || message.id.startsWith("tmp-")) return null;
+  const value = message.feedback ?? null;
+  return (
+    <>
+      <button
+        className="icon-btn"
+        aria-label="Buena respuesta"
+        aria-pressed={value === "up"}
+        title="Buena respuesta"
+        onClick={() => onFeedback(value === "up" ? null : "up")}
+      >
+        <ThumbsUp fill={value === "up" ? "currentColor" : "none"} />
+      </button>
+      <button
+        className="icon-btn"
+        aria-label="Mala respuesta"
+        aria-pressed={value === "down"}
+        title="Mala respuesta"
+        onClick={() => onFeedback(value === "down" ? null : "down")}
+      >
+        <ThumbsDown fill={value === "down" ? "currentColor" : "none"} />
+      </button>
+    </>
+  );
+}
+
 type Props = {
   message: UIMessage;
   live: boolean;
@@ -296,13 +188,15 @@ type Props = {
   onRegenerate?: () => void;
   onEdit?: (text: string) => void;
   onSwitch?: (id: string) => void;
+  onFeedback?: (value: Feedback) => void;
 };
 
 /**
- * Pinta un mensaje del chat con todas sus partes: texto, razonamiento,
- * llamadas a tools, adjuntos y avisos.
+ * Pinta un mensaje del chat: la burbuja del usuario con su hora y acciones, o
+ * la respuesta con su texto, la caja de actividad del agente, los artifacts
+ * y la barra de acciones.
  */
-export function Message({ message, live, isLast, busy, modelLabel, onRegenerate, onEdit, onSwitch }: Props) {
+export function Message({ message, live, isLast, busy, modelLabel, onRegenerate, onEdit, onSwitch, onFeedback }: Props) {
   const [editing, setEditing] = useState(false);
   const text = plainText(message.parts);
 
@@ -328,34 +222,40 @@ export function Message({ message, live, isLast, busy, modelLabel, onRegenerate,
           text && <div className={styles.userBubble}>{text}</div>
         )}
         {!editing && (
-          <div className={styles.actions}>
+          <div className={styles.userMeta}>
             <BranchSwitcher message={message} disabled={busy} onSwitch={onSwitch} />
-            {text && <CopyButton text={text} />}
+            <TimeAgo iso={message.createdAt} />
             {onEdit && !busy && !message.id.startsWith("tmp-") && (
               <button className="icon-btn" aria-label="Editar mensaje" title="Editar" onClick={() => setEditing(true)}>
                 <Pencil />
               </button>
             )}
+            {text && <CopyButton text={text} />}
           </div>
         )}
       </article>
     );
   }
 
-  const lastIndex = message.parts.length - 1;
+  const items = groupParts(message.parts);
+  const lastItem = items.at(-1);
+  const startedAt = message.createdAt ? new Date(message.createdAt).getTime() : undefined;
+  const waiting = live && (!lastItem || (lastItem.kind === "part" && lastItem.part.type === "tool_call"));
+
   return (
     <article className={styles.assistant} aria-label="Respuesta" aria-busy={live}>
-      {groupParts(message.parts).map((item) => {
-        if (item.kind === "web") return <WebGroup key={`web-${item.index}`} calls={item.calls} live={live} />;
+      {items.map((item) => {
+        if (item.kind === "activity") {
+          return <ActivityBox key={`a-${item.index}`} entries={item.entries} live={live && item === lastItem} startedAt={startedAt} />;
+        }
         const { part, index: i } = item;
-        const partLive = live && i === lastIndex;
         if (part.type === "text") return <Markdown key={i} text={part.text} />;
-        if (part.type === "reasoning") return <Reasoning key={i} text={part.text} live={partLive} />;
-        if (part.type === "tool_call" && part.name === "artifact" && part.output !== undefined) {
+        if (part.type === "tool_call" && part.name === "artifact") {
+          if (part.output === undefined) {
+            return <ActivityBox key={part.id} entries={[{ kind: "tool", part, index: i }]} live={live} startedAt={startedAt} />;
+          }
           return <ArtifactCard key={part.id} part={part} />;
         }
-        if (part.type === "tool_call" && part.name === "run_python") return <CodeRun key={part.id} part={part} live={live} />;
-        if (part.type === "tool_call") return <ToolCall key={part.id} part={part} live={live} />;
         if (part.type === "notice") {
           return (
             <div key={i} className={styles.notice} data-level={part.level} role={part.level === "error" ? "alert" : "status"}>
@@ -366,12 +266,14 @@ export function Message({ message, live, isLast, busy, modelLabel, onRegenerate,
         }
         return null;
       })}
-      {live && (message.parts.length === 0 || message.parts.at(-1)?.type === "tool_call") && (
-        <div className={styles.thinking} role="status">
-          <span />
-          <span />
-          <span />
-          <span className="sr-only">Generando respuesta</span>
+      {waiting && (
+        <div className={styles.status} role="status">
+          <span className={styles.dots} aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+          <span className={styles.statusText}>Pensando…</span>
         </div>
       )}
       {!live && (
@@ -379,12 +281,14 @@ export function Message({ message, live, isLast, busy, modelLabel, onRegenerate,
           <BranchSwitcher message={message} disabled={busy} onSwitch={onSwitch} />
           {text && <CopyButton text={text} />}
           <SpeakButton text={text} />
+          <FeedbackButtons message={message} onFeedback={onFeedback} />
           {isLast && onRegenerate && !busy && (
             <button className="icon-btn" aria-label="Regenerar respuesta" title="Regenerar" onClick={onRegenerate}>
               <RefreshCw />
             </button>
           )}
-          {modelLabel && <span className="tag">{modelLabel}</span>}
+          <span className={styles.grow} />
+          {modelLabel && <span className={styles.time}>{modelLabel}</span>}
         </div>
       )}
     </article>

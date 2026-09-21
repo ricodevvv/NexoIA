@@ -40,9 +40,12 @@ export function useArtifactViewer(messages: { parts: MessagePart[] }[]) {
       />
     ) : null;
 
+  const latest = [...artifacts.values()].map((list) => list[list.length - 1]);
+
   return {
     context,
     panel,
+    latest,
     openLatest: (identifier: string) => setOpen({ identifier, callId: null }),
   };
 }

@@ -111,6 +111,15 @@ export function listModels(): ModelInfo[] {
   return [...anthropicModels, ...openaiModels(), ...compatModels()];
 }
 
+/**
+ * El id que espera el proveedor: sin el prefijo `compat:` ni `ep:<endpoint>:`.
+ */
+export function remoteModelId(id: string) {
+  if (id.startsWith("compat:")) return id.slice("compat:".length);
+  const match = /^ep:[^:]+:(.+)$/.exec(id);
+  return match ? match[1] : id;
+}
+
 export function findModel(id: string): ModelInfo | undefined {
   return listModels().find((m) => m.id === id);
 }

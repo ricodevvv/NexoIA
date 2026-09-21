@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
-import { listModels } from "./models";
+import { safeFetch } from "@/lib/safe-url";
+import { listModels, remoteModelId } from "./models";
 import type { ModelInfo } from "./types";
 
 const PROMPT =
@@ -59,10 +60,13 @@ export async function generateTitle(model: ModelInfo, apiKey: string, text: stri
       );
       return clean(res.output_text) || null;
     }
-    const client = new OpenAI({ apiKey: apiKey || "sin-key", baseURL: process.env.COMPAT_BASE_URL, maxRetries: 0 });
+    const client = new OpenAI({ apiKey: apiKey || "sin-key", baseURL: model.baseURL ?? process.env.COMPAT_BASE_URL,
+      maxRetries: 0,
+      ...(model.endpointId ? { fetch: safeFetch } : {}),
+    });
     const res = await client.chat.completions.create(
       {
-        model: model.id.replace(/^compat:/, ""),
+        model: remoteModelId(model.id),
         max_tokens: 30,
         messages: [
           { role: "system", content: PROMPT },
