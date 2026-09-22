@@ -49,3 +49,4 @@ playwright-report
 *.mov
 *.MOV
 references/
+fallos/

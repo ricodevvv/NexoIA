@@ -51,3 +51,19 @@ test("editar y regenerar crean versiones y se puede volver a las anteriores", as
   await expect(page.getByRole("article", { name: "Tu mensaje" })).toContainText("primera versión");
   await expect(page.getByRole("article", { name: "Respuesta" }).getByText("2/2")).toBeVisible();
 });
+
+test("se puede subir mientras el modelo escribe sin que te regrese abajo", async ({ page }) => {
+  await signup(page, "Scroll");
+  await send(page, "escribe mucho #largo");
+  await expect(page.getByText("Párrafo 30:")).toBeVisible();
+  const thread = page.locator("[class*=scroll]").first();
+  await thread.hover();
+  await page.mouse.wheel(0, -800);
+  await page.waitForTimeout(1500);
+  const distance = await thread.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
+  expect(distance).toBeGreaterThan(400);
+  await page.getByRole("button", { name: "Ir al final" }).click();
+  await page.waitForTimeout(1500);
+  const after = await thread.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
+  expect(after).toBeLessThan(60);
+});

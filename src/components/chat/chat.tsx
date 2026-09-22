@@ -78,6 +78,8 @@ export function Chat(props: Props) {
   const [atBottom, setAtBottom] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
+  const lastTopRef = useRef(0);
+  const touchYRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const viewer = useArtifactViewer(messages);
 
@@ -95,9 +97,15 @@ export function Chat(props: Props) {
   function onScroll() {
     const el = scrollRef.current;
     if (!el) return;
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    stickRef.current = near;
-    setAtBottom(near);
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (el.scrollTop < lastTopRef.current - 2) stickRef.current = false;
+    else if (distance < 24) stickRef.current = true;
+    lastTopRef.current = el.scrollTop;
+    setAtBottom(distance < 120);
+  }
+
+  function release() {
+    stickRef.current = false;
   }
 
   function updateMessage(id: string, fn: (m: UIMessage) => UIMessage) {
@@ -304,7 +312,17 @@ export function Chat(props: Props) {
 
   const thread = (
     <>
-      <div className={styles.scroll} ref={scrollRef} onScroll={onScroll}>
+      <div
+        className={styles.scroll}
+        ref={scrollRef}
+        onScroll={onScroll}
+        onWheel={(e) => e.deltaY < 0 && release()}
+        onTouchStart={(e) => {
+          touchYRef.current = e.touches[0]?.clientY ?? 0;
+        }}
+        onTouchMove={(e) => (e.touches[0]?.clientY ?? 0) > touchYRef.current + 4 && release()}
+        onKeyDown={(e) => ["ArrowUp", "PageUp", "Home"].includes(e.key) && release()}
+      >
         <div className={styles.thread}>
           {messages.map((m, i) => (
             <Message
@@ -331,7 +349,14 @@ export function Chat(props: Props) {
         </div>
       </div>
       {!atBottom && (
-        <button className={styles.toBottom} onClick={() => scrollToBottom(true)} aria-label="Ir al final">
+        <button
+          className={styles.toBottom}
+          onClick={() => {
+            stickRef.current = true;
+            scrollToBottom(true);
+          }}
+          aria-label="Ir al final"
+        >
           <ArrowDown size={16} />
         </button>
       )}

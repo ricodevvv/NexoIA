@@ -3,12 +3,11 @@
 import { BarChart3, LineChart, Table2 } from "lucide-react";
 import { useState } from "react";
 import type { WidgetOf } from "@/lib/widgets";
+import { useWidth } from "./use-width";
 import styles from "./widgets.module.css";
 
 export const SERIES_COLORS = ["#3b82f6", "#e0703f", "#22c55e", "#a855f7", "#eab308", "#ec4899"];
 
-const W = 640;
-const H = 260;
 const PAD = { top: 12, right: 12, bottom: 28, left: 44 };
 
 /**
@@ -44,6 +43,10 @@ export function ChartWidget({ widget }: { widget: WidgetOf<"chart"> }) {
   const ticks = niceTicks(Math.min(...all), Math.max(...all));
   const yMin = ticks[0];
   const yMax = ticks.at(-1)!;
+  const [wrapRef, measured] = useWidth<HTMLDivElement>(640);
+  const W = Math.max(260, measured);
+  const H = W < 520 ? 220 : 260;
+  const every = Math.ceil(categories.length / Math.max(2, Math.floor((W - PAD.left) / 44)));
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
   const slot = innerW / categories.length;
@@ -70,8 +73,8 @@ export function ChartWidget({ widget }: { widget: WidgetOf<"chart"> }) {
       </div>
 
       {view === "chart" ? (
-        <div className={styles.chartWrap} onMouseLeave={() => setHover(null)}>
-          <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={widget.title}>
+        <div className={styles.chartWrap} ref={wrapRef} onMouseLeave={() => setHover(null)}>
+          <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={widget.title}>
             {ticks.map((t) => (
               <g key={t}>
                 <line className={styles.grid} x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} />
@@ -80,11 +83,13 @@ export function ChartWidget({ widget }: { widget: WidgetOf<"chart"> }) {
                 </text>
               </g>
             ))}
-            {categories.map((c, i) => (
-              <text key={c + i} className={styles.axis} x={x(i)} y={H - 8} textAnchor="middle">
-                {c}
-              </text>
-            ))}
+            {categories.map((c, i) =>
+              i % every === 0 ? (
+                <text key={c + i} className={styles.axis} x={x(i)} y={H - 8} textAnchor="middle">
+                  {c}
+                </text>
+              ) : null,
+            )}
             {hover !== null && kind === "line" && (
               <line x1={x(hover)} x2={x(hover)} y1={PAD.top} y2={PAD.top + innerH} stroke="var(--text-3)" strokeDasharray="3 3" />
             )}

@@ -437,6 +437,43 @@
   font-size: var(--text-sm);
 }
 
+.compareStack {
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.compareStack section + section {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.compareStack h4 {
+  margin: 0 0 8px;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.compareStack dl {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.compareStack dl div {
+  display: contents;
+}
+
+.compareStack dt {
+  color: var(--text-3);
+}
+
+.compareStack dd {
+  margin: 0;
+}
+
 .links {
   display: flex;
   flex-direction: column;
@@ -689,6 +726,16 @@
 @media (max-width: 600px) {
   .card {
     padding: 16px;
+  }
+  .compare {
+    display: none;
+  }
+  .compareStack {
+    display: flex;
+  }
+  .row > .btnLight:last-child,
+  .row > .btn:last-child {
+    margin-inline-start: auto;
   }
   .compare,
   .images {

@@ -14,7 +14,8 @@ function hostOf(url: string) {
 }
 
 /**
- * Comparación lado a lado de varias opciones con los mismos atributos.
+ * Comparación lado a lado de varias opciones con los mismos atributos. En
+ * pantallas angostas cada opción va en su propio bloque, una debajo de otra.
  */
 export function ComparisonWidget({ widget }: { widget: WidgetOf<"comparison"> }) {
   const labels = [...new Set(widget.items.flatMap((i) => i.rows.map((r) => r.label)))];
@@ -34,6 +35,21 @@ export function ComparisonWidget({ widget }: { widget: WidgetOf<"comparison"> })
             </div>
           )),
         )}
+      </div>
+      <div className={styles.compareStack}>
+        {widget.items.map((item) => (
+          <section key={item.name}>
+            <h4>{item.name}</h4>
+            <dl>
+              {labels.map((label) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{item.rows.find((r) => r.label === label)?.value ?? "—"}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
       </div>
     </div>
   );

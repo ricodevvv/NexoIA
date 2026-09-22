@@ -78,6 +78,12 @@ const server = http.createServer(async (req, res) => {
       await words(res, "En esta respuesta salieron: **clima, gráfica, pasos, receta, quiz, comparación, links y diagrama**.");
       send(res, {}, "stop");
     }
+  } else if (/#largo/.test(user)) {
+    for (let i = 1; i <= 120; i++) {
+      send(res, { content: `Párrafo ${i}: este texto sale despacio para probar que puedes subir mientras el modelo escribe.\n\n` });
+      await sleep(60);
+    }
+    send(res, {}, "stop");
   } else if (last.role === "tool") {
     await words(res, `Resultado de la tool: ${last.content.split("\n")[0]}`);
     send(res, {}, "stop");
