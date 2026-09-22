@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
+import { ExternalLinkDialog } from "./external-link";
 import { SearchPalette } from "./search-palette";
 import { Sidebar } from "./sidebar";
 import styles from "./shell.module.css";
@@ -74,6 +75,7 @@ export function Shell({
         {mobileOpen && <button className={styles.scrim} aria-label="Cerrar menú" onClick={() => setOpenAt(null)} />}
         <main className="main">{children}</main>
         <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
+        <ExternalLinkDialog />
       </div>
     </ShellContext.Provider>
   );

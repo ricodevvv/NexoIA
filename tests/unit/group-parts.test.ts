@@ -25,6 +25,12 @@ describe("groupParts", () => {
     expect(box.kind === "activity" && box.entries.map((e) => (e.kind === "web" ? `web:${e.calls.length}` : e.kind))).toEqual(["web:2", "tool", "web:1"]);
   });
 
+  it("deja los widgets fuera de la caja salvo que hayan fallado", () => {
+    const ok: MessagePart = { type: "tool_call", id: "w", name: "show_widget", input: {}, output: "ok" };
+    const bad: MessagePart = { type: "tool_call", id: "w2", name: "show_widget", input: {}, output: "mal", isError: true };
+    expect(groupParts([ok, bad]).map((i) => i.kind)).toEqual(["part", "activity"]);
+  });
+
   it("deja los artifacts y los avisos fuera de la caja", () => {
     const artifact: MessagePart = { type: "tool_call", id: "a", name: "artifact", input: {}, output: "ok" };
     const items = groupParts([tool("t"), artifact, { type: "notice", level: "warning", text: "ojo" }]);

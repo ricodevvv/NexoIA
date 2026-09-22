@@ -142,6 +142,27 @@
   color: var(--text-3);
 }
 
+.countBtn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-2);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-base);
+  cursor: pointer;
+}
+
+.countBtn:hover,
+.countBtn[data-state="open"] {
+  background: var(--surface-1);
+}
+
 .shareBtn {
   flex: none;
   height: 36px;
@@ -406,8 +427,9 @@
 }
 
 .prose blockquote {
-  padding-inline-start: 14px;
-  border-inline-start: 2px solid var(--border-strong);
+  margin-inline: 0;
+  padding: 2px 0 2px 14px;
+  border-inline-start: 3px solid var(--border-strong);
   color: var(--text-2);
 }
 
@@ -417,9 +439,11 @@
 }
 
 .prose :not(pre) > code {
-  padding: 1px 5px;
-  border-radius: var(--radius-1);
-  background: var(--surface-2);
+  padding: 1px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-1);
+  color: var(--inline-code);
   font-family: var(--font-mono);
   font-size: 0.86em;
 }
@@ -430,8 +454,8 @@
 
 .tableWrap {
   overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
 }
 
 .tableWrap table {
@@ -442,15 +466,15 @@
 
 .tableWrap th,
 .tableWrap td {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border-strong);
   text-align: start;
   vertical-align: top;
 }
 
 .tableWrap th {
   background: var(--surface-1);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .tableWrap tr:last-child td {
@@ -459,8 +483,8 @@
 
 .code {
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
   background: var(--code-bg);
 }
 
@@ -468,16 +492,20 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 36px;
-  padding: 0 4px 0 12px;
-  border-bottom: 1px solid var(--border);
+  height: 40px;
+  padding: 6px 8px 0 20px;
+}
+
+.codeHeader + .codeBody,
+.codeHeader + .codeBody :global(pre) {
+  padding-top: 4px;
 }
 
 .codeBody,
 .codeBody :global(pre) {
   margin: 0;
   overflow-x: auto;
-  padding: 12px 14px;
+  padding: 12px 20px 18px;
   background: transparent !important;
   font-family: var(--font-mono);
   font-size: 13px;
@@ -1026,6 +1054,29 @@
   cursor: pointer;
 }
 
+.summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--text-base);
+  text-align: start;
+  cursor: pointer;
+}
+
+.summary:hover {
+  color: var(--text-2);
+}
+
+.summary svg {
+  flex: none;
+}
+
 .statusText {
   flex: 1;
   min-width: 0;
@@ -1205,37 +1256,41 @@
 .fileCard {
   display: flex;
   align-items: center;
-  width: 100%;
-  max-width: 460px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-2);
-  background: var(--bg);
-  color: var(--text);
-  text-decoration: none;
-  overflow: hidden;
-  transition: border-color 0.15s var(--ease);
-}
-
-a.fileCard {
   gap: 12px;
-  padding: 10px 12px;
+  width: 100%;
+  max-width: 560px;
+  min-height: 72px;
+  padding: 0 14px 0 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-1);
+  color: var(--text);
+  overflow: hidden;
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
 }
 
 .fileCard:hover {
   border-color: var(--text-3);
 }
 
-.fileCard[data-active="true"] {
-  border-color: var(--accent);
+.fileCard[data-active][data-kind="code"] {
+  border-color: rgb(217 119 6 / 0.35);
+  background: rgb(120 72 20 / 0.18);
+}
+
+.fileCard[data-active]:not([data-kind="code"]) {
+  border-color: var(--text-3);
+  background: var(--surface-2);
 }
 
 .fileCardMain {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   min-width: 0;
-  padding: 10px 12px;
+  min-height: 72px;
+  padding: 0 0 0 16px;
   border: 0;
   background: none;
   color: inherit;
@@ -1244,15 +1299,28 @@ a.fileCard {
   cursor: pointer;
 }
 
-.fileCardIcon {
+div.fileCardMain {
+  cursor: default;
+}
+
+.fileThumb {
   display: grid;
   flex: none;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-1);
+  width: 46px;
+  height: 56px;
+  margin-top: 16px;
+  border: 1px solid var(--border-strong);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
   background: var(--surface-2);
   color: var(--text-2);
+}
+
+.fileThumb[data-kind="code"] {
+  border-color: rgb(217 119 6 / 0.35);
+  background: linear-gradient(180deg, #4a2e12 0%, #2e1d0c 100%);
+  color: #f59e0b;
 }
 
 .fileCardText {
@@ -1274,22 +1342,24 @@ a.fileCard {
   color: var(--text-3);
 }
 
-.fileCardAction {
-  display: grid;
+.fileCardDownload {
   flex: none;
-  place-items: center;
-  width: 44px;
-  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 14px;
   border: 0;
-  border-inline-start: 1px solid var(--border-strong);
-  background: none;
-  color: var(--text-2);
+  border-radius: 8px;
+  background: var(--surface-3);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-decoration: none;
   cursor: pointer;
 }
 
-.fileCardAction:hover {
-  background: var(--surface-1);
-  color: var(--text);
+.fileCardDownload:hover {
+  background: var(--border-strong);
 }
 
 .code[data-numbered] {
@@ -1307,8 +1377,10 @@ a.fileCard {
   counter-increment: line;
   content: counter(line);
   display: inline-block;
-  width: 2.5em;
+  width: 3em;
   margin-inline-end: 1.25em;
+  padding-inline-end: 1em;
+  border-inline-end: 1px solid var(--border);
   text-align: right;
   color: var(--text-3) !important;
   user-select: none;
@@ -1317,4 +1389,198 @@ a.fileCard {
 .welcome[data-project="true"] .greeting {
   justify-content: flex-start;
   text-align: start;
+}
+
+.sendEnter {
+  display: none;
+}
+
+@media (min-width: 861px) {
+  .composerWrap {
+    gap: 10px;
+  }
+  .composer {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    border-radius: 14px;
+  }
+  .composer > .pending {
+    grid-column: 1 / -1;
+  }
+  .input {
+    min-height: 50px;
+    padding: 14px 16px;
+  }
+  .toolbar {
+    display: contents;
+  }
+  .toolbarLeft {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 2px;
+    flex-wrap: nowrap;
+  }
+  .toolbarRight {
+    padding: 8px 8px 8px 0;
+  }
+  .plusBtn {
+    width: 30px;
+    height: 30px;
+  }
+  .send {
+    background: transparent;
+    color: var(--text-2);
+  }
+  .send:disabled {
+    background: transparent;
+    opacity: 0.5;
+  }
+  .send:hover:not(:disabled) {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .sendArrow {
+    display: none;
+  }
+  .sendEnter {
+    display: block;
+  }
+  .composerFoot {
+    min-height: 30px;
+    padding-inline-start: 56px;
+  }
+  .disclaimer {
+    flex: 1;
+    text-align: center;
+  }
+  .composerWrap:has(.chip) .disclaimer {
+    visibility: hidden;
+  }
+}
+
+.summary .statusText {
+  flex: 0 1 auto;
+}
+
+.usage {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 7px 8px 7px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-1);
+  animation: rise 0.25s var(--ease) both;
+}
+
+.usageText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--text-base);
+  color: var(--text);
+}
+
+.usage:not([data-reached]) .usageText {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.usageText b {
+  font-weight: 400;
+}
+
+.usageText small {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.usageText svg {
+  flex: none;
+  color: var(--text-2);
+}
+
+.usageBtn {
+  flex: none;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-3);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.usageBtn:hover {
+  background: var(--border-strong);
+}
+
+.moreDialog {
+  width: min(600px, calc(100vw - 32px));
+}
+
+.moreClose {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.moreGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: var(--space-3);
+}
+
+.moreCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-1);
+  color: var(--text-2);
+}
+
+.moreCard[data-recommended] {
+  background: linear-gradient(160deg, var(--surface-2) 0%, var(--surface-1) 100%);
+}
+
+.moreCard h3 {
+  margin: 8px 0 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.moreCard p {
+  flex: 1;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.moreCard :global(.btn) {
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.moreBadge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #1d4ed8;
+  color: #ffffff;
+  font-size: var(--text-xs);
 }

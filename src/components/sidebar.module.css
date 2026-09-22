@@ -122,6 +122,36 @@
   color: var(--text-3);
 }
 
+.groupHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline-end: 6px;
+}
+
+.groupAction {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-1);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.groupAction:hover {
+  background: var(--surface-1);
+  color: var(--text);
+}
+
+.pinIcon {
+  display: none;
+  flex: none;
+  color: var(--text-2);
+}
+
 .group ul {
   margin: 0;
   padding: 0;
@@ -377,6 +407,29 @@
   margin: 4px 0;
   border: 0;
   border-top: 1px solid var(--border-strong);
+}
+
+@media (min-width: 861px) {
+  .bullet {
+    display: none;
+  }
+  .pinIcon {
+    display: block;
+  }
+  .itemLink {
+    gap: 12px;
+    min-height: 38px;
+    padding-inline-start: 10px;
+    font-size: var(--text-base);
+  }
+  .navLink {
+    min-height: 38px;
+    font-size: var(--text-base);
+  }
+  .search {
+    height: 38px;
+    font-size: var(--text-base);
+  }
 }
 
 @media (max-width: 860px) {

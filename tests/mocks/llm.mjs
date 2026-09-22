@@ -31,6 +31,17 @@ const COUNTER =
 const ANALYSIS =
   "import pandas as pd\nimport matplotlib.pyplot as plt\ndf = pd.read_csv('ventas.csv')\nprint(df)\ndf.plot(x='mes', y='ventas', kind='bar', legend=False)\nint(df.ventas.sum())";
 
+const WIDGETS = [
+  { type: "weather", location: "Ciudad de México", temperature: 23, condition: "Mayormente nublado", source: "Datos de ejemplo", days: ["jue", "vie", "sáb", "dom", "lun", "mar", "mié"].map((day, i) => ({ day, max: 24 - (i > 5 ? 1 : 0), rain: 10 + i * 5 })) },
+  { type: "chart", title: "Usuarios activos de tu chat (demo)", subtitle: "Usuarios", kind: "line", categories: ["Abr", "May", "Jun", "Jul", "Ago", "Sep"], series: [{ name: "Web", values: [120, 180, 260, 340, 470, 620] }, { name: "Móvil", values: [80, 150, 210, 330, 410, 580] }] },
+  { type: "steps", steps: [{ title: "Crea el proyecto", description: "Inicia un proyecto con Vite + React + TypeScript y agrega Tailwind para los estilos." }, { title: "Arma el layout", description: "Sidebar a la izquierda, lista de mensajes al centro y el composer fijo abajo." }, { title: "Conecta el modelo", description: "Crea un endpoint que llame a la API del modelo y devuelva la respuesta por streaming (SSE)." }] },
+  { type: "recipe", title: "Chilaquiles verdes", description: "Receta de ejemplo con porciones ajustables", servings: 2, ingredients: [{ amount: 8, name: "tortillas en triángulos" }, { amount: 6, name: "tomates verdes" }, { amount: 2, name: "chiles serranos" }, { amount: 80, unit: "g", name: "queso fresco" }], steps: [{ title: "Fríe las tortillas", text: "Calienta aceite y fríe las tortillas hasta que estén doradas." }, { title: "Haz la salsa", text: "Hierve los tomates con los chiles y licúa con un poco de sal." }] },
+  { type: "quiz", questions: [{ question: "¿Qué tecnología se usa para mostrar la respuesta mientras se escribe?", options: ["LocalStorage", "Streaming (SSE)", "Cookies"], answer: 1, explanation: "El servidor manda el texto en pedacitos por Server-Sent Events y la interfaz lo va pintando." }, { question: "¿Dónde conviene guardar las API keys?", options: ["En el frontend", "En el servidor"], answer: 1 }] },
+  { type: "comparison", items: [{ name: "Next.js", rows: [{ label: "Tipo", value: "Full-stack" }, { label: "Streaming", value: "Nativo" }] }, { name: "Vite + Express", rows: [{ label: "Tipo", value: "Front + API separada" }, { label: "Streaming", value: "Manual con SSE" }] }, { name: "SvelteKit", rows: [{ label: "Tipo", value: "Full-stack" }, { label: "Streaming", value: "Nativo" }] }] },
+  { type: "links", links: [{ title: "React", description: "La librería para construir la interfaz.", url: "https://react.dev/" }, { title: "react-markdown", description: "Renderiza el Markdown de las respuestas.", url: "https://github.com/remarkjs/react-markdown" }] },
+  { type: "diagram", nodes: [{ id: "u", label: "Usuario", detail: "Escribe mensaje" }, { id: "i", label: "Interfaz", detail: "React + widgets", tone: "purple" }, { id: "s", label: "Servidor", detail: "Streaming SSE", tone: "purple" }, { id: "m", label: "Modelo IA", detail: "Genera respuesta", tone: "green" }, { id: "t", label: "Herramientas", detail: "Clima, búsqueda", tone: "green" }], edges: [{ from: "u", to: "i" }, { from: "i", to: "s" }, { from: "s", to: "m" }, { from: "s", to: "t" }] },
+];
+
 /**
  * Modelo falso compatible con Chat Completions. Responde según palabras clave
  * del último mensaje del usuario para ejercitar cada camino del motor.
@@ -58,7 +69,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   res.writeHead(200, { "Content-Type": "text/event-stream" });
-  if (last.role === "tool") {
+  const sinceUser = messages.slice(messages.lastIndexOf(lastUser) + 1).filter((m) => m.role === "tool").length;
+  if (/#widgets/.test(user) && tools.includes("show_widget")) {
+    if (sinceUser < WIDGETS.length) {
+      if (sinceUser === 0) await words(res, "Va, te hago una demo con todos los widgets. ");
+      callTool(res, "show_widget", WIDGETS[sinceUser]);
+    } else {
+      await words(res, "En esta respuesta salieron: **clima, gráfica, pasos, receta, quiz, comparación, links y diagrama**.");
+      send(res, {}, "stop");
+    }
+  } else if (last.role === "tool") {
     await words(res, `Resultado de la tool: ${last.content.split("\n")[0]}`);
     send(res, {}, "stop");
   } else if (/#hora/.test(user) && tools.some((t) => t.endsWith("__get_time"))) {

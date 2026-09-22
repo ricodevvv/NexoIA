@@ -108,17 +108,23 @@ export function TitleMenu({ conversationId, title, onRenamed }: { conversationId
  */
 export function ArtifactsButton({ items, onOpen }: { items: ArtifactVersion[]; onOpen: (identifier: string) => void }) {
   if (!items.length) return null;
+  const content = (
+    <>
+      <FileText size={17} aria-hidden="true" />
+      <span>{items.length}</span>
+    </>
+  );
   if (items.length === 1) {
     return (
-      <button className="icon-btn" aria-label="Ver artifact" title={items[0].title} onClick={() => onOpen(items[0].identifier)}>
-        <FileText />
+      <button className={styles.countBtn} aria-label="Ver artifact" title={items[0].title} onClick={() => onOpen(items[0].identifier)}>
+        {content}
       </button>
     );
   }
   return (
     <Menu.Root>
-      <Menu.Trigger className="icon-btn" aria-label="Artifacts del chat">
-        <FileText />
+      <Menu.Trigger className={styles.countBtn} aria-label="Artifacts del chat">
+        {content}
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Content className="menu" align="end" sideOffset={6}>

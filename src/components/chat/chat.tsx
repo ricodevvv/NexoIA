@@ -14,6 +14,7 @@ import { Composer } from "./composer";
 import { type Feedback, Message, MessageContext, type UIMessage } from "./message";
 import type { ModelOption } from "./model-picker";
 import { ShareDialog } from "./share-dialog";
+import { type QuotaState, shouldWarn, UsageBanner } from "./usage-banner";
 import { ArtifactsButton, TitleMenu } from "./chat-header";
 import styles from "./chat.module.css";
 
@@ -156,6 +157,10 @@ export function Chat(props: Props) {
       });
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
+        if (data.quota) {
+          setQuota({ ...data.quota, blocked: data.error });
+          setQuotaHidden(false);
+        }
         fail(data.error ?? "No se pudo enviar el mensaje.");
         return;
       }
@@ -209,7 +214,9 @@ export function Chat(props: Props) {
             notifyConversationsChanged();
           } else if (event.type === "error") {
             fail(event.message);
-          } else if (event.type !== "done") {
+          } else if (event.type === "done") {
+            if (event.quota) setQuota(event.quota);
+          } else {
             if (event.type === "tool_call" && event.call.name === "artifact") {
               const identifier = (event.call.input as { identifier?: unknown } | null)?.identifier;
               if (typeof identifier === "string") viewer.openLatest(identifier);
@@ -267,11 +274,14 @@ export function Chat(props: Props) {
   const labels = new Map(models.map((m) => [m.id, m.label]));
   const firstName = props.userName.split(" ")[0];
   const [draft, setDraft] = useState({ text: "", n: 0 });
+  const [quota, setQuota] = useState<QuotaState | null>(null);
+  const [quotaHidden, setQuotaHidden] = useState(false);
 
   const composer = (
     <Composer
       key={draft.n}
       initialText={draft.text}
+      replying={!empty}
       models={models}
       model={model}
       plan={props.plan}
@@ -326,6 +336,7 @@ export function Chat(props: Props) {
         </button>
       )}
       <div className={styles.dock}>
+        {shouldWarn(quota) && !quotaHidden && <UsageBanner quota={quota!} onDismiss={() => setQuotaHidden(true)} />}
         {composer}
       </div>
     </>

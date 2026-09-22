@@ -7,6 +7,7 @@ import { consume, LIMITS } from "@/lib/rate-limit";
 import { conversationView } from "@/lib/conversation-view";
 import { searchConversations } from "@/lib/search";
 import { putFile } from "@/lib/storage";
+import { parseWidget, WIDGET_TOOL, widgetSpec } from "@/lib/widgets";
 import type { AttachmentData, FileRef, ToolCall, ToolResult, ToolSpec } from "./types";
 
 export const ARTIFACT_TOOL = "artifact";
@@ -121,11 +122,12 @@ export type BuiltinOptions = {
 };
 
 /**
- * Tools que resuelve el propio servidor, sin MCP: artifacts y memoria.
+ * Tools que resuelve el propio servidor, sin MCP: artifacts, widgets,
+ * código y memoria.
  */
 export function builtinTools(opts: BuiltinOptions): { specs: ToolSpec[]; handles(name: string): boolean; run(call: ToolCall): Promise<ToolResult> } {
   const specs = [
-    ...(opts.artifacts ? [artifactSpec] : []),
+    ...(opts.artifacts ? [artifactSpec, widgetSpec] : []),
     ...(opts.code ? [runPythonSpec] : []),
     ...(opts.memory ? memorySpecs : []),
     ...(opts.memory ? conversationSpecs : []),
@@ -138,6 +140,11 @@ export function builtinTools(opts: BuiltinOptions): { specs: ToolSpec[]; handles
       const parsed = ArtifactInput.safeParse(call.input);
       if (!parsed.success) return { ...base, output: `Input inválido: ${parsed.error.issues[0]?.message}`, isError: true };
       return { ...base, output: `Artifact "${parsed.data.title}" guardado y visible para el usuario.`, isError: false };
+    }
+    if (call.name === WIDGET_TOOL) {
+      const parsed = parseWidget(call.input);
+      if (!parsed.ok) return { ...base, output: `Widget inválido: ${parsed.error}`, isError: true };
+      return { ...base, output: "Widget mostrado al usuario. No repitas su contenido en el texto.", isError: false };
     }
     if (call.name === "run_python") {
       const parsed = RunPython.safeParse(call.input);

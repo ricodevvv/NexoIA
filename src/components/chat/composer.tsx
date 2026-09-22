@@ -1,7 +1,7 @@
 "use client";
 
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { ArrowUp, Check, ChevronRight, Feather, FileText, Globe, Image as ImageIcon, Loader2, Mic, Paperclip, Plus, Settings2, Square, Telescope, X } from "lucide-react";
+import { ArrowUp, Check, CornerDownLeft, ChevronRight, Feather, FileText, Globe, Image as ImageIcon, Loader2, Mic, Paperclip, Plus, Settings2, Square, Telescope, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Effort } from "@/lib/ai/types";
@@ -32,6 +32,7 @@ type Props = {
   busy: boolean;
   autoFocus?: boolean;
   initialText?: string;
+  replying?: boolean;
   onModel: (id: string) => void;
   onEffort: (e: Effort) => void;
   onWebSearch: (v: boolean) => void;
@@ -157,7 +158,9 @@ export function Composer(props: Props) {
               ? "Configura una API key en Ajustes para usar este modelo"
               : props.research
                 ? "¿Qué quieres investigar? Tema, alcance y para qué lo necesitas…"
-                : "Escribe un mensaje…"
+                : props.replying
+                  ? "Responder"
+                  : "Escribe un mensaje…"
           }
           onChange={(e) => setText(e.target.value)}
           onPaste={(e) => {
@@ -282,7 +285,8 @@ export function Composer(props: Props) {
               </button>
             ) : (
               <button type="button" className={styles.send} onClick={send} disabled={!canSend} aria-label="Enviar">
-                <ArrowUp size={18} strokeWidth={2.25} />
+                <ArrowUp size={18} strokeWidth={2.25} className={styles.sendArrow} />
+                <CornerDownLeft size={18} className={styles.sendEnter} />
               </button>
             )}
           </div>

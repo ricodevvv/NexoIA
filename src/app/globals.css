@@ -52,6 +52,7 @@
     --code-blue: #1d5fd1;
     --code-green: #187a45;
     --spark: #d4583a;
+    --inline-code: #c2410c;
     --overlay: rgb(20 20 20 / 0.4);
     --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.06), 0 16px 40px -12px rgb(0 0 0 / 0.22);
 
@@ -105,6 +106,7 @@
       --code-blue: #6cb6ff;
       --code-green: #7ee2a8;
       --spark: #e27a5c;
+      --inline-code: #f28b82;
       --overlay: rgb(0 0 0 / 0.62);
       --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.05), 0 18px 48px -12px rgb(0 0 0 / 0.7);
     }
@@ -136,6 +138,7 @@
     --code-blue: #6cb6ff;
     --code-green: #7ee2a8;
     --spark: #e27a5c;
+    --inline-code: #f28b82;
     --overlay: rgb(0 0 0 / 0.62);
     --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.05), 0 18px 48px -12px rgb(0 0 0 / 0.7);
   }
@@ -430,6 +433,31 @@
     justify-content: flex-end;
     gap: var(--space-2);
     margin-top: var(--space-4);
+  }
+
+  .dialog > .input {
+    margin-top: var(--space-3);
+  }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--text-2);
+    cursor: pointer;
+  }
+
+  .check input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+  }
+
+  .check code {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
   }
 
   .tag {

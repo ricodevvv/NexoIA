@@ -1,12 +1,14 @@
 "use client";
 
-import { AlertTriangle, ChevronLeft, ChevronRight, Download, FileText, Pencil, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, FileText, Pencil, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
 import Image from "next/image";
 import { useContext, useState, useSyncExternalStore } from "react";
 import type { MessagePart } from "@/lib/ai/types";
-import { readArtifact } from "../artifacts/artifacts";
+import { fileName, readArtifact } from "../artifacts/artifacts";
+import { Widget } from "../widgets/widget";
 import { ActivityBox } from "./activity";
 import { CopyButton } from "./code-block";
+import { FileCard } from "./file-card";
 import { groupParts } from "./group-parts";
 import { Markdown } from "./markdown";
 import { MessageContext } from "./message-context";
@@ -29,14 +31,6 @@ export type UIMessage = {
 
 type ToolCallPart = Extract<MessagePart, { type: "tool_call" }>;
 
-const EXT: Record<string, string> = {
-  markdown: "MD",
-  html: "HTML",
-  react: "JSX",
-  svg: "SVG",
-  mermaid: "MMD",
-};
-
 function subscribeMinute(cb: () => void) {
   const timer = setInterval(cb, 30_000);
   return () => clearInterval(timer);
@@ -58,11 +52,11 @@ export function relativeTime(iso: string, now: number) {
   return new Date(iso).toLocaleDateString("es", { day: "numeric", month: "short" });
 }
 
-function TimeAgo({ iso }: { iso?: string }) {
+function TimeAgo({ iso, title }: { iso?: string; title?: string }) {
   const now = useSyncExternalStore(subscribeMinute, minuteNow, () => 0);
   if (!iso || !now) return null;
   return (
-    <time className={styles.time} dateTime={iso} title={new Date(iso).toLocaleString("es")}>
+    <time className={styles.time} dateTime={iso} title={[title, new Date(iso).toLocaleString("es")].filter(Boolean).join(" · ")}>
       {relativeTime(iso, now)}
     </time>
   );
@@ -96,35 +90,28 @@ function ArtifactCard({ part }: { part: ToolCallPart }) {
   const artifact = readArtifact(part);
   if (!artifact) return <ActivityBox entries={[{ kind: "tool", part, index: 0 }]} live={false} />;
   const version = ctx.artifactVersion?.(artifact.identifier, artifact.callId);
-  const ext = artifact.type === "code" ? (artifact.language ?? "código").toUpperCase() : EXT[artifact.type] ?? artifact.type.toUpperCase();
-  const kind = artifact.type === "code" ? "Código" : artifact.type === "markdown" ? "Documento" : "Artifact";
+  const name = fileName(artifact);
+  const ext = name.split(".").pop()!.toUpperCase();
+  const kind = artifact.type === "markdown" ? "doc" : "code";
+  const label = artifact.type === "code" || artifact.type === "react" ? "Código" : artifact.type === "markdown" ? "Documento" : "Artifact";
   const download = () => {
     const blob = new Blob([artifact.content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${artifact.identifier}.${ext.toLowerCase()}`;
+    a.download = name;
     a.click();
     URL.revokeObjectURL(url);
   };
   return (
-    <div className={styles.fileCard} data-active={ctx.activeArtifactCall === artifact.callId}>
-      <button type="button" className={styles.fileCardMain} onClick={() => ctx.openArtifact?.(artifact.identifier, artifact.callId)}>
-        <span className={styles.fileCardIcon} aria-hidden="true">
-          <FileText size={18} />
-        </span>
-        <span className={styles.fileCardText}>
-          <span className={styles.fileCardTitle}>{artifact.title}</span>
-          <span className={styles.fileCardMeta}>
-            {kind} · {ext}
-            {version && version.total > 1 ? ` · versión ${version.index + 1}` : ""}
-          </span>
-        </span>
-      </button>
-      <button type="button" className={styles.fileCardAction} onClick={download} aria-label="Descargar" title="Descargar">
-        <Download size={16} />
-      </button>
-    </div>
+    <FileCard
+      title={artifact.title}
+      meta={`${label} · ${ext}${version && version.total > 1 ? ` · versión ${version.index + 1}` : ""}`}
+      kind={kind}
+      active={ctx.activeArtifactCall === artifact.callId}
+      onOpen={() => ctx.openArtifact?.(artifact.identifier, artifact.callId)}
+      onDownload={download}
+    />
   );
 }
 
@@ -256,6 +243,9 @@ export function Message({ message, live, isLast, busy, modelLabel, onRegenerate,
           }
           return <ArtifactCard key={part.id} part={part} />;
         }
+        if (part.type === "tool_call" && part.name === "show_widget") {
+          return <Widget key={part.id} input={part.input} pending={live && part.output === undefined} />;
+        }
         if (part.type === "notice") {
           return (
             <div key={i} className={styles.notice} data-level={part.level} role={part.level === "error" ? "alert" : "status"}>
@@ -287,8 +277,7 @@ export function Message({ message, live, isLast, busy, modelLabel, onRegenerate,
               <RefreshCw />
             </button>
           )}
-          <span className={styles.grow} />
-          {modelLabel && <span className={styles.time}>{modelLabel}</span>}
+          <TimeAgo iso={message.createdAt} title={modelLabel} />
         </div>
       )}
     </article>

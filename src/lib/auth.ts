@@ -82,7 +82,7 @@ export const auth = betterAuth({
     customStorage: { consume: (key, rule) => consume(`auth:${key}`, rule) },
     customRules: {
       "/sign-in/email": { window: 60, max: 10 },
-      "/sign-up/email": { window: 3600, max: 10 },
+      "/sign-up/email": { window: 3600, max: Number(process.env.SIGNUP_RATE_MAX ?? 10) },
       "/request-password-reset": { window: 3600, max: 5 },
       "/send-verification-email": { window: 3600, max: 5 },
     },

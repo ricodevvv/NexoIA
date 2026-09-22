@@ -1,7 +1,7 @@
 "use client";
 
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { Check, ChevronDown, Code2, Download, Eye, RotateCw, X } from "lucide-react";
+import { Check, ChevronDown, Code2, Download, Eye, Maximize2, Minimize2, RotateCw, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CodeBlock } from "../chat/code-block";
 import { Markdown } from "../chat/markdown";
@@ -61,6 +61,7 @@ export function ArtifactPanel({ versions, selected, onSelect, onClose }: Props) 
   const [tab, setTab] = useState<"preview" | "code">("preview");
   const [reloads, setReloads] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const view = previewable ? tab : "code";
   const ext = fileName(artifact).split(".").pop()?.toUpperCase();
 
@@ -71,7 +72,7 @@ export function ArtifactPanel({ versions, selected, onSelect, onClose }: Props) 
   }
 
   return (
-    <aside className={styles.panel} aria-label={`Artifact: ${artifact.title}`}>
+    <aside className={styles.panel} data-expanded={expanded || undefined} aria-label={`Artifact: ${artifact.title}`}>
       <header className={styles.header}>
         {previewable && (
           <div className={styles.segmented} role="tablist">
@@ -128,6 +129,14 @@ export function ArtifactPanel({ versions, selected, onSelect, onClose }: Props) 
             </Menu.Portal>
           </Menu.Root>
         </div>
+        <button
+          className={`icon-btn ${styles.expand}`}
+          onClick={() => setExpanded((v) => !v)}
+          aria-label={expanded ? "Salir de pantalla completa" : "Pantalla completa"}
+          title={expanded ? "Salir de pantalla completa" : "Pantalla completa"}
+        >
+          {expanded ? <Minimize2 /> : <Maximize2 />}
+        </button>
         <button className="icon-btn" onClick={onClose} aria-label="Cerrar artifact" title="Cerrar">
           <X />
         </button>

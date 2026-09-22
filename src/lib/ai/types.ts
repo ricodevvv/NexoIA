@@ -40,6 +40,8 @@ export type HistoryMessage = {
   native?: NativeTurn | null;
 };
 
+export type Quota = { used: number; limit: number; plan: "free" | "pro"; resetsAt: string };
+
 export type ToolSpec = {
   name: string;
   description: string;
@@ -105,5 +107,5 @@ export type ChatStreamEvent =
   | { type: "start"; conversationId: string; userMessageId: string; assistantMessageId: string }
   | { type: "title"; title: string }
   | ProviderEvent
-  | { type: "done"; usage: Usage }
+  | { type: "done"; usage: Usage; quota?: Quota }
   | { type: "error"; message: string };

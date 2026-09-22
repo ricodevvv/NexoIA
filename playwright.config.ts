@@ -31,6 +31,7 @@ export default defineConfig({
         CODE_EXECUTION: "1",
         CODE_SANDBOX_COMMAND: "",
         STORAGE_DRIVER: "db",
+        SIGNUP_RATE_MAX: "100",
         ANTHROPIC_API_KEY: "",
         OPENAI_API_KEY: "",
         OPENAI_MODELS: "",

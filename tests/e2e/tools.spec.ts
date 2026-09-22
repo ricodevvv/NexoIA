@@ -39,6 +39,7 @@ test("la ejecución de Python lee un adjunto y devuelve una gráfica", async ({ 
   await send(page, "#python");
   await expect(page.getByAltText("figura_1.png")).toBeVisible({ timeout: 110_000 });
   await page.getByRole("button", { name: "Ejecutó código" }).click();
+  await page.getByRole("button", { name: "Ejecutó código" }).last().click();
   await expect(page.getByRole("article", { name: "Respuesta" })).toContainText("valor final: 360");
 });
 
@@ -74,6 +75,28 @@ test("el modelo puede buscar en chats anteriores", async ({ page }) => {
   await page.goto("/");
   await send(page, "#busca ornitorrinco");
   await waitForIdle(page);
+  await page.getByRole("button", { name: "Revisó chats anteriores" }).click();
   await page.getByRole("button", { name: "Buscó en tus chats" }).click();
   await expect(page.getByRole("article", { name: "Respuesta" })).toContainText("Hablemos del ornitorrinco");
+});
+
+test("los widgets se pintan y responden dentro del chat", async ({ page }) => {
+  await signup(page, "Widgets");
+  await send(page, "muéstrame todo #widgets");
+  await waitForIdle(page);
+  await expect(page.getByRole("img", { name: "Usuarios activos de tu chat (demo)" })).toBeVisible();
+  await page.getByRole("button", { name: "Tabla" }).click();
+  await expect(page.getByRole("cell", { name: "620" })).toBeVisible();
+
+  await page.getByRole("radio", { name: "LocalStorage" }).click();
+  await expect(page.getByText("Incorrecto")).toBeVisible();
+  await expect(page.getByText("Correcto", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Más porciones" }).click();
+  await expect(page.getByText("12 tortillas en triángulos")).toBeVisible();
+
+  await page.getByRole("link", { name: /React/ }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Abrir enlace externo" });
+  await expect(dialog.getByRole("textbox", { name: "Enlace" })).toHaveValue("https://react.dev/");
+  await expect(dialog.getByText("react.dev", { exact: true })).toBeVisible();
 });

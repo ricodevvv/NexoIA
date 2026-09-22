@@ -8,6 +8,7 @@ import {
   FolderClosed,
   KeyRound,
   LogOut,
+  MessageCircle,
   Monitor,
   Moon,
   MoreVertical,
@@ -86,10 +87,11 @@ export function Sidebar({ user, plan, onToggle, workspaces, activeWorkspace }: P
     if (params.id === id) router.push("/");
   }
 
-  const renderItem = (c: Conversation) => (
+  const renderItem = (c: Conversation, pinned = false) => (
     <li key={c.id} className={styles.item} data-active={pathname.startsWith("/chat/") && params.id === c.id}>
       <Link href={`/chat/${c.id}`} className={styles.itemLink} title={c.title}>
-        <span className={styles.bullet} aria-hidden="true" />
+        <span className={styles.bullet} data-pinned={pinned || undefined} aria-hidden="true" />
+        {pinned && <MessageCircle size={17} className={styles.pinIcon} aria-hidden="true" />}
         <span className={styles.itemTitle}>{c.title}</span>
       </Link>
       <Menu.Root>
@@ -159,12 +161,17 @@ export function Sidebar({ user, plan, onToggle, workspaces, activeWorkspace }: P
         {pinned.length > 0 && (
           <section className={styles.group}>
             <h2 className={styles.groupTitle}>Fijados</h2>
-            <ul>{pinned.map(renderItem)}</ul>
+            <ul>{pinned.map((c) => renderItem(c, true))}</ul>
           </section>
         )}
         <section className={styles.group}>
-          <h2 className={styles.groupTitle}>Chats</h2>
-          {recents.length === 0 ? <p className={styles.empty}>Tus chats van a aparecer aquí.</p> : <ul>{recents.map(renderItem)}</ul>}
+          <div className={styles.groupHead}>
+            <h2 className={styles.groupTitle}>Recientes</h2>
+            <button type="button" className={styles.groupAction} onClick={openSearch} aria-label="Buscar chats" title="Buscar chats">
+              <Search size={15} />
+            </button>
+          </div>
+          {recents.length === 0 ? <p className={styles.empty}>Tus chats van a aparecer aquí.</p> : <ul>{recents.map((c) => renderItem(c))}</ul>}
         </section>
       </div>
 

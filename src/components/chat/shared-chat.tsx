@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useArtifactViewer } from "../artifacts/use-artifact-viewer";
+import { ExternalLinkDialog } from "../external-link";
 import { Message, MessageContext, type UIMessage } from "./message";
 import styles from "./chat.module.css";
 
@@ -22,6 +23,7 @@ export function SharedChat({ shareId, title, createdAt, messages, labels }: Prop
   return (
     <MessageContext.Provider value={{ attachmentUrl: (id) => `/api/share/${shareId}/files/${id}`, ...viewer.context }}>
       <div className={styles.sharedPage}>
+        <ExternalLinkDialog />
         <div className={styles.layout} data-artifact={Boolean(viewer.panel)}>
           <div className={styles.chat}>
             <header className={styles.sharedHeader}>

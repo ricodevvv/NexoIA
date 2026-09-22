@@ -1,7 +1,7 @@
 import { and, count, eq, gte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "@/lib/db";
-import type { ModelInfo, Usage } from "@/lib/ai/types";
+import type { ModelInfo, Quota, Usage } from "@/lib/ai/types";
 import { PLANS, type PlanId } from "./plans";
 import { hasActiveTeam } from "./team";
 
@@ -41,6 +41,21 @@ export async function checkQuota(userId: string, model: ModelInfo, byok: boolean
     return `Llegaste al límite de ${PLANS[plan].dailyMessages} mensajes de hoy. Se reinicia a las 00:00 UTC.`;
   }
   return null;
+}
+
+function nextReset() {
+  const d = startOfDay();
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString();
+}
+
+/**
+ * Cuántos mensajes lleva hoy el usuario contra el límite de su plan, y cuándo
+ * se reinicia la cuenta.
+ */
+export async function quotaStatus(userId: string): Promise<Quota> {
+  const [plan, used] = await Promise.all([getPlan(userId), usedToday(userId)]);
+  return { used, limit: PLANS[plan].dailyMessages, plan, resetsAt: nextReset() };
 }
 
 export async function recordUsage(userId: string, model: string, usage: Usage, byok: boolean) {

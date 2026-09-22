@@ -5,6 +5,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import { ExternalLink } from "../external-link";
 import { CodeBlock } from "./code-block";
 import styles from "./chat.module.css";
 
@@ -26,11 +27,7 @@ const components: Components = {
     return <pre>{children}</pre>;
   },
   a({ href, children }) {
-    return (
-      <a href={href} target="_blank" rel="noopener noreferrer">
-        {children}
-      </a>
-    );
+    return <ExternalLink href={href}>{children}</ExternalLink>;
   },
   table({ children }) {
     return (

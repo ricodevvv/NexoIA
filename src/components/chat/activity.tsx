@@ -1,10 +1,11 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Download } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import { useContext, useEffect, useState } from "react";
 import type { MessagePart } from "@/lib/ai/types";
 import type { ActivityEntry } from "./group-parts";
+import { FileCard, kindOf } from "./file-card";
 import { MessageContext } from "./message-context";
 import styles from "./chat.module.css";
 
@@ -143,32 +144,78 @@ function Outputs({ entries }: { entries: ActivityEntry[] }) {
         </a>
       ))}
       {others.map((f) => (
-        <a key={f.attachmentId} href={ctx.attachmentUrl(f.attachmentId)} download={f.name} className={styles.fileCard}>
-          <span className={styles.fileCardIcon} aria-hidden="true">
-            <Download size={18} />
-          </span>
-          <span className={styles.fileCardText}>
-            <span className={styles.fileCardTitle}>{f.name}</span>
-            <span className={styles.fileCardMeta}>Archivo · {f.name.split(".").pop()?.toUpperCase()}</span>
-          </span>
-        </a>
+        <FileCard
+          key={f.attachmentId}
+          title={f.name.replace(/\.[^.]+$/, "")}
+          meta={`Archivo · ${f.name.split(".").pop()?.toUpperCase()}`}
+          kind={kindOf(f.name)}
+          href={ctx.attachmentUrl(f.attachmentId)}
+          fileName={f.name}
+        />
       ))}
     </>
   );
 }
 
+function summaryVerb(entry: ActivityEntry) {
+  if (entry.kind === "web") return entry.calls.some((c) => c.name === "web_search") ? "buscó en la web" : "leyó páginas web";
+  if (entry.kind === "reasoning") return null;
+  const n = entry.part.name;
+  if (n === "run_python") return "ejecutó código";
+  if (n.startsWith("memory_")) return "actualizó su memoria";
+  if (n.startsWith("conversation_")) return "revisó chats anteriores";
+  if (n === "artifact") return "creó un archivo";
+  const [server, ...rest] = n.split("__");
+  return `usó ${rest.length ? `${server} · ${rest.join("__")}` : n}`;
+}
+
+/**
+ * Resumen de una línea de lo que hizo el agente, estilo "Ejecutó código,
+ * buscó en la web". Si solo razonó, usa la primera frase del razonamiento.
+ */
+export function activitySummary(entries: ActivityEntry[]) {
+  const verbs = [...new Set(entries.map(summaryVerb).filter((v): v is string => Boolean(v)))];
+  if (!verbs.length) {
+    const reasoning = entries.find((e) => e.kind === "reasoning" && e.text.trim());
+    return reasoning && reasoning.kind === "reasoning" ? firstLine(reasoning.text) : "Pensó";
+  }
+  const text = verbs.join(", ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /**
  * Caja con lo que hizo el agente entre textos: razonamiento, tools y búsquedas.
  * Mientras trabaja, arriba va una línea de estado con lo que está haciendo y
- * cuántos segundos lleva.
+ * cuántos segundos lleva. Al terminar queda como una línea gris que se abre.
  */
 export function ActivityBox({ entries, live, startedAt }: { entries: ActivityEntry[]; live: boolean; startedAt?: number }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [open, setOpen] = useState(false);
   const elapsed = useElapsed(startedAt, live);
   const current = entries.at(-1);
+
+  if (!live) {
+    return (
+      <div className={styles.activity}>
+        <button type="button" className={styles.summary} onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+          <span className={styles.statusText}>{activitySummary(entries)}</span>
+          {open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
+        </button>
+        {open && (
+          <div className={styles.activityBox}>
+            {entries.map((entry) => (
+              <Row key={entry.index} entry={entry} live={false} />
+            ))}
+          </div>
+        )}
+        <Outputs entries={entries} />
+      </div>
+    );
+  }
+
   return (
     <div className={styles.activity}>
-      {live && current && (
+      {current && (
         <button type="button" className={styles.status} onClick={() => setCollapsed((v) => !v)} aria-expanded={!collapsed}>
           <span className={styles.dots} aria-hidden="true">
             <span />

@@ -9,7 +9,7 @@ import { findModelForUser, resolveModelKey } from "@/lib/ai/user-models";
 import { systemPrompt } from "@/lib/ai/system";
 import { generateTitle } from "@/lib/ai/title";
 import type { AttachmentData, ChatStreamEvent, HistoryMessage, MessagePart } from "@/lib/ai/types";
-import { checkQuota, recordUsage } from "@/lib/billing/usage";
+import { checkQuota, quotaStatus, recordUsage } from "@/lib/billing/usage";
 import { db, schema } from "@/lib/db";
 import { openToolbox } from "@/lib/mcp";
 import { projectAccess, sharedAttachmentIds } from "@/lib/projects";
@@ -116,7 +116,9 @@ export async function POST(request: Request) {
     const key = await resolveModelKey(user.id, model);
     if (!key) throw new HttpError(400, `No hay API key configurada para ${model.label}. Agrégala en Ajustes.`);
     const blocked = await checkQuota(user.id, model, key.byok);
-    if (blocked) throw new HttpError(402, blocked);
+    if (blocked) {
+      return Response.json({ error: blocked, quota: await quotaStatus(user.id) }, { status: 402 });
+    }
 
     const researching = body.research && model.webSearch !== null;
     const isNew = !body.conversationId;
@@ -272,7 +274,7 @@ export async function POST(request: Request) {
           send({ type: "title", title: aiTitle });
         }
 
-        send({ type: "done", usage: outcome.usage });
+        send({ type: "done", usage: outcome.usage, quota: key.byok ? undefined : await quotaStatus(user.id) });
         if (open) sink.close();
       },
       cancel() {

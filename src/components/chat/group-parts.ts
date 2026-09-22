@@ -12,15 +12,17 @@ export type RenderItem = { kind: "part"; part: MessagePart; index: number } | { 
 const WEB_TOOLS = new Set(["web_search", "web_fetch"]);
 
 
+const STANDALONE_TOOLS = new Set(["artifact", "show_widget"]);
+
 function isStandalone(part: MessagePart) {
-  return part.type === "text" || part.type === "notice" || (part.type === "tool_call" && part.name === "artifact");
+  return part.type === "text" || part.type === "notice" || (part.type === "tool_call" && STANDALONE_TOOLS.has(part.name) && !part.isError);
 }
 
 /**
- * Arma lo que se pinta de una respuesta: el texto, los avisos y los artifacts
- * van sueltos; todo lo que hace el agente entre medio (razonar, usar tools,
- * buscar en la web) se junta en una caja de actividad. Las búsquedas web
- * seguidas se juntan en una sola fila.
+ * Arma lo que se pinta de una respuesta: el texto, los avisos, los artifacts
+ * y los widgets van sueltos; todo lo que hace el agente entre medio (razonar,
+ * usar tools, buscar en la web) se junta en una caja de actividad. Las
+ * búsquedas web seguidas se juntan en una sola fila.
  */
 export function groupParts(parts: MessagePart[]): RenderItem[] {
   const items: RenderItem[] = [];
