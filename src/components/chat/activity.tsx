@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useContext, useEffect, useState } from "react";
 import type { MessagePart } from "@/lib/ai/types";
 import type { ActivityEntry } from "./group-parts";
+import { CodeToolBody, codeToolTitle, codeToolVerb, isCodeTool } from "../code/code-tools";
 import { FileCard, kindOf } from "./file-card";
 import { MessageContext } from "./message-context";
 import styles from "./chat.module.css";
@@ -18,6 +19,8 @@ function firstLine(text: string, max = 90) {
 
 function toolTitle(part: ToolCallPart, running: boolean) {
   const n = part.name;
+  const code = isCodeTool(n) ? codeToolTitle(part, running) : null;
+  if (code) return code;
   if (n === "run_python") return running ? "Ejecutando código" : part.isError ? "El código falló" : "Ejecutó código";
   if (n === "memory_save") return running ? "Guardando un recuerdo" : "Guardó un recuerdo";
   if (n === "memory_delete") return running ? "Borrando un recuerdo" : "Borró un recuerdo";
@@ -90,6 +93,7 @@ function EntryBody({ entry }: { entry: ActivityEntry }) {
     );
   }
   const part = entry.part;
+  if (isCodeTool(part.name)) return <CodeToolBody part={part} />;
   const isCode = part.name === "run_python";
   const code = isCode ? ((part.input as { code?: string } | null)?.code ?? "") : pretty(part.input);
   return (
@@ -165,6 +169,8 @@ function summaryVerb(entry: ActivityEntry) {
   if (n.startsWith("memory_")) return "actualizó su memoria";
   if (n.startsWith("conversation_")) return "revisó chats anteriores";
   if (n === "artifact") return "creó un archivo";
+  const code = isCodeTool(n) ? codeToolVerb(n) : null;
+  if (code) return code;
   const [server, ...rest] = n.split("__");
   return `usó ${rest.length ? `${server} · ${rest.join("__")}` : n}`;
 }

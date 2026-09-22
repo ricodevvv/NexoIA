@@ -138,6 +138,38 @@ El modo contenedor usa la imagen `nexo-sandbox` (se construye desde `sandbox/`, 
 
 En producción viene apagada; se prende con `CODE_EXECUTION=1` más alguno de los dos modos aislados.
 
+## Nexo Code
+
+El modo **Código** (el botón `</>` arriba de la barra lateral, o `/code`) conecta Nexo con [nexocode](https://github.com/ricodevvv/nexocode): un agente de programación que lee tu proyecto, corre comandos y edita archivos. Desde Nexo ves la sesión en vivo, apruebas o rechazas lo que pide permiso (comandos, ediciones), eliges el modelo, cambias entre **Construir** (puede tocar archivos) y **Planear** (solo lee y propone) y revisas los cambios del repo en el panel **Cambios**.
+
+Nexo no corre el agente: habla con un `nexocode serve` que está en tu máquina o en un servidor tuyo.
+
+1. En la carpeta del proyecto:
+
+   ```bash
+   NEXOCODE_SERVER_PASSWORD=una-clave nexocode serve --port 4096
+   ```
+
+2. Exponlo con https (por ejemplo `cloudflared tunnel --url http://localhost:4096`).
+3. En `/code` pega la URL y la contraseña. La contraseña se guarda cifrada.
+
+Por seguridad, las URLs que agrega un usuario tienen que ser https y públicas (nada de `localhost` ni IPs privadas), igual que los conectores MCP.
+
+Si quieres usar un nexocode que corre en la misma máquina que Nexo, configúralo por entorno. Ese servidor solo lo ven los emails de `NEXOCODE_ALLOWED_EMAILS`, porque el agente tiene shell en esa máquina:
+
+```bash
+NEXOCODE_URL=http://127.0.0.1:4096
+NEXOCODE_PASSWORD=una-clave
+NEXOCODE_DIRECTORY=/home/tu-usuario/proyecto
+NEXOCODE_ALLOWED_EMAILS=tu@correo.com
+```
+
+> Ojo con el fork: después del rebrand, nexocode busca el catálogo de modelos en `models.nexocode.ai`, que no existe, y `/config/providers` falla. Mientras se arregla, arráncalo con `NEXOCODE_MODELS_URL=https://models.dev`.
+
+## Marca
+
+El logo, los colores y cómo usarlos están en [docs/marca.md](docs/marca.md). Los archivos se generan con `node scripts/brand.mjs`.
+
 ## Equipos
 
 Cualquiera puede crear un equipo desde el selector de arriba del sidebar. Dentro de un equipo:

@@ -574,21 +574,8 @@
 }
 
 .sharedBrand {
-  font-family: var(--font-display);
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  display: inline-flex;
   color: var(--text);
-  text-decoration: none;
-}
-
-.sharedBrand::after {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-inline-start: 3px;
-  background: var(--accent);
 }
 
 .sharedIntro {
@@ -1587,7 +1574,7 @@ div.fileCardMain {
   right: 14px;
   padding: 2px 8px;
   border-radius: 6px;
-  background: #1d4ed8;
+  background: var(--accent);
   color: #ffffff;
   font-size: var(--text-xs);
 }

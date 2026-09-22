@@ -1,0 +1,37 @@
+import { getCodeServer, nexocodeFetch, nexocodeJson } from "@/lib/nexocode";
+import { apiUser, handleError } from "@/lib/session";
+
+export async function GET(_request: Request, ctx: RouteContext<"/api/code/[server]/sessions/[session]">) {
+  try {
+    const user = await apiUser();
+    const { server: serverId, session } = await ctx.params;
+    const server = await getCodeServer(user, serverId);
+    const id = encodeURIComponent(session);
+    const [info, messages, status, permissions] = await Promise.all([
+      nexocodeJson<{ id: string; title: string }>(server, `/session/${id}`),
+      nexocodeJson<unknown[]>(server, `/session/${id}/message`),
+      nexocodeJson<Record<string, { type: string }>>(server, "/session/status").catch(() => ({}) as Record<string, { type: string }>),
+      nexocodeJson<{ sessionID: string }[]>(server, "/permission").catch(() => []),
+    ]);
+    return Response.json({
+      session: { id: info.id, title: info.title },
+      messages,
+      busy: status[info.id]?.type === "busy",
+      permissions: permissions.filter((p) => p.sessionID === info.id),
+    });
+  } catch (err) {
+    return handleError(err);
+  }
+}
+
+export async function DELETE(_request: Request, ctx: RouteContext<"/api/code/[server]/sessions/[session]">) {
+  try {
+    const user = await apiUser();
+    const { server: serverId, session } = await ctx.params;
+    const server = await getCodeServer(user, serverId);
+    await nexocodeFetch(server, `/session/${encodeURIComponent(session)}`, { method: "DELETE" });
+    return Response.json({ ok: true });
+  } catch (err) {
+    return handleError(err);
+  }
+}

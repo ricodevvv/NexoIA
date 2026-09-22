@@ -78,6 +78,13 @@ const server = http.createServer(async (req, res) => {
       await words(res, "En esta respuesta salieron: **clima, gráfica, pasos, receta, quiz, comparación, links y diagrama**.");
       send(res, {}, "stop");
     }
+  } else if (/#bash/.test(user) && tools.includes("bash") && last.role !== "tool") {
+    send(res, { reasoning_content: "Reviso qué hay en el proyecto." });
+    callTool(res, "bash", { command: "ls && cat app.js", description: "Lista los archivos del proyecto" });
+  } else if (/#edita/.test(user) && tools.includes("edit") && last.role !== "tool") {
+    const cwd = (textOf(messages[0]).match(/Working directory: (\S+)/) ?? [])[1] ?? ".";
+    await words(res, "Cambio el saludo. ");
+    callTool(res, "edit", { filePath: `${cwd}/app.js`, oldString: '"Hola "', newString: '"¡Hola, "' });
   } else if (/#largo/.test(user)) {
     for (let i = 1; i <= 120; i++) {
       send(res, { content: `Párrafo ${i}: este texto sale despacio para probar que puedes subir mientras el modelo escribe.\n\n` });

@@ -17,6 +17,7 @@ export type MessagePart =
       isError?: boolean;
       server?: boolean;
       files?: FileRef[];
+      diff?: string;
     }
   | { type: "notice"; level: "warning" | "error"; text: string };
 

@@ -142,7 +142,7 @@
 }
 
 .dot[aria-current="step"] {
-  background: #1d4ed8;
+  background: var(--accent);
   color: #ffffff;
 }
 

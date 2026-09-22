@@ -286,3 +286,18 @@ export const userEndpoint = pgTable(
   },
   (t) => [index("user_endpoint_user_idx").on(t.userId)],
 );
+
+export const codeServer = pgTable(
+  "code_server",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    url: text("url").notNull(),
+    username: text("username").notNull().default("nexocode"),
+    password: text("password"),
+    directory: text("directory"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("code_server_user_idx").on(t.userId)],
+);

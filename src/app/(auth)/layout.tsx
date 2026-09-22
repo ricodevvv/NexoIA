@@ -1,3 +1,4 @@
+import { NexoLogo } from "@/components/brand/logo";
 import styles from "./auth.module.css";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -5,7 +6,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className={styles.page}>
       <aside className={styles.poster} aria-hidden="true">
         <div className={styles.grid} />
-        <p className={styles.mark}>Nexo</p>
+        <p className={styles.mark}>
+          <NexoLogo size={34} />
+        </p>
         <div className={styles.coords}>
           <span>Claude · GPT · MCP</span>
           <span>N 00°00′ / E 00°00′</span>

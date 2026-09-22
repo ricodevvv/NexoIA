@@ -6,7 +6,7 @@ DEST=/opt/nexo
 
 rsync -a --delete \
   --exclude node_modules --exclude .next --exclude .git \
-  --exclude .env.local --exclude '*.png' --exclude '*.log' \
+  --exclude .env.local --exclude '/*.png' --exclude '*.log' \
   --exclude '*.mp4' --exclude '*.MP4' --exclude '*.mov' --exclude '*.MOV' \
   --exclude test-results --exclude playwright-report \
   "$SRC/" "$DEST/"

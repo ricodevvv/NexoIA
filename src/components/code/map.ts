@@ -1,0 +1,141 @@
+import type { MessagePart } from "@/lib/ai/types";
+import type { UIMessage } from "../chat/message";
+
+export type NcPart = {
+  id: string;
+  messageID: string;
+  type: string;
+  text?: string;
+  synthetic?: boolean;
+  ignored?: boolean;
+  tool?: string;
+  callID?: string;
+  state?: {
+    status: "pending" | "running" | "completed" | "error";
+    input?: Record<string, unknown>;
+    output?: string;
+    error?: string;
+    title?: string;
+    metadata?: Record<string, unknown>;
+  };
+  filename?: string;
+  mime?: string;
+};
+
+export type NcInfo = {
+  id: string;
+  role: "user" | "assistant";
+  time: { created: number; completed?: number };
+  modelID?: string;
+  error?: { name: string; data?: { message?: string } };
+};
+
+export type NcMessage = { info: NcInfo; parts: NcPart[] };
+
+export type SessionState = { messages: Record<string, { info?: NcInfo; parts: Record<string, NcPart> }> };
+
+export type NcEvent =
+  | { type: "message.updated"; properties: { info: NcInfo } }
+  | { type: "message.removed"; properties: { messageID: string } }
+  | { type: "message.part.updated"; properties: { part: NcPart } }
+  | { type: "message.part.delta"; properties: { messageID: string; partID: string; field: string; delta: string } }
+  | { type: "message.part.removed"; properties: { messageID: string; partID: string } };
+
+/**
+ * Arma el estado inicial de una sesión con los mensajes que devuelve la API.
+ */
+export function initialState(messages: NcMessage[]): SessionState {
+  const state: SessionState = { messages: {} };
+  for (const m of messages) state.messages[m.info.id] = { info: m.info, parts: Object.fromEntries(m.parts.map((p) => [p.id, p])) };
+  return state;
+}
+
+/**
+ * Aplica un evento de nexocode al estado de la sesión sin mutarlo.
+ */
+export function applyNcEvent(state: SessionState, event: NcEvent): SessionState {
+  const messages = { ...state.messages };
+  const touch = (id: string) => (messages[id] = messages[id] ?? { parts: {} });
+  switch (event.type) {
+    case "message.updated": {
+      const m = touch(event.properties.info.id);
+      messages[event.properties.info.id] = { ...m, info: event.properties.info };
+      break;
+    }
+    case "message.removed":
+      delete messages[event.properties.messageID];
+      break;
+    case "message.part.updated": {
+      const { part } = event.properties;
+      const m = touch(part.messageID);
+      messages[part.messageID] = { ...m, parts: { ...m.parts, [part.id]: part } };
+      break;
+    }
+    case "message.part.delta": {
+      const { messageID, partID, field, delta } = event.properties;
+      const m = touch(messageID);
+      const part = m.parts[partID] ?? { id: partID, messageID, type: field === "text" ? "text" : field };
+      const current = (part as Record<string, unknown>)[field];
+      messages[messageID] = { ...m, parts: { ...m.parts, [partID]: { ...part, [field]: `${typeof current === "string" ? current : ""}${delta}` } } };
+      break;
+    }
+    case "message.part.removed": {
+      const m = messages[event.properties.messageID];
+      if (m) {
+        const parts = { ...m.parts };
+        delete parts[event.properties.partID];
+        messages[event.properties.messageID] = { ...m, parts };
+      }
+      break;
+    }
+  }
+  return { messages };
+}
+
+function toPart(p: NcPart): MessagePart | null {
+  if (p.type === "text" && !p.synthetic && !p.ignored && p.text) return { type: "text", text: p.text };
+  if (p.type === "reasoning") return { type: "reasoning", text: p.text ?? "" };
+  if (p.type === "tool" && p.state) {
+    const done = p.state.status === "completed" || p.state.status === "error";
+    const diff = p.state.metadata?.diff;
+    return {
+      type: "tool_call",
+      id: p.callID ?? p.id,
+      name: p.tool ?? "tool",
+      input: p.state.input ?? {},
+      output: done ? (p.state.status === "error" ? (p.state.error ?? "Error") : (p.state.output ?? "")) : undefined,
+      isError: p.state.status === "error",
+      diff: typeof diff === "string" ? diff : undefined,
+    };
+  }
+  if (p.type === "file" && p.filename) return { type: "notice", level: "warning", text: `Adjuntó ${p.filename}` };
+  return null;
+}
+
+/**
+ * Convierte la sesión a mensajes del chat de Nexo. Los mensajes seguidos del
+ * asistente (nexocode crea uno por paso) se juntan en una sola respuesta.
+ */
+export function toUIMessages(state: SessionState): UIMessage[] {
+  const ordered = Object.entries(state.messages)
+    .filter(([, m]) => m.info)
+    .sort(([a, x], [b, y]) => x.info!.time.created - y.info!.time.created || a.localeCompare(b));
+  const out: UIMessage[] = [];
+  for (const [id, m] of ordered) {
+    const info = m.info!;
+    const parts = Object.values(m.parts)
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map(toPart)
+      .filter((p): p is MessagePart => p !== null);
+    if (info.error && info.error.name !== "MessageAbortedError") {
+      parts.push({ type: "notice", level: "error", text: info.error.data?.message ?? info.error.name });
+    }
+    const prev = out.at(-1);
+    if (info.role === "assistant" && prev?.role === "assistant") {
+      prev.parts = [...prev.parts, ...parts];
+      continue;
+    }
+    out.push({ id, role: info.role, parts, model: info.modelID ?? null, createdAt: new Date(info.time.created).toISOString() });
+  }
+  return out;
+}

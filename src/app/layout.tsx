@@ -5,9 +5,16 @@ import "./globals.css";
 
 const serif = Source_Serif_4({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-serif" });
 
+const description = "Chat con IA para cualquier modelo: Claude, GPT y los que traigas tú. Con tools MCP, artifacts, proyectos y Nexo Code.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.BETTER_AUTH_URL ?? "http://localhost:3001"),
   title: { default: "Nexo", template: "%s · Nexo" },
-  description: "Chat con IA: Claude, GPT y cualquier modelo compatible, con tools MCP.",
+  applicationName: "Nexo",
+  description,
+  openGraph: { type: "website", siteName: "Nexo", title: "Nexo", description },
+  twitter: { card: "summary_large_image", title: "Nexo", description },
+  appleWebApp: { capable: true, title: "Nexo", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {

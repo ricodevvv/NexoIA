@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useArtifactViewer } from "../artifacts/use-artifact-viewer";
+import { NexoLogo } from "../brand/logo";
 import { ExternalLinkDialog } from "../external-link";
 import { Message, MessageContext, type UIMessage } from "./message";
 import styles from "./chat.module.css";
@@ -27,8 +28,8 @@ export function SharedChat({ shareId, title, createdAt, messages, labels }: Prop
         <div className={styles.layout} data-artifact={Boolean(viewer.panel)}>
           <div className={styles.chat}>
             <header className={styles.sharedHeader}>
-              <Link href="/" className={styles.sharedBrand}>
-                Nexo
+              <Link href="/" className={styles.sharedBrand} aria-label="Nexo">
+                <NexoLogo size={22} />
               </Link>
               <span className="tag">Chat compartido</span>
             </header>

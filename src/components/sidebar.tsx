@@ -5,10 +5,12 @@ import * as Menu from "@radix-ui/react-dropdown-menu";
 import {
   ArrowUpCircle,
   ChevronDown,
+  Code2,
   FolderClosed,
   KeyRound,
   LogOut,
   MessageCircle,
+  MessagesSquare,
   Monitor,
   Moon,
   MoreVertical,
@@ -27,6 +29,7 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { authClient } from "@/lib/auth-client";
+import { NexoLogo } from "./brand/logo";
 import { notifyConversationsChanged, onConversationsChanged } from "./events";
 import styles from "./sidebar.module.css";
 import { useShell } from "./shell";
@@ -122,9 +125,17 @@ export function Sidebar({ user, plan, onToggle, workspaces, activeWorkspace }: P
         <button className={`icon-btn ${styles.close}`} onClick={onToggle} aria-label="Cerrar menú">
           <X />
         </button>
-        <Link href="/" className={styles.brand}>
-          Nexo
+        <Link href="/" className={styles.brand} aria-label="Nexo, nuevo chat">
+          <NexoLogo size={24} />
         </Link>
+        <div className={styles.modes} role="group" aria-label="Modo">
+          <Link href="/" className={styles.mode} data-active={!pathname.startsWith("/code")} aria-label="Chat" title="Chat">
+            <MessagesSquare size={16} />
+          </Link>
+          <Link href="/code" className={styles.mode} data-active={pathname.startsWith("/code")} aria-label="Nexo Code" title="Nexo Code">
+            <Code2 size={16} />
+          </Link>
+        </div>
         <button className={`icon-btn ${styles.collapse}`} onClick={onToggle} aria-label="Ocultar barra lateral">
           <PanelLeft />
         </button>
