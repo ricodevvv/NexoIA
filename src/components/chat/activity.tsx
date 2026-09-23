@@ -1,8 +1,9 @@
 "use client";
 
-import { ChevronDown, ChevronRight } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
+import { Brain, ChevronLeft, ChevronRight, Clock, Dot, FileText, GitBranch, Globe, ListChecks, type LucideIcon, Search, SquareTerminal, Wrench, X } from "lucide-react";
 import Image from "next/image";
-import { useContext, useEffect, useState } from "react";
+import { createElement, useContext, useState } from "react";
 import type { MessagePart } from "@/lib/ai/types";
 import type { ActivityEntry } from "./group-parts";
 import { CodeToolBody, codeToolTitle, codeToolVerb, isCodeTool } from "../code/code-tools";
@@ -110,30 +111,6 @@ function EntryBody({ entry }: { entry: ActivityEntry }) {
   );
 }
 
-function Row({ entry, live }: { entry: ActivityEntry; live: boolean }) {
-  const [open, setOpen] = useState(false);
-  const title = entryTitle(entry, live);
-  return (
-    <div className={styles.row} data-open={open}>
-      <button type="button" className={styles.rowHead} onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-        <span className={styles.rowTitle}>{title}</span>
-        {open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
-      </button>
-      {open && <EntryBody entry={entry} />}
-    </div>
-  );
-}
-
-function useElapsed(startedAt: number | undefined, running: boolean) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [running]);
-  return startedAt ? Math.max(0, Math.round((now - startedAt) / 1000)) : null;
-}
-
 function Outputs({ entries }: { entries: ActivityEntry[] }) {
   const ctx = useContext(MessageContext);
   const files = entries.flatMap((e) => (e.kind === "tool" && e.part.files ? e.part.files : []));
@@ -180,7 +157,19 @@ function summaryVerb(entry: ActivityEntry) {
  * buscó en la web". Si solo razonó, usa la primera frase del razonamiento.
  */
 export function activitySummary(entries: ActivityEntry[]) {
-  const verbs = [...new Set(entries.map(summaryVerb).filter((v): v is string => Boolean(v)))];
+  const tools = entries.flatMap((e) => (e.kind === "tool" ? [e.part.name] : []));
+  const count = (names: string[]) => tools.filter((n) => names.includes(n)).length;
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const counted: [number, string][] = [
+    [count(["write"]), `creó ${plural(count(["write"]), "archivo", "archivos")}`],
+    [count(["edit", "multiedit", "patch", "apply_patch"]), `editó ${plural(count(["edit", "multiedit", "patch", "apply_patch"]), "archivo", "archivos")}`],
+    [count(["bash"]), `ejecutó ${plural(count(["bash"]), "comando", "comandos")}`],
+  ];
+  const skip = new Set(["write", "edit", "multiedit", "patch", "apply_patch", "bash"]);
+  const verbs = [
+    ...counted.filter(([n]) => n > 0).map(([, v]) => v),
+    ...new Set(entries.filter((e) => e.kind !== "tool" || !skip.has(e.part.name)).map(summaryVerb).filter((v): v is string => Boolean(v))),
+  ];
   if (!verbs.length) {
     const reasoning = entries.find((e) => e.kind === "reasoning" && e.text.trim());
     return reasoning && reasoning.kind === "reasoning" ? firstLine(reasoning.text) : "Pensó";
@@ -189,58 +178,165 @@ export function activitySummary(entries: ActivityEntry[]) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/**
- * Caja con lo que hizo el agente entre textos: razonamiento, tools y búsquedas.
- * Mientras trabaja, arriba va una línea de estado con lo que está haciendo y
- * cuántos segundos lleva. Al terminar queda como una línea gris que se abre.
- */
-export function ActivityBox({ entries, live, startedAt }: { entries: ActivityEntry[]; live: boolean; startedAt?: number }) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [open, setOpen] = useState(false);
-  const elapsed = useElapsed(startedAt, live);
-  const current = entries.at(-1);
+function entryIcon(entry: ActivityEntry, timeline = false): LucideIcon {
+  if (entry.kind === "reasoning") return timeline ? Dot : Clock;
+  if (entry.kind === "web") return Globe;
+  const n = entry.part.name;
+  if (n === "bash" || n === "run_python") return SquareTerminal;
+  if (["read", "write", "edit", "multiedit", "patch", "apply_patch", "artifact"].includes(n)) return FileText;
+  if (["glob", "grep", "list", "ls", "conversation_search", "conversation_read"].includes(n)) return Search;
+  if (n.startsWith("memory_")) return Brain;
+  if (n.startsWith("todo")) return ListChecks;
+  if (n === "task") return GitBranch;
+  return Wrench;
+}
 
-  if (!live) {
-    return (
-      <div className={styles.activity}>
-        <button type="button" className={styles.summary} onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-          <span className={styles.statusText}>{activitySummary(entries)}</span>
-          {open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
-        </button>
-        {open && (
-          <div className={styles.activityBox}>
-            {entries.map((entry) => (
-              <Row key={entry.index} entry={entry} live={false} />
-            ))}
+function isRunning(entry: ActivityEntry, live: boolean) {
+  if (!live) return false;
+  if (entry.kind === "reasoning") return false;
+  if (entry.kind === "web") return entry.calls.some((c) => c.output === undefined);
+  return entry.part.output === undefined;
+}
+
+function hasDetail(entry: ActivityEntry) {
+  if (entry.kind === "reasoning") return entry.text.trim().length > 0;
+  return true;
+}
+
+function Spinner() {
+  return (
+    <span className={styles.spinner} role="status" aria-label="Trabajando">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2.2" strokeDasharray="3 4.2" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
+}
+
+/**
+ * Lo que se ve mientras el agente arranca y todavía no hay pasos: el
+ * indicador de trabajo y "Pensando…" con brillo.
+ */
+export function ThinkingLine() {
+  return (
+    <div className={styles.thinkingLine} role="status">
+      <Spinner />
+      <span className={styles.shimmer}>Pensando…</span>
+    </div>
+  );
+}
+
+function Timeline({ entries, live, onPick }: { entries: ActivityEntry[]; live: boolean; onPick: (e: ActivityEntry) => void }) {
+  return (
+    <ol className={styles.timeline}>
+      {entries.map((entry, i) => {
+        const running = isRunning(entry, live) || (live && i === entries.length - 1 && entry.kind === "reasoning");
+        const title = entryTitle(entry, running);
+        const content = (
+          <>
+            <span className={styles.tlIcon} data-kind={entry.kind === "reasoning" ? "dot" : undefined} aria-hidden="true">
+              {createElement(entryIcon(entry, true), { size: entry.kind === "reasoning" ? 20 : 17 })}
+            </span>
+            <span className={`${styles.tlTitle} ${running ? styles.shimmer : ""}`}>{title}</span>
+            {hasDetail(entry) && <ChevronRight size={16} aria-hidden="true" className={styles.tlChevron} />}
+          </>
+        );
+        return (
+          <li key={entry.index}>
+            {hasDetail(entry) ? (
+              <button type="button" className={styles.tlRow} onClick={() => onPick(entry)}>
+                {content}
+              </button>
+            ) : (
+              <div className={styles.tlRow}>{content}</div>
+            )}
+          </li>
+        );
+      })}
+      {live && (
+        <li>
+          <div className={styles.tlRow}>
+            <span className={styles.tlIcon} data-kind="dot" aria-hidden="true">
+              <Dot size={20} />
+            </span>
+            <span className={`${styles.tlTitle} ${styles.shimmer}`}>Pensando…</span>
           </div>
-        )}
-        <Outputs entries={entries} />
-      </div>
-    );
-  }
+        </li>
+      )}
+    </ol>
+  );
+}
+
+/**
+ * Lo que hizo el agente entre textos, en una sola línea: mientras trabaja
+ * muestra el paso actual con un brillo que lo recorre; al terminar, un
+ * resumen. Al tocarla se abre el "Resumen" con todos los pasos de la
+ * respuesta (`timeline`) y el detalle de cada uno.
+ */
+export function ActivityBox({
+  entries,
+  live,
+  timeline = entries,
+  timelineLive = live,
+}: {
+  entries: ActivityEntry[];
+  live: boolean;
+  timeline?: ActivityEntry[];
+  timelineLive?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState<number | null>(null);
+  const current = entries.at(-1);
+  if (!current) return null;
+
+  const lastTool = [...entries].reverse().find((e) => e.kind !== "reasoning");
+  const lineEntry = live ? current : (lastTool ?? current);
+  const running = live && (isRunning(current, live) || current.kind === "reasoning");
+  const title = live ? entryTitle(current, true) : activitySummary(entries);
+  const detail = picked === null ? null : timeline.find((e) => e.index === picked);
 
   return (
     <div className={styles.activity}>
-      {current && (
-        <button type="button" className={styles.status} onClick={() => setCollapsed((v) => !v)} aria-expanded={!collapsed}>
-          <span className={styles.dots} aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </span>
-          <span className={styles.statusText}>{entryTitle(current, true)}</span>
-          {elapsed !== null && <span className={styles.statusTime}>{elapsed} s</span>}
-          <ChevronDown size={14} aria-hidden="true" className={styles.statusChevron} data-collapsed={collapsed} />
-        </button>
-      )}
-      {!collapsed && (
-        <div className={styles.activityBox}>
-          {entries.map((entry) => (
-            <Row key={entry.index} entry={entry} live={live} />
-          ))}
-        </div>
-      )}
+      <button
+        type="button"
+        className={styles.line}
+        data-reasoning={!lastTool || undefined}
+        onClick={() => {
+          setPicked(null);
+          setOpen(true);
+        }}
+      >
+        {createElement(entryIcon(lineEntry), { size: 16, "aria-hidden": true, className: styles.lineIcon })}
+        <span className={`${styles.lineTitle} ${running ? styles.shimmer : ""}`}>{title}</span>
+        <ChevronRight size={15} aria-hidden="true" className={styles.lineChevron} />
+      </button>
+      {live && <Spinner />}
       <Outputs entries={entries} />
+
+      <Dialog.Root open={open} onOpenChange={setOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className={styles.sheetOverlay} />
+          <Dialog.Content className={styles.sheet} aria-describedby={undefined}>
+            <span className={styles.grabber} aria-hidden="true" />
+            <header className={styles.sheetHead}>
+              {detail ? (
+                <button type="button" className={styles.sheetBtn} onClick={() => setPicked(null)} aria-label="Volver al resumen">
+                  <ChevronLeft size={20} />
+                </button>
+              ) : (
+                <Dialog.Close className={styles.sheetBtn} aria-label="Cerrar">
+                  <X size={18} />
+                </Dialog.Close>
+              )}
+              <Dialog.Title className={styles.sheetTitle}>{detail ? entryTitle(detail, isRunning(detail, timelineLive)) : "Resumen"}</Dialog.Title>
+              <span className={styles.sheetSpacer} />
+            </header>
+            <div className={styles.sheetBody}>
+              {detail ? <EntryBody entry={detail} /> : <Timeline entries={timeline} live={timelineLive} onPick={(e) => setPicked(e.index)} />}
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

@@ -30,17 +30,18 @@ export function baseName(path: string) {
 export function codeToolTitle(part: ToolCallPart, running: boolean) {
   const input = (part.input ?? {}) as Input;
   const file = baseName(str(input.filePath) || str(input.path));
-  const pick = (now: string, done: string) => (running ? now : part.isError ? `Falló: ${done.toLowerCase()}` : done);
+  const pick = (now: string, done: string, failed = `Falló: ${done.charAt(0).toLowerCase()}${done.slice(1)}`) =>
+    running ? now : part.isError ? failed : done;
   switch (part.name) {
     case "bash":
-      return pick("Ejecutando un comando", str(input.description) || "Ejecutó un comando");
+      return pick(str(input.description) || "Ejecutando un comando", str(input.description) || "Ejecutó un comando", "El comando falló");
     case "read":
       return pick(`Leyendo ${file}`, `Leyó ${file}`);
     case "write":
-      return pick(`Creando ${file}`, `Creó ${file}`);
+      return pick(`Creando ${file}`, `Se creó ${file}`, `No se pudo crear ${file}`);
     case "edit":
     case "multiedit":
-      return pick(`Editando ${file}`, `Editó ${file}`);
+      return pick(`Editando ${file}`, `Se editó ${file}`, `No se pudo editar ${file}`);
     case "patch":
     case "apply_patch":
       return pick("Aplicando cambios", "Aplicó cambios");

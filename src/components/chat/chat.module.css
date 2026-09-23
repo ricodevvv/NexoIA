@@ -1589,3 +1589,256 @@ div.fileCardMain {
     padding: 10px 12px;
   }
 }
+
+.line {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 100%;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--text-base);
+  line-height: 1.4;
+  text-align: start;
+  cursor: pointer;
+}
+
+.line:hover {
+  color: var(--text);
+}
+
+.line[data-reasoning] {
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+.lineIcon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-3);
+}
+
+.lineTitle {
+  min-width: 0;
+}
+
+.lineChevron {
+  flex: none;
+  margin-top: 3px;
+  color: var(--text-3);
+}
+
+.shimmer {
+  background: linear-gradient(90deg, var(--text-3) 0%, var(--text-3) 35%, var(--text) 50%, var(--text-3) 65%, var(--text-3) 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.8s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+
+.spinner {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  color: var(--spark);
+}
+
+.spinner svg {
+  animation: spin 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer,
+  .spinner svg {
+    animation: none;
+  }
+  .shimmer {
+    color: var(--text-2);
+    background: none;
+  }
+}
+
+.sheetOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--overlay);
+  animation: fade 0.2s var(--ease);
+}
+
+.sheet {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  max-height: 88dvh;
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+  border-radius: 20px 20px 0 0;
+  background: var(--elevated);
+  box-shadow: var(--shadow-pop);
+  animation: sheetUp 0.28s var(--ease);
+}
+
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+.grabber {
+  align-self: center;
+  width: 36px;
+  height: 4px;
+  margin-bottom: 6px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+
+.sheetHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 10px;
+}
+
+.sheetBtn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.sheetTitle {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--text-base);
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sheetSpacer {
+  flex: none;
+  width: 36px;
+}
+
+.sheetBody {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 8px 12px;
+}
+
+.sheetBody .rowText,
+.sheetBody .rowDetail {
+  max-height: none;
+  padding: 4px 8px 12px;
+}
+
+.timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline li {
+  position: relative;
+}
+
+.timeline li + li::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 21px;
+  width: 1px;
+  height: 14px;
+  background: var(--border-strong);
+}
+
+.tlRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 8px 10px 10px;
+  border: 0;
+  border-radius: var(--radius-2);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-base);
+  line-height: 1.4;
+  text-align: start;
+}
+
+button.tlRow {
+  cursor: pointer;
+}
+
+button.tlRow:hover {
+  background: var(--surface-1);
+}
+
+.tlIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 22px;
+  color: var(--text-3);
+}
+
+.tlTitle {
+  flex: 1;
+  min-width: 0;
+}
+
+.tlChevron {
+  flex: none;
+  margin-top: 3px;
+  color: var(--text-3);
+}
+
+@media (min-width: 861px) {
+  .sheet {
+    inset: 50% auto auto 50%;
+    width: min(560px, calc(100vw - 32px));
+    max-height: 80dvh;
+    border-radius: 16px;
+    transform: translate(-50%, -50%);
+    animation: fade 0.2s var(--ease);
+  }
+  .grabber {
+    display: none;
+  }
+}
+
+.thinkingLine {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-3);
+}

@@ -159,7 +159,7 @@ export function Composer(props: Props) {
               : props.research
                 ? "¿Qué quieres investigar? Tema, alcance y para qué lo necesitas…"
                 : props.replying
-                  ? "Responder"
+                  ? "Responder a Nexo"
                   : "Escribe un mensaje…"
           }
           onChange={(e) => setText(e.target.value)}

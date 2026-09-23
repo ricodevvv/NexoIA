@@ -30,10 +30,40 @@ function addMessage(session, role, parts) {
   return message;
 }
 
+const FILES = [
+  ["pom.xml", "<project>\n  <artifactId>mi-plugin</artifactId>\n</project>"],
+  ["src/main/resources/plugin.yml", "name: MiPlugin\nmain: dev.nexo.MiPlugin\nversion: 1.0"],
+  ["src/main/java/dev/nexo/MiPlugin.java", "public final class MiPlugin extends JavaPlugin {\n  @Override\n  public void onEnable() {}\n}"],
+];
+
+async function scaffold(session) {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const pause = Number(process.env.MOCK_NEXOCODE_STEP_MS ?? 30);
+  const msg = addMessage(session, "assistant", [{ type: "reasoning", text: "Armo la estructura base de un plugin de Spigot en Java." }]);
+  await wait(pause);
+  const text = { id: id("prt"), messageID: msg.info.id, sessionID: session.id, type: "text", text: "Va, te armo un template listo para compilar con Maven." };
+  msg.parts.push(text);
+  emit("message.part.updated", { sessionID: session.id, part: text });
+  const steps = [
+    { tool: "bash", input: { command: "mkdir -p src/main/java/dev/nexo src/main/resources", description: "Crea las carpetas del proyecto" }, output: "" },
+    ...FILES.map(([file, content]) => ({ tool: "write", input: { filePath: `/proyecto/${file}`, content }, output: "Wrote file successfully." })),
+  ];
+  for (const step of steps) {
+    const part = { id: id("prt"), messageID: msg.info.id, sessionID: session.id, type: "tool", tool: step.tool, callID: id("call"), state: { status: "running", input: step.input, time: { start: Date.now() } } };
+    msg.parts.push(part);
+    emit("message.part.updated", { sessionID: session.id, part });
+    await wait(pause);
+    part.state = { status: "completed", input: step.input, output: step.output, title: step.tool, metadata: {}, time: { start: 0, end: 0 } };
+    emit("message.part.updated", { sessionID: session.id, part });
+  }
+  changed = true;
+}
+
 async function run(session, text) {
   status.set(session.id, "busy");
   emit("session.status", { sessionID: session.id, status: { type: "busy" } });
   addMessage(session, "user", [{ type: "text", text }]);
+  if (/#archivos/.test(text)) await scaffold(session);
   if (/#comando/.test(text)) {
     const tool = { type: "tool", tool: "bash", callID: "call_1", state: { status: "running", input: { command: "npm test", description: "Corre las pruebas" }, time: { start: Date.now() } } };
     const msg = addMessage(session, "assistant", [tool]);

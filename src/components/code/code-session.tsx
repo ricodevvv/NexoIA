@@ -3,6 +3,7 @@
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { ArrowDown, ArrowUp, Check, ChevronDown, CornerDownLeft, ShieldQuestion, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ThinkingLine } from "../chat/activity";
 import { Message } from "../chat/message";
 import chat from "../chat/chat.module.css";
 import { applyNcEvent, initialState, type NcEvent, type NcMessage, type SessionState, toUIMessages } from "./map";
@@ -208,14 +209,7 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
             <Message key={m.id} message={m} live={busy && m.id === lastId && m.role === "assistant"} isLast={m.id === lastId} busy={busy} />
           ))}
           {busy && messages.at(-1)?.role !== "assistant" && (
-            <div className={chat.status} role="status">
-              <span className={chat.dots} aria-hidden="true">
-                <span />
-                <span />
-                <span />
-              </span>
-              <span className={chat.statusText}>Pensando…</span>
-            </div>
+            <ThinkingLine />
           )}
           {error && (
             <div className={chat.notice} data-level="error" role="alert">

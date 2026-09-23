@@ -6,7 +6,7 @@ import { useContext, useState, useSyncExternalStore } from "react";
 import type { MessagePart } from "@/lib/ai/types";
 import { fileName, readArtifact } from "../artifacts/artifacts";
 import { Widget } from "../widgets/widget";
-import { ActivityBox } from "./activity";
+import { ActivityBox, ThinkingLine } from "./activity";
 import { CopyButton } from "./code-block";
 import { FileCard } from "./file-card";
 import { groupParts } from "./group-parts";
@@ -225,21 +225,23 @@ export function Message({ message, live, isLast, busy, modelLabel, onRegenerate,
   }
 
   const items = groupParts(message.parts);
+  const timeline = items.flatMap((item) => (item.kind === "activity" ? item.entries : []));
   const lastItem = items.at(-1);
-  const startedAt = message.createdAt ? new Date(message.createdAt).getTime() : undefined;
   const waiting = live && (!lastItem || (lastItem.kind === "part" && lastItem.part.type === "tool_call"));
 
   return (
     <article className={styles.assistant} aria-label="Respuesta" aria-busy={live}>
       {items.map((item) => {
         if (item.kind === "activity") {
-          return <ActivityBox key={`a-${item.index}`} entries={item.entries} live={live && item === lastItem} startedAt={startedAt} />;
+          return (
+            <ActivityBox key={`a-${item.index}`} entries={item.entries} live={live && item === lastItem} timeline={timeline} timelineLive={live} />
+          );
         }
         const { part, index: i } = item;
         if (part.type === "text") return <Markdown key={i} text={part.text} />;
         if (part.type === "tool_call" && part.name === "artifact") {
           if (part.output === undefined) {
-            return <ActivityBox key={part.id} entries={[{ kind: "tool", part, index: i }]} live={live} startedAt={startedAt} />;
+            return <ActivityBox key={part.id} entries={[{ kind: "tool", part, index: i }]} live={live} />;
           }
           return <ArtifactCard key={part.id} part={part} />;
         }
@@ -257,14 +259,7 @@ export function Message({ message, live, isLast, busy, modelLabel, onRegenerate,
         return null;
       })}
       {waiting && (
-        <div className={styles.status} role="status">
-          <span className={styles.dots} aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </span>
-          <span className={styles.statusText}>Pensando…</span>
-        </div>
+        <ThinkingLine />
       )}
       {!live && (
         <div className={styles.actions}>

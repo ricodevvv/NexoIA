@@ -20,9 +20,11 @@ test("Nexo Code conecta un servidor, pide permiso, corre el comando y muestra lo
   await expect(permission).toHaveCount(0);
 
   await expect(page.getByText("Listo, las pruebas pasan.")).toBeVisible();
-  await page.getByRole("button", { name: "Ejecutó comandos" }).click();
+  await page.getByRole("button", { name: "Ejecutó 1 comando" }).click();
   await page.getByRole("button", { name: "Corre las pruebas", exact: true }).click();
   await expect(page.getByText("12 pruebas pasaron")).toBeVisible();
+  await page.getByRole("button", { name: "Volver al resumen" }).click();
+  await page.getByRole("button", { name: "Cerrar" }).click();
   await expect(page.getByRole("button", { name: /corre las pruebas/i }).first()).toBeVisible();
 
   await page.getByRole("button", { name: "Cambios" }).click();

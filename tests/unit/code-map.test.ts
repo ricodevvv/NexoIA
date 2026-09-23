@@ -42,7 +42,9 @@ describe("mapeo de sesiones de nexocode", () => {
   it("pone títulos en español a las tools de código", () => {
     const part = { type: "tool_call" as const, id: "x", name: "edit", input: { filePath: "/p/src/app.ts" } };
     expect(codeToolTitle(part, true)).toBe("Editando app.ts");
-    expect(codeToolTitle({ ...part, output: "ok" }, false)).toBe("Editó app.ts");
+    expect(codeToolTitle({ ...part, output: "ok" }, false)).toBe("Se editó app.ts");
+    expect(codeToolTitle({ ...part, output: "x", isError: true }, false)).toBe("No se pudo editar app.ts");
+    expect(codeToolTitle({ ...part, name: "bash", input: { command: "ls" }, output: "x", isError: true }, false)).toBe("El comando falló");
     expect(codeToolTitle({ ...part, name: "bash", input: { command: "ls", description: "Lista archivos" }, output: "" }, false)).toBe("Lista archivos");
   });
 });
