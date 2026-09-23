@@ -24,7 +24,7 @@ export function NexoMark({ size = 24, className, title = "Nexo" }: Props) {
  * Con `product="code"` agrega la sub-marca de Nexo Code.
  */
 export function NexoLogo({ size = 24, className, product }: Props & { product?: "code" }) {
-  const width = product ? 116 : 72;
+  const width = product ? brand.codeWidth : 72;
   return (
     <svg
       height={size}
@@ -40,14 +40,17 @@ export function NexoLogo({ size = 24, className, product }: Props & { product?: 
         <path d={brand.word} />
         <circle {...brand.wordO} />
       </g>
+      {product && (
+        <g stroke="var(--brand, #4f6bff)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d={brand.code} />
+          {brand.codeCircles.map((c) => (
+            <circle key={c.cx} {...c} />
+          ))}
+        </g>
+      )}
       {brand.nodes.map(([cx, cy]) => (
         <circle key={cx} cx={cx} cy={cy} r="2.2" fill="var(--brand, #4f6bff)" />
       ))}
-      {product && (
-        <text x="75" y="18.6" fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace" fontSize="12.5" fontWeight="500" fill="var(--brand, #4f6bff)">
-          code
-        </text>
-      )}
     </svg>
   );
 }

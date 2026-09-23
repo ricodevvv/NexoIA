@@ -13,11 +13,11 @@ const mark = (ink, node) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"><path d="${brand.mark}" ${stroke(ink)}/>${nodes(node)}</svg>`;
 
 const logo = (ink, node, code = false) => {
-  const w = code ? 116 : 72;
+  const w = code ? brand.codeWidth : 72;
   const sub = code
-    ? `<text x="75" y="18.6" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12.5" font-weight="500" fill="${node}">code</text>`
+    ? `<g ${stroke(node)}><path d="${brand.code}"/>${brand.codeCircles.map((o) => `<circle cx="${o.cx}" cy="${o.cy}" r="${o.r}"/>`).join("")}</g>`
     : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} 24" fill="none"><g ${stroke(ink)}><path d="${brand.mark}"/><path d="${brand.word}"/><circle cx="${brand.wordO.cx}" cy="${brand.wordO.cy}" r="${brand.wordO.r}"/></g>${nodes(node)}${sub}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} 24" fill="none"><g ${stroke(ink)}><path d="${brand.mark}"/><path d="${brand.word}"/><circle cx="${brand.wordO.cx}" cy="${brand.wordO.cy}" r="${brand.wordO.r}"/></g>${sub}${nodes(node)}</svg>`;
 };
 
 const appIcon = (bleed = false) => {
