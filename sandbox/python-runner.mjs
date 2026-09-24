@@ -22,7 +22,33 @@ function capped(lines) {
   return text.length > MAX_OUTPUT ? `${text.slice(0, MAX_OUTPUT)}\n…(salida recortada)` : text;
 }
 
-const MEDIA = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", svg: "image/svg+xml", csv: "text/csv", json: "application/json", txt: "text/plain", md: "text/markdown", html: "text/html", pdf: "application/pdf", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
+const MEDIA = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+  csv: "text/csv",
+  json: "application/json",
+  txt: "text/plain",
+  md: "text/markdown",
+  html: "text/html",
+  xml: "application/xml",
+  yml: "text/yaml",
+  yaml: "text/yaml",
+  py: "text/x-python",
+  js: "text/javascript",
+  ts: "text/plain",
+  java: "text/x-java",
+  pdf: "application/pdf",
+  zip: "application/zip",
+  tar: "application/x-tar",
+  gz: "application/gzip",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+};
 
 const PRELUDE = `
 import os
@@ -37,6 +63,12 @@ if "matplotlib.pyplot" in _sys.modules:
     for _i, _n in enumerate(_plt.get_fignums()):
         _plt.figure(_n).savefig(f"/mnt/output/figura_{_i + 1}.png", dpi=110, bbox_inches="tight")
     _plt.close("all")
+import os as _os, shutil as _shutil
+for _name in _os.listdir("/mnt/output"):
+    _path = _os.path.join("/mnt/output", _name)
+    if _os.path.isdir(_path):
+        _shutil.make_archive(_path, "zip", _path)
+        _shutil.rmtree(_path)
 `;
 
 async function main() {
@@ -58,7 +90,8 @@ async function main() {
   pyodide.FS.mkdirTree("/mnt/data");
   pyodide.FS.mkdirTree("/mnt/output");
   for (const file of input.files ?? []) {
-    pyodide.FS.writeFile(`/mnt/data/${file.name}`, Buffer.from(file.base64, "base64"));
+    const safe = String(file.name).split(/[\\/]/).pop().replace(/^\.+/, "") || "archivo";
+    pyodide.FS.writeFile(`/mnt/data/${safe}`, Buffer.from(file.base64, "base64"));
   }
 
   let result = null;
@@ -87,6 +120,7 @@ async function main() {
   let total = 0;
   for (const name of pyodide.FS.readdir("/mnt/output")) {
     if (name === "." || name === "..") continue;
+    if (pyodide.FS.isDir(pyodide.FS.stat(`/mnt/output/${name}`).mode)) continue;
     const data = pyodide.FS.readFile(`/mnt/output/${name}`);
     total += data.length;
     if (files.length >= 10 || total > MAX_FILE_BYTES) break;

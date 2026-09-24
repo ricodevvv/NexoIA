@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { clientIp, consume, LIMITS } from "@/lib/rate-limit";
+import { fileHeaders } from "@/lib/file-headers";
 import { readFile } from "@/lib/storage";
 
 /**
@@ -16,13 +17,5 @@ export async function GET(request: Request, ctx: RouteContext<"/api/share/[id]/f
   if (!share || !included) return new Response("No encontrado", { status: 404 });
   const file = await db.query.attachment.findFirst({ where: eq(schema.attachment.id, fileId) });
   if (!file || file.userId !== share.userId) return new Response("No encontrado", { status: 404 });
-  const inline = file.mediaType.startsWith("image/") || file.mediaType === "application/pdf";
-  return new Response(new Uint8Array(await readFile(file)), {
-    headers: {
-      "Content-Type": file.mediaType,
-      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
-      "Cache-Control": "public, max-age=3600",
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  return new Response(new Uint8Array(await readFile(file)), { headers: fileHeaders(file.mediaType, file.name, "public, max-age=3600") });
 }

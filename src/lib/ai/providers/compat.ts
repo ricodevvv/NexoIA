@@ -5,7 +5,7 @@ import type {
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
 import { safeFetch } from "@/lib/safe-url";
-import { fileAsText, isTextLike, splitAssistant, toolOutput } from "../history";
+import { attachmentNote, fileAsText, isTextLike, splitAssistant, toolOutput } from "../history";
 import { remoteModelId } from "../models";
 import type {
   HistoryMessage,
@@ -25,12 +25,12 @@ function userContent(message: HistoryMessage, opts: SessionOptions): ChatComplet
     if (part.type !== "attachment") continue;
     const file = opts.attachments.get(part.attachmentId);
     if (!file) continue;
-    if (file.mediaType.startsWith("image/") && opts.model.vision) {
+    if (["image/png", "image/jpeg", "image/gif", "image/webp"].includes(file.mediaType) && opts.model.vision) {
       content.push({ type: "image_url", image_url: { url: `data:${file.mediaType};base64,${file.data.toString("base64")}` } });
     } else if (isTextLike(file.mediaType)) {
       content.push({ type: "text", text: fileAsText(file) });
     } else {
-      content.push({ type: "text", text: `[Adjunto "${file.name}" no soportado por este modelo]` });
+      content.push({ type: "text", text: attachmentNote(file, opts.tools.some((t) => t.name === "run_python")) });
     }
   }
   return content.length ? content : [{ type: "text", text: "(mensaje vacío)" }];

@@ -6,7 +6,7 @@ import type {
   ResponseOutputItem,
   Tool,
 } from "openai/resources/responses/responses";
-import { fileAsText, isTextLike, splitAssistant, toolOutput } from "../history";
+import { attachmentNote, fileAsText, isTextLike, splitAssistant, toolOutput } from "../history";
 import type {
   HistoryMessage,
   NativeTurn,
@@ -22,6 +22,8 @@ function dataUrl(mediaType: string, data: Buffer) {
   return `data:${mediaType};base64,${data.toString("base64")}`;
 }
 
+const RASTER = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
 function userContent(message: HistoryMessage, opts: SessionOptions): ResponseInputContent[] {
   const content: ResponseInputContent[] = [];
   for (const part of message.parts) {
@@ -29,12 +31,14 @@ function userContent(message: HistoryMessage, opts: SessionOptions): ResponseInp
     if (part.type !== "attachment") continue;
     const file = opts.attachments.get(part.attachmentId);
     if (!file) continue;
-    if (file.mediaType.startsWith("image/")) {
+    if (RASTER.includes(file.mediaType)) {
       content.push({ type: "input_image", detail: "auto", image_url: dataUrl(file.mediaType, file.data) });
     } else if (file.mediaType === "application/pdf") {
       content.push({ type: "input_file", filename: file.name, file_data: dataUrl(file.mediaType, file.data) });
     } else if (isTextLike(file.mediaType)) {
       content.push({ type: "input_text", text: fileAsText(file) });
+    } else {
+      content.push({ type: "input_text", text: attachmentNote(file, opts.tools.some((t) => t.name === "run_python")) });
     }
   }
   return content.length ? content : [{ type: "input_text", text: "(mensaje vacío)" }];

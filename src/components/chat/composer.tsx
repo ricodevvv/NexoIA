@@ -185,7 +185,6 @@ export function Composer(props: Props) {
               type="file"
               multiple
               hidden
-              accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,text/*,.md,.json,.csv,.ts,.tsx,.js,.py,.java,.kt,.go,.rs,.yaml,.yml"
               onChange={(e) => {
                 if (e.target.files) addFiles(e.target.files);
                 e.target.value = "";

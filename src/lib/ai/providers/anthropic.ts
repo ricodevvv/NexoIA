@@ -6,7 +6,7 @@ import type {
   BetaMessageParam,
   BetaToolUnion,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { fileAsText, isTextLike, splitAssistant, toolOutput } from "../history";
+import { attachmentNote, fileAsText, isTextLike, splitAssistant, toolOutput } from "../history";
 import type {
   HistoryMessage,
   NativeTurn,
@@ -43,6 +43,8 @@ function userContent(message: HistoryMessage, opts: SessionOptions): BetaContent
       });
     } else if (isTextLike(file.mediaType)) {
       blocks.push({ type: "text", text: fileAsText(file) });
+    } else {
+      blocks.push({ type: "text", text: attachmentNote(file, opts.tools.some((t) => t.name === "run_python")) });
     }
   }
   return blocks.length ? blocks : [{ type: "text", text: "(mensaje vacío)" }];
