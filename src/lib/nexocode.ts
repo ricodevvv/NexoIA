@@ -4,6 +4,7 @@ import { decrypt } from "@/lib/crypto";
 import { db, schema } from "@/lib/db";
 import { HttpError } from "@/lib/http";
 import { assertSafeUrl } from "@/lib/safe-url";
+import { ensureWorkspace, WORKSPACE_SERVER_ID, workspacesAllowed } from "@/lib/workspaces";
 
 export const ENV_SERVER_ID = "env";
 
@@ -72,10 +73,14 @@ export async function listCodeServers(user: { id: string; email: string }): Prom
     managed: false,
   }));
   const env = envServerFor(user.email);
-  return env ? [env, ...own] : own;
+  const cloud: CodeServer[] = (await workspacesAllowed(user))
+    ? [{ id: WORKSPACE_SERVER_ID, name: "Mi espacio en la nube", url: "", username: "nexocode", password: null, directory: null, managed: true }]
+    : [];
+  return [...cloud, ...(env ? [env] : []), ...own];
 }
 
-export async function getCodeServer(user: { id: string; email: string }, id: string): Promise<CodeServer> {
+export async function getCodeServer(user: { id: string; email: string; name?: string | null }, id: string): Promise<CodeServer> {
+  if (id === WORKSPACE_SERVER_ID) return ensureWorkspace(user);
   if (id === ENV_SERVER_ID) {
     const env = envServerFor(user.email);
     if (env) return env;
@@ -144,5 +149,5 @@ export async function nexocodeJson<T>(server: CodeServer, path: string, options?
 }
 
 export function publicServer(s: CodeServer) {
-  return { id: s.id, name: s.name, url: s.url, directory: s.directory, managed: s.managed, hasPassword: Boolean(s.password) };
+  return { id: s.id, name: s.name, url: s.url, directory: s.directory, managed: s.managed, hasPassword: Boolean(s.password), cloud: s.id === WORKSPACE_SERVER_ID };
 }

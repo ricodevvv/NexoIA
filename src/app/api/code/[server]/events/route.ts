@@ -1,5 +1,6 @@
 import { getCodeServer, nexocodeFetch } from "@/lib/nexocode";
 import { apiUser, handleError, HttpError } from "@/lib/session";
+import { touchWorkspace, WORKSPACE_SERVER_ID } from "@/lib/workspaces";
 
 const FORWARD = new Set([
   "message.updated",
@@ -43,7 +44,11 @@ export async function GET(request: Request, ctx: RouteContext<"/api/code/[server
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         let buffer = "";
-        const ping = setInterval(() => controller.enqueue(encoder.encode(": ping\n\n")), 20_000);
+        let beats = 0;
+        const ping = setInterval(() => {
+          controller.enqueue(encoder.encode(": ping\n\n"));
+          if (server.id === WORKSPACE_SERVER_ID && ++beats % 3 === 0) touchWorkspace(user.id).catch(() => {});
+        }, 20_000);
         try {
           controller.enqueue(encoder.encode(": conectado\n\n"));
           for (;;) {

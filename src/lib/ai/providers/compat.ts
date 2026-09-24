@@ -36,6 +36,15 @@ function userContent(message: HistoryMessage, opts: SessionOptions): ChatComplet
   return content.length ? content : [{ type: "text", text: "(mensaje vacío)" }];
 }
 
+/**
+ * Algunos modelos abiertos (gpt-oss, por ejemplo) dejan colar tokens de su
+ * formato interno en el nombre de la tool: `run_python<|channel|>commentary`.
+ * Nos quedamos con el nombre real.
+ */
+export function cleanToolName(name: string) {
+  return name.split("<|")[0].replace(/[^\w.-].*$/, "").trim() || name;
+}
+
 function assistantFromParts(message: HistoryMessage): ChatCompletionMessageParam[] {
   const out: ChatCompletionMessageParam[] = [];
   for (const segment of splitAssistant(message.parts)) {
@@ -134,7 +143,7 @@ export function createCompatSession(opts: SessionOptions): ProviderSession {
       } catch {
         input = { _raw: p.args };
       }
-      return { id: p.id || `call_${i}`, name: p.name, input };
+      return { id: p.id || `call_${i}`, name: cleanToolName(p.name), input };
     });
 
     const assistant: ChatCompletionMessageParam = {

@@ -301,3 +301,16 @@ export const codeServer = pgTable(
   },
   (t) => [index("code_server_user_idx").on(t.userId)],
 );
+
+export const codeWorkspace = pgTable("code_workspace", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .unique()
+    .references(() => user.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  token: text("token").notNull(),
+  password: text("password").notNull(),
+  lastActiveAt: timestamp("last_active_at").notNull().defaultNow(),
+  createdAt: createdAt(),
+});

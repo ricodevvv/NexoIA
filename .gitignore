@@ -50,3 +50,4 @@ playwright-report
 *.MOV
 references/
 fallos/
+deploy/workspace/nexocode

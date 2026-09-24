@@ -51,9 +51,10 @@ const MEDIA = {
 };
 
 const PRELUDE = `
-import os
+import os, time as _time
 os.environ["MPLBACKEND"] = "AGG"
 os.chdir("/mnt/data")
+_NEXO_T0 = _time.time()
 `;
 
 const POSTLUDE = `
@@ -63,7 +64,29 @@ if "matplotlib.pyplot" in _sys.modules:
     for _i, _n in enumerate(_plt.get_fignums()):
         _plt.figure(_n).savefig(f"/mnt/output/figura_{_i + 1}.png", dpi=110, bbox_inches="tight")
     _plt.close("all")
-import os as _os, shutil as _shutil
+import os as _os, shutil as _shutil, zipfile as _zipfile
+_ARCHIVES = (".zip", ".tar", ".gz", ".tgz", ".7z")
+_new = []
+for _root, _dirs, _files in _os.walk("/mnt/data"):
+    for _f in _files:
+        _p = _os.path.join(_root, _f)
+        _rel = _os.path.relpath(_p, "/mnt/data")
+        if _rel not in _NEXO_INPUTS or _os.stat(_p).st_mtime > _NEXO_T0:
+            _new.append(_rel)
+_taken = set(_os.listdir("/mnt/output"))
+_archives = [r for r in _new if r.lower().endswith(_ARCHIVES)]
+if _archives:
+    for _r in _archives:
+        if _os.path.basename(_r) not in _taken:
+            _shutil.copy(_os.path.join("/mnt/data", _r), "/mnt/output")
+elif _new and len(_new) <= 5 and all("/" not in r for r in _new):
+    for _r in _new:
+        if _r not in _taken:
+            _shutil.copy(_os.path.join("/mnt/data", _r), "/mnt/output")
+elif _new:
+    with _zipfile.ZipFile("/mnt/output/archivos.zip", "w", _zipfile.ZIP_DEFLATED) as _z:
+        for _r in _new:
+            _z.write(_os.path.join("/mnt/data", _r), _r)
 for _name in _os.listdir("/mnt/output"):
     _path = _os.path.join("/mnt/output", _name)
     if _os.path.isdir(_path):
@@ -89,9 +112,11 @@ async function main() {
 
   pyodide.FS.mkdirTree("/mnt/data");
   pyodide.FS.mkdirTree("/mnt/output");
+  const inputs = [];
   for (const file of input.files ?? []) {
     const safe = String(file.name).split(/[\\/]/).pop().replace(/^\.+/, "") || "archivo";
     pyodide.FS.writeFile(`/mnt/data/${safe}`, Buffer.from(file.base64, "base64"));
+    inputs.push(safe);
   }
 
   let result = null;
@@ -102,6 +127,7 @@ async function main() {
     globalThis.fetch = offline;
     globalThis.WebSocket = undefined;
     await pyodide.runPythonAsync(PRELUDE);
+    pyodide.globals.set("_NEXO_INPUTS", pyodide.toPy(inputs));
     const value = await pyodide.runPythonAsync(input.code);
     if (value !== undefined && value !== null) {
       result = String(value?.toString?.() ?? value);

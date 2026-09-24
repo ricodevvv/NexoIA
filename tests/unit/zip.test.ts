@@ -38,3 +38,12 @@ describe("attachmentNote", () => {
     expect(attachmentNote(file, false)).toContain("no está disponible");
   });
 });
+
+describe("cleanToolName", () => {
+  it("quita los tokens que se cuelan en el nombre de la tool", async () => {
+    const { cleanToolName } = await import("@/lib/ai/providers/compat");
+    expect(cleanToolName("run_python<|channel|>commentary")).toBe("run_python");
+    expect(cleanToolName("reloj__get_time")).toBe("reloj__get_time");
+    expect(cleanToolName("memory_save json")).toBe("memory_save");
+  });
+});
