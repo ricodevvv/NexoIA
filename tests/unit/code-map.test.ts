@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { codeToolTitle } from "@/components/code/code-tools";
-import { applyNcEvent, initialState, type NcMessage, toUIMessages } from "@/components/code/map";
+import { applyNcEvent, initialState, type NcMessage, presentedFiles, toUIMessages } from "@/components/code/map";
 
 const user: NcMessage = { info: { id: "msg_1", role: "user", time: { created: 1 } }, parts: [{ id: "prt_1", messageID: "msg_1", type: "text", text: "hola" }] };
 
@@ -46,5 +46,28 @@ describe("mapeo de sesiones de nexocode", () => {
     expect(codeToolTitle({ ...part, output: "x", isError: true }, false)).toBe("No se pudo editar app.ts");
     expect(codeToolTitle({ ...part, name: "bash", input: { command: "ls" }, output: "x", isError: true }, false)).toBe("El comando falló");
     expect(codeToolTitle({ ...part, name: "bash", input: { command: "ls", description: "Lista archivos" }, output: "" }, false)).toBe("Lista archivos");
+  });
+});
+
+describe("present_files", () => {
+  const files = [{ attachmentId: "a1", name: "plugin.jar", mediaType: "application/java-archive" }];
+  const output = `El usuario ya tiene en el chat, listos para descargar: plugin.jar.\n<!--nexo-files:${JSON.stringify(files)}-->`;
+
+  it("saca los archivos de la salida y limpia el texto", () => {
+    const out = presentedFiles(output);
+    expect(out.files).toEqual(files);
+    expect(out.text).not.toContain("nexo-files");
+  });
+
+  it("los pone como archivos de la tool para pintar las tarjetas", () => {
+    const state = initialState([
+      {
+        info: { id: "msg_1", role: "assistant", time: { created: 1 } },
+        parts: [{ id: "prt_1", messageID: "msg_1", type: "tool", tool: "nexo_present_files", callID: "c1", state: { status: "completed", input: { paths: ["plugin.jar"] }, output } }],
+      },
+    ]);
+    const [part] = toUIMessages(state)[0].parts;
+    expect(part.type === "tool_call" && part.files).toEqual(files);
+    expect(part.type === "tool_call" && codeToolTitle(part, false)).toBe("Te compartió plugin.jar");
   });
 });

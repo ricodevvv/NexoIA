@@ -12,6 +12,7 @@ RUN apt-get update \
 
 COPY nexocode /usr/local/bin/nexocode
 COPY entrypoint.sh /usr/local/bin/nexo-workspace
+COPY present-files.mjs /usr/local/lib/nexo/present-files.mjs
 
 ENV HOME=/home/nexo \
     NPM_CONFIG_PREFIX=/home/nexo/.npm-global \

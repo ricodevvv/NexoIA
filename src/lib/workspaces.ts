@@ -107,6 +107,13 @@ export async function workspaceConfig(userId: string, token: string) {
   return {
     provider,
     enabled_providers: Object.keys(provider),
+    mcp: {
+      nexo: {
+        type: "local",
+        command: ["node", "/usr/local/lib/nexo/present-files.mjs"],
+        environment: { NEXO_URL: base, NEXO_TOKEN: token },
+      },
+    },
     ...(first ? { model: first } : {}),
     autoupdate: false,
     share: "disabled",

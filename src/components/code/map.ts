@@ -1,4 +1,4 @@
-import type { MessagePart } from "@/lib/ai/types";
+import type { FileRef, MessagePart } from "@/lib/ai/types";
 import type { UIMessage } from "../chat/message";
 
 export type NcPart = {
@@ -92,20 +92,40 @@ export function applyNcEvent(state: SessionState, event: NcEvent): SessionState 
   return { messages };
 }
 
+const FILES_MARKER = /\n?<!--nexo-files:(\[[\s\S]*?\])-->/;
+
+/**
+ * Saca de la salida de `present_files` los archivos que se le entregaron al
+ * usuario, para pintarlos como tarjetas de descarga.
+ */
+export function presentedFiles(output: string): { files: FileRef[]; text: string } {
+  const match = FILES_MARKER.exec(output);
+  if (!match) return { files: [], text: output };
+  try {
+    const files = (JSON.parse(match[1]) as FileRef[]).filter((f) => typeof f.attachmentId === "string" && typeof f.name === "string");
+    return { files, text: output.replace(FILES_MARKER, "") };
+  } catch {
+    return { files: [], text: output };
+  }
+}
+
 function toPart(p: NcPart): MessagePart | null {
   if (p.type === "text" && !p.synthetic && !p.ignored && p.text) return { type: "text", text: p.text };
   if (p.type === "reasoning") return { type: "reasoning", text: p.text ?? "" };
   if (p.type === "tool" && p.state) {
     const done = p.state.status === "completed" || p.state.status === "error";
     const diff = p.state.metadata?.diff;
+    const raw = done ? (p.state.status === "error" ? (p.state.error ?? "Error") : (p.state.output ?? "")) : undefined;
+    const presented = raw !== undefined && p.tool?.endsWith("present_files") ? presentedFiles(raw) : null;
     return {
       type: "tool_call",
       id: p.callID ?? p.id,
       name: p.tool ?? "tool",
       input: p.state.input ?? {},
-      output: done ? (p.state.status === "error" ? (p.state.error ?? "Error") : (p.state.output ?? "")) : undefined,
+      output: presented ? presented.text : raw,
       isError: p.state.status === "error",
       diff: typeof diff === "string" ? diff : undefined,
+      ...(presented?.files.length ? { files: presented.files } : {}),
     };
   }
   if (p.type === "file" && p.filename) return { type: "notice", level: "warning", text: `Adjuntó ${p.filename}` };
