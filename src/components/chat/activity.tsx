@@ -1,7 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Brain, ChevronLeft, ChevronRight, Clock, Dot, FileText, GitBranch, Globe, ListChecks, type LucideIcon, Search, SquareTerminal, Wrench, X } from "lucide-react";
+import { BookOpen, Brain, ChevronLeft, ChevronRight, Clock, Dot, FileText, GitBranch, Globe, ListChecks, type LucideIcon, Search, SquareTerminal, Wrench, X } from "lucide-react";
 import Image from "next/image";
 import { createElement, useContext, useState } from "react";
 import type { MessagePart } from "@/lib/ai/types";
@@ -23,6 +23,10 @@ function toolTitle(part: ToolCallPart, running: boolean) {
   const code = isCodeTool(n) ? codeToolTitle(part, running) : null;
   if (code) return code;
   if (n === "run_python") return running ? "Ejecutando código" : part.isError ? "El código falló" : "Ejecutó código";
+  if (n === "skill") {
+    const name = (part.input as { name?: unknown } | null)?.name;
+    return `${running ? "Leyendo" : "Leyó"} el skill ${typeof name === "string" ? name : ""}`.trim();
+  }
   if (n === "memory_save") return running ? "Guardando un recuerdo" : "Guardó un recuerdo";
   if (n === "memory_delete") return running ? "Borrando un recuerdo" : "Borró un recuerdo";
   if (n === "conversation_search") return running ? "Buscando en tus chats" : "Buscó en tus chats";
@@ -143,6 +147,7 @@ function summaryVerb(entry: ActivityEntry) {
   if (entry.kind === "reasoning") return null;
   const n = entry.part.name;
   if (n === "run_python") return "ejecutó código";
+  if (n === "skill") return "leyó un skill";
   if (n.startsWith("memory_")) return "actualizó su memoria";
   if (n.startsWith("conversation_")) return "revisó chats anteriores";
   if (n === "artifact") return "creó un archivo";
@@ -186,6 +191,7 @@ function entryIcon(entry: ActivityEntry, timeline = false): LucideIcon {
   if (["read", "write", "edit", "multiedit", "patch", "apply_patch", "artifact"].includes(n)) return FileText;
   if (["glob", "grep", "list", "ls", "conversation_search", "conversation_read"].includes(n)) return Search;
   if (n.startsWith("memory_")) return Brain;
+  if (n === "skill") return BookOpen;
   if (n.startsWith("todo")) return ListChecks;
   if (n === "task") return GitBranch;
   return Wrench;

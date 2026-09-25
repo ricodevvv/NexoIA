@@ -9,7 +9,7 @@ type Input = Record<string, unknown>;
 const CODE_TOOLS = new Set(["bash", "read", "write", "edit", "patch", "apply_patch", "multiedit", "glob", "grep", "list", "ls", "webfetch", "todowrite", "todoread", "task", "question"]);
 
 export function isCodeTool(name: string) {
-  return CODE_TOOLS.has(name) || name.endsWith("present_files");
+  return CODE_TOOLS.has(name) || name.endsWith("present_files") || name.endsWith("github_repos");
 }
 
 function str(v: unknown) {
@@ -32,6 +32,7 @@ export function codeToolTitle(part: ToolCallPart, running: boolean) {
   const file = baseName(str(input.filePath) || str(input.path));
   const pick = (now: string, done: string, failed = `Falló: ${done.charAt(0).toLowerCase()}${done.slice(1)}`) =>
     running ? now : part.isError ? failed : done;
+  if (part.name.endsWith("github_repos")) return pick("Revisando tus repos de GitHub", "Revisó tus repos de GitHub");
   if (part.name.endsWith("present_files")) {
     const names = part.files?.map((f) => f.name) ?? [];
     return pick("Preparando archivos para ti", names.length ? `Te compartió ${names.join(", ")}` : "Te compartió archivos", "No se pudieron compartir los archivos");
@@ -72,6 +73,7 @@ export function codeToolTitle(part: ToolCallPart, running: boolean) {
  */
 export function codeToolVerb(name: string) {
   if (name.endsWith("present_files")) return "te compartió archivos";
+  if (name.endsWith("github_repos")) return "revisó tus repos de GitHub";
   if (name === "bash") return "ejecutó comandos";
   if (name === "read") return "leyó archivos";
   if (["write", "edit", "multiedit", "patch", "apply_patch"].includes(name)) return "editó archivos";

@@ -1,10 +1,9 @@
-import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db, schema } from "@/lib/db";
 import { enforce, LIMITS } from "@/lib/rate-limit";
 import { handleError, HttpError } from "@/lib/session";
 import { putFile } from "@/lib/storage";
-import { hashToken } from "@/lib/workspaces";
+import { workspaceFromRequest } from "@/lib/workspaces";
 
 const MAX_BYTES = 50 * 1024 * 1024;
 const MAX_FILES = 10;
@@ -35,10 +34,7 @@ const BY_EXTENSION: Record<string, string> = {
  */
 export async function POST(request: Request) {
   try {
-    const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-    if (!bearer.startsWith("nws_")) throw new HttpError(401, "Falta el token del espacio de trabajo");
-    const row = await db.query.codeWorkspace.findFirst({ where: eq(schema.codeWorkspace.tokenHash, hashToken(bearer)) });
-    if (!row) throw new HttpError(401, "Token inválido");
+    const row = await workspaceFromRequest(request);
     await enforce([{ key: `upload:u:${row.userId}`, ...LIMITS.upload }]);
 
     const form = await request.formData();

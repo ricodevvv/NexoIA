@@ -34,6 +34,18 @@ export function hashToken(token: string) {
 }
 
 /**
+ * Autentica una petición que viene de dentro de un espacio de trabajo con su
+ * token `nws_` y devuelve la fila del espacio, con el id de su dueño.
+ */
+export async function workspaceFromRequest(request: Request) {
+  const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+  if (!bearer.startsWith("nws_")) throw new HttpError(401, "Falta el token del espacio de trabajo");
+  const row = await db.query.codeWorkspace.findFirst({ where: eq(schema.codeWorkspace.tokenHash, hashToken(bearer)) });
+  if (!row) throw new HttpError(401, "Token inválido");
+  return row;
+}
+
+/**
  * Dice si el usuario puede tener un espacio de trabajo en el clúster. Se
  * controla con `NEXO_WORKSPACES`: `pro` (por defecto), `all` u `off`. Los
  * emails de `NEXOCODE_ALLOWED_EMAILS` siempre pueden.
@@ -89,6 +101,10 @@ function providerFor(model: ModelInfo) {
   return { key: "nexo-compat", npm: "@ai-sdk/openai-compatible", path: "compat", name: process.env.COMPAT_NAME ?? "Compatible" };
 }
 
+function publicUrl() {
+  return (process.env.NEXO_PUBLIC_URL ?? process.env.BETTER_AUTH_URL ?? "").replace(/\/+$/, "");
+}
+
 /**
  * Arma la config de nexocode del espacio: cada proveedor apunta al proxy de
  * modelos de Nexo con el token del espacio, así las API keys reales nunca
@@ -96,7 +112,7 @@ function providerFor(model: ModelInfo) {
  * `prompts/code/AGENTS.md`.
  */
 export async function workspaceConfig(userId: string, token: string) {
-  const base = (process.env.NEXO_PUBLIC_URL ?? process.env.BETTER_AUTH_URL ?? "").replace(/\/+$/, "");
+  const base = publicUrl();
   const provider: Record<string, { npm: string; name: string; options: { baseURL: string; apiKey: string }; models: Record<string, { name: string }> }> = {};
   let first: string | null = null;
   for (const model of await workspaceModels(userId)) {
@@ -179,7 +195,12 @@ async function createResources(id: string, user: User, token: string, password: 
     apiVersion: "v1",
     kind: "Secret",
     metadata: { name, labels: { app: "nexo-workspace", workspace: id } },
-    stringData: { NEXOCODE_SERVER_PASSWORD: password, NEXO_CONFIG: JSON.stringify(await workspaceConfig(user.id, token)) },
+    stringData: {
+      NEXOCODE_SERVER_PASSWORD: password,
+      NEXO_CONFIG: JSON.stringify(await workspaceConfig(user.id, token)),
+      NEXO_URL: publicUrl(),
+      NEXO_TOKEN: token,
+    },
   });
   if (secret.status >= 300 && secret.status !== 409) throw new Error(`No se pudo crear el secreto (${secret.status})`);
   const pod = await k8s("POST", `${ns()}/pods`, podSpec(id, user));

@@ -8,6 +8,7 @@ import { conversationView } from "@/lib/conversation-view";
 import { searchConversations } from "@/lib/search";
 import { putFile } from "@/lib/storage";
 import { parseWidget, WIDGET_TOOL, widgetSpec } from "@/lib/widgets";
+import { availableSkills, SKILL_TOOL, skillSpec } from "./skills";
 import type { AttachmentData, FileRef, ToolCall, ToolResult, ToolSpec } from "./types";
 
 export const ARTIFACT_TOOL = "artifact";
@@ -122,11 +123,13 @@ export type BuiltinOptions = {
 };
 
 /**
- * Tools que resuelve el propio servidor, sin MCP: artifacts, widgets,
- * código y memoria.
+ * Tools que resuelve el propio servidor, sin MCP: skills, artifacts,
+ * widgets, código y memoria.
  */
 export function builtinTools(opts: BuiltinOptions): { specs: ToolSpec[]; handles(name: string): boolean; run(call: ToolCall): Promise<ToolResult> } {
+  const skills = availableSkills({ code: opts.code, artifacts: opts.artifacts });
   const specs = [
+    ...(skills.length ? [skillSpec(skills)] : []),
     ...(opts.artifacts ? [artifactSpec, widgetSpec] : []),
     ...(opts.code ? [runPythonSpec] : []),
     ...(opts.memory ? memorySpecs : []),
@@ -140,6 +143,12 @@ export function builtinTools(opts: BuiltinOptions): { specs: ToolSpec[]; handles
       const parsed = ArtifactInput.safeParse(call.input);
       if (!parsed.success) return { ...base, output: `Input inválido: ${parsed.error.issues[0]?.message}`, isError: true };
       return { ...base, output: `Artifact "${parsed.data.title}" guardado y visible para el usuario.`, isError: false };
+    }
+    if (call.name === SKILL_TOOL) {
+      const name = (call.input as { name?: unknown } | null)?.name;
+      const skill = skills.find((s) => s.name === name);
+      if (!skill) return { ...base, output: `No existe el skill "${String(name)}". Disponibles: ${skills.map((s) => s.name).join(", ")}.`, isError: true };
+      return { ...base, output: skill.body, isError: false };
     }
     if (call.name === WIDGET_TOOL) {
       const parsed = parseWidget(call.input);

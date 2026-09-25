@@ -1,6 +1,7 @@
 ---
 name: artifact-craft
 description: Build artifacts that render correctly in the Nexo panel instead of failing on the first try. Use when creating or revising an artifact of type react, html, svg or mermaid.
+requires: artifacts
 ---
 
 # Building artifacts

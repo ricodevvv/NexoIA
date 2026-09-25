@@ -57,4 +57,5 @@ export const LIMITS = {
   export: { window: 3600, max: 5 },
   share: { window: 60, max: 120 },
   code: { window: 60, max: 20 },
+  github: { window: 60, max: 120 },
 };

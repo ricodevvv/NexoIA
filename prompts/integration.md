@@ -90,26 +90,22 @@ fallback when the provider returns nothing.
 
 ### 4. The chat skills
 
-This is the part that needs a decision, because the chat has no skill loader
-today. The model in the chat cannot read a file on its own, so a `SKILL.md` only
-takes effect if something puts its text in front of the model. Three options, in
-order of how little code they need:
+The chat loads them through a `skill` tool, in `src/lib/ai/skills.ts`:
 
-1. **Fold the rules into `system.ts`.** The BASE block in
-   `chat/system-prompt.md` already contains the rules that must always apply:
-   when to build an artifact, what the runtime allows, when to use a widget, and
-   the rules of the Python sandbox. That is the part worth paying tokens for on
-   every request. The skill files are the long version of the same rules.
-2. **Publish them as MCP prompt resources.** A server can expose one resource
-   per skill, and the instructions tell the model to read the one it needs. This
-   keeps the base prompt small and is the right shape if the skills grow.
-3. **Add a `skill` tool.** A tool that returns the text of a named skill, with
-   the name and description in its schema so the model can choose. Most work,
-   most flexible.
+- At startup it reads `prompts/chat/skills/<name>/SKILL.md` once. The folder
+  name must match `name` in the frontmatter, or the skill is skipped.
+- `requires: code` or `requires: artifacts` in the frontmatter hides the skill
+  when `run_python` or the artifacts are off for that conversation. A skill
+  without `requires` is always offered.
+- The tool's description lists `name: description` for each skill offered, and
+  the BASE prompt tells the model to load the matching one before it starts.
+  The frontmatter is not sent, only the body.
+- With no skills found, for example in a build without `prompts/`, the tool is
+  not offered. The Docker image copies `prompts/chat` next to the server for
+  that reason.
 
-The skills are written to work with option 2 or 3: each has a one-line
-`description` that says when to use it, and the body is written to be read once
-and applied for the rest of the task, not quoted.
+Adding a skill means adding a folder: the next restart picks it up, with no
+code changes.
 
 ## Nexo Code
 

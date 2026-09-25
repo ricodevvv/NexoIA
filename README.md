@@ -122,6 +122,28 @@ Nexo can give each user their own coding workspace: a pod with 2 GB of RAM, a pe
 
 5. Restart Nexo. Users with access will see "Mi espacio en la nube" in `/code`.
 
+## Optional: GitHub for Nexo Code
+
+With this on, each user connects their GitHub account in Settings → GitHub, installs the app on their account or organizations, and picks the repos. The coding agent can then clone them, commit, push branches and open pull requests as that user. `git` and `gh` in the workspace ask Nexo for a fresh token every time, so no token is stored in the pod.
+
+It uses a GitHub App, not the OAuth App of the GitHub login. Create one at github.com → Settings → Developer settings → GitHub Apps → New GitHub App:
+
+- Callback URL: `https://<your site>/api/github/callback`. Also tick "Expire user authorization tokens".
+- Setup URL: the same URL, with "Redirect on update" ticked. Leave "Request user authorization (OAuth) during installation" unticked.
+- Webhook: untick "Active", it's not used.
+- Repository permissions: Contents, Pull requests, Issues and Workflows set to read and write. Metadata stays read-only.
+- Where can it be installed: "Any account", if people outside your account are going to use it.
+
+Then generate a client secret and add the values to `/etc/nexo/nexo.env`:
+
+```bash
+GITHUB_APP_SLUG=nexo-code          # the app's URL name, github.com/apps/<slug>
+GITHUB_APP_CLIENT_ID=Iv23li...
+GITHUB_APP_CLIENT_SECRET=...
+```
+
+Workspaces pick up the GitHub setup the next time they start.
+
 ## Configuration
 
 All settings are environment variables. `.env.example` lists every one of them. The most common:
@@ -137,6 +159,7 @@ All settings are environment variables. `.env.example` lists every one of them. 
 | `RESEND_API_KEY`, `EMAIL_FROM` | Sending emails (verification, password reset) |
 | `STRIPE_SECRET_KEY` | Enables paid plans |
 | `STORAGE_DRIVER=s3`, `S3_*` | Store uploads in S3/R2/MinIO instead of the database |
+| `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` | GitHub App so the coding agent can use the user's repos |
 
 ## License
 

@@ -20,8 +20,9 @@ loader accepts, and the checks to run after wiring things up.
 
 ## Chat skills
 
-Loaded only if the chat grows a way to read them. `integration.md` section 4
-covers the three options and what each one costs.
+Served by the chat's `skill` tool (`src/lib/ai/skills.ts`). The tool lists
+every skill whose `requires` is on for that conversation, and returns the body
+when the model asks for one.
 
 | Skill | When it earns its place |
 | --- | --- |
@@ -29,6 +30,7 @@ covers the three options and what each one costs.
 | `chart-design` | Choosing a form, the widget's schema, and figures with matplotlib |
 | `diagramming` | Mermaid against the diagram widget against inline SVG |
 | `research` | Splitting the question, cross-checking, citing without inventing |
+| `office-files` | xlsx, docx, pptx and pdf in the sandbox, installed with micropip |
 | `python-analysis` | The sandbox: preloaded packages, micropip, internet through a proxy, 120 seconds, one run |
 
 ## Nexo Code

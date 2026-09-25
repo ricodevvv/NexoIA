@@ -20,6 +20,32 @@ const TOOL = {
   },
 };
 
+const REPOS_TOOL = {
+  name: "github_repos",
+  description:
+    "Lista las cuentas y organizaciones de GitHub que el usuario conectó en Nexo y los repos a los que tienes acceso, con su rama por defecto y si puedes hacer push. Úsala antes de clonar un repo del usuario o cuando pregunte qué repos hay. git y gh ya se autentican solos con esa cuenta.",
+  inputSchema: {
+    type: "object",
+    properties: { query: { type: "string", description: "Filtro opcional por nombre de repo u organización." } },
+  },
+};
+
+async function repos(query) {
+  const res = await fetch(`${NEXO_URL}/api/workspace/github/repos`, { headers: { Authorization: `Bearer ${NEXO_TOKEN}` } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? `Nexo respondió ${res.status}`);
+  const q = String(query ?? "").trim().toLowerCase();
+  const list = data.repos.filter((r) => !q || r.fullName.toLowerCase().includes(q));
+  const lines = [
+    `Cuenta de GitHub: ${data.login}`,
+    `Instalada en: ${data.installations.map((i) => `${i.account} (${i.type === "Organization" ? "organización" : "usuario"}, ${i.selection === "all" ? "todos los repos" : "repos elegidos"})`).join(", ") || "ninguna cuenta"}`,
+    "",
+    ...list.map((r) => `${r.fullName}${r.private ? " · privado" : ""} · rama ${r.defaultBranch}${r.canPush ? "" : " · solo lectura"}${r.description ? ` · ${r.description}` : ""}`),
+  ];
+  if (!list.length) lines.push(q ? `Ningún repo coincide con "${query}".` : "No hay repos compartidos. El usuario puede elegirlos en Ajustes → GitHub.");
+  return lines.join("\n");
+}
+
 function send(message) {
   process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}\n`);
 }
@@ -47,7 +73,14 @@ async function handle(msg) {
     });
   }
   if (msg.method === "ping") return send({ id: msg.id, result: {} });
-  if (msg.method === "tools/list") return send({ id: msg.id, result: { tools: [TOOL] } });
+  if (msg.method === "tools/list") return send({ id: msg.id, result: { tools: [TOOL, REPOS_TOOL] } });
+  if (msg.method === "tools/call" && msg.params?.name === REPOS_TOOL.name) {
+    try {
+      return send({ id: msg.id, result: { content: [{ type: "text", text: await repos(msg.params.arguments?.query) }] } });
+    } catch (err) {
+      return send({ id: msg.id, result: { content: [{ type: "text", text: `No se pudieron listar los repos: ${err.message}` }], isError: true } });
+    }
+  }
   if (msg.method === "tools/call") {
     try {
       if (msg.params?.name !== TOOL.name) throw new Error(`Tool desconocida: ${msg.params?.name}`);

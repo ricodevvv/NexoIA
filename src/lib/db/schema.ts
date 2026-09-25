@@ -314,3 +314,18 @@ export const codeWorkspace = pgTable("code_workspace", {
   lastActiveAt: timestamp("last_active_at").notNull().defaultNow(),
   createdAt: createdAt(),
 });
+
+export const githubConnection = pgTable("github_connection", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  githubId: integer("github_id").notNull(),
+  login: text("login").notNull(),
+  avatarUrl: text("avatar_url"),
+  accessToken: text("access_token").notNull(),
+  accessExpiresAt: timestamp("access_expires_at"),
+  refreshToken: text("refresh_token"),
+  refreshExpiresAt: timestamp("refresh_expires_at"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});

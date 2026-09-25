@@ -9,6 +9,7 @@ import { authClient } from "@/lib/auth-client";
 import type { Plan, PlanId } from "@/lib/billing/plans";
 import { useShell } from "../shell";
 import { Endpoints } from "./endpoints";
+import { GitHub } from "./github";
 import styles from "./settings.module.css";
 import { authErrorMessage } from "@/lib/auth-errors";
 
@@ -46,6 +47,7 @@ const TABS = [
   { id: "personalization", label: "Personalización" },
   { id: "keys", label: "API keys" },
   { id: "connectors", label: "Conectores" },
+  { id: "github", label: "GitHub" },
   { id: "billing", label: "Plan" },
 ] as const;
 
@@ -62,7 +64,7 @@ async function api(url: string, init?: RequestInit) {
 }
 
 /**
- * Pantalla de ajustes con pestañas: cuenta, keys, conectores MCP y plan.
+ * Pantalla de ajustes con pestañas: cuenta, keys, conectores MCP, GitHub y plan.
  */
 export function Settings(props: Props) {
   const { collapsed, toggle } = useShell();
@@ -99,6 +101,7 @@ export function Settings(props: Props) {
             </>
           )}
           {tab === "connectors" && <Connectors servers={props.servers} />}
+          {tab === "github" && <GitHub />}
           {tab === "billing" && <Billing billing={props.billing} checkoutOk={props.checkoutOk} />}
         </section>
       </div>

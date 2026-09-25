@@ -1,6 +1,7 @@
 ---
 name: python-analysis
 description: Work out the answer with run_python instead of guessing it. Use for arithmetic, data analysis, the user's uploaded files, simulations, plotting and any deliverable file.
+requires: code
 ---
 
 # Python in the sandbox
