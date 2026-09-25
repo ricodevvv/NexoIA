@@ -1,3 +1,4 @@
+import { logInfo } from "@/lib/log";
 import { getCodeServer, nexocodeFetch } from "@/lib/nexocode";
 import { apiUser, handleError, HttpError } from "@/lib/session";
 import { touchWorkspace, WORKSPACE_SERVER_ID } from "@/lib/workspaces";
@@ -17,12 +18,15 @@ const FORWARD = new Set([
   "permission.replied",
 ]);
 
-type Upstream = { type: string; properties?: { sessionID?: string; info?: { id?: string } } };
+type Upstream = {
+  type: string;
+  properties?: { sessionID?: string; info?: { id?: string; sessionID?: string }; part?: { sessionID?: string } };
+};
 
 function belongsTo(event: Upstream, session: string) {
   const p = event.properties;
   if (!p) return false;
-  return (p.sessionID ?? p.info?.id) === session;
+  return [p.sessionID, p.part?.sessionID, p.info?.sessionID, p.info?.id].includes(session);
 }
 
 /**
@@ -44,6 +48,9 @@ export async function GET(request: Request, ctx: RouteContext<"/api/code/[server
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         let buffer = "";
+        let sent = 0;
+        const dropped: Record<string, number> = {};
+        const started = Date.now();
         let beats = 0;
         const ping = setInterval(() => {
           controller.enqueue(encoder.encode(": ping\n\n"));
@@ -70,13 +77,20 @@ export async function GET(request: Request, ctx: RouteContext<"/api/code/[server
               } catch {
                 continue;
               }
-              if (!FORWARD.has(event.type) || !belongsTo(event, session)) continue;
+              if (!FORWARD.has(event.type) || !belongsTo(event, session)) {
+                if (FORWARD.has(event.type)) dropped[event.type] = (dropped[event.type] ?? 0) + 1;
+                continue;
+              }
+              sent++;
               controller.enqueue(encoder.encode(`data: ${data}\n\n`));
             }
           }
         } catch {
         } finally {
           clearInterval(ping);
+          if (server.id === WORKSPACE_SERVER_ID) {
+            logInfo("code-events", { server: server.id, session, sent, dropped, seconds: Math.round((Date.now() - started) / 1000) });
+          }
           try {
             controller.close();
           } catch {}

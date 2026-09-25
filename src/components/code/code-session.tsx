@@ -57,6 +57,8 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
   const stickRef = useRef(true);
   const lastTopRef = useRef(0);
   const readyRef = useRef<Promise<void>>(Promise.resolve());
+  const lastEventRef = useRef(0);
+  const busyRef = useRef(false);
   const base = `/api/code/${serverId}/sessions/${encodeURIComponent(sessionId)}`;
 
   const load = useCallback(() => {
@@ -95,6 +97,7 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
       markReady();
     };
     source.onmessage = (e) => {
+      lastEventRef.current = Date.now();
       const event = JSON.parse(e.data) as { type: string; properties: Record<string, unknown> };
       const p = event.properties;
       if (event.type === "session.status") {
@@ -133,11 +136,19 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
       queue.push(event as NcEvent);
       if (!frame) frame = requestAnimationFrame(flush);
     };
+    const poll = setInterval(() => {
+      if (busyRef.current && Date.now() - lastEventRef.current > 3000) load();
+    }, 2000);
     return () => {
       source.close();
+      clearInterval(poll);
       if (frame) cancelAnimationFrame(frame);
     };
   }, [serverId, sessionId, load, onTitle, onChanges]);
+
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
 
   const messages = useMemo(() => toUIMessages(state), [state]);
   const lastId = messages.at(-1)?.id;
@@ -164,6 +175,7 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
     setBusy(true);
     setError(null);
     stickRef.current = true;
+    lastEventRef.current = Date.now();
     await Promise.race([readyRef.current, new Promise((r) => setTimeout(r, 4000))]);
     const res = await fetch(`${base}/prompt`, {
       method: "POST",

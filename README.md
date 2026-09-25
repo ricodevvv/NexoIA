@@ -137,3 +137,7 @@ All settings are environment variables. `.env.example` lists every one of them. 
 | `RESEND_API_KEY`, `EMAIL_FROM` | Sending emails (verification, password reset) |
 | `STRIPE_SECRET_KEY` | Enables paid plans |
 | `STORAGE_DRIVER=s3`, `S3_*` | Store uploads in S3/R2/MinIO instead of the database |
+
+## License
+
+MIT. See [LICENSE](LICENSE).
