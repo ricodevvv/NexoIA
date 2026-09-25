@@ -1,4 +1,4 @@
-import { constants as fsConstants } from "node:fs";
+import { constants as fsConstants, readdirSync, symlinkSync } from "node:fs";
 import { constants as osConstants } from "node:os";
 
 process.binding = (name) => {
@@ -10,6 +10,25 @@ const { loadPyodide } = await import("pyodide");
 
 const MAX_OUTPUT = 200_000;
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const LOADER_LINE = /^(Loading |Loaded |Didn't find package |Package \S+ loaded from )/;
+const online = Boolean(process.env.HTTPS_PROXY) && process.env.NODE_USE_ENV_PROXY === "1";
+
+/**
+ * Con red, Pyodide tiene que poder guardar los paquetes que descarga. Se usa
+ * un directorio propio de la ejecución (`SANDBOX_TMP`, que ya debe existir
+ * al arrancar para que valga el permiso de escritura) con enlaces a la caché
+ * precargada, que sigue siendo de solo lectura.
+ */
+function packageDir(cacheDir) {
+  const dir = process.env.SANDBOX_TMP;
+  if (!online || !dir) return cacheDir;
+  for (const name of readdirSync(cacheDir)) {
+    try {
+      symlinkSync(`${cacheDir}/${name}`, `${dir}/${name}`);
+    } catch {}
+  }
+  return dir;
+}
 
 async function readStdin() {
   const chunks = [];
@@ -99,8 +118,8 @@ async function main() {
   const stdout = [];
   const stderr = [];
   const pyodide = await loadPyodide({
-    packageCacheDir: input.cacheDir,
-    stdout: (line) => stdout.push(line),
+    packageCacheDir: input.warm ? input.cacheDir : packageDir(input.cacheDir),
+    stdout: (line) => LOADER_LINE.test(line) || stdout.push(line),
     stderr: (line) => stderr.push(line),
   });
 
@@ -123,9 +142,10 @@ async function main() {
   let error = null;
   try {
     await pyodide.loadPackagesFromImports(input.code, { messageCallback: () => {} });
-    const offline = () => Promise.reject(new Error("El sandbox no tiene acceso a internet"));
-    globalThis.fetch = offline;
-    globalThis.WebSocket = undefined;
+    if (!online) {
+      globalThis.fetch = () => Promise.reject(new Error("El sandbox no tiene acceso a internet"));
+      globalThis.WebSocket = undefined;
+    }
     await pyodide.runPythonAsync(PRELUDE);
     pyodide.globals.set("_NEXO_INPUTS", pyodide.toPy(inputs));
     const value = await pyodide.runPythonAsync(input.code);

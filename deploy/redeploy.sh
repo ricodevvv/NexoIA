@@ -6,7 +6,7 @@ DEST=/opt/nexo
 
 rsync -a --delete \
   --exclude node_modules --exclude .next --exclude .git \
-  --exclude .env.local --exclude '/*.png' --exclude '*.log' \
+  --exclude .env.local --exclude .kube --exclude '/*.png' --exclude '*.log' \
   --exclude '*.mp4' --exclude '*.MP4' --exclude '*.mov' --exclude '*.MOV' \
   --exclude test-results --exclude playwright-report \
   "$SRC/" "$DEST/"
@@ -17,6 +17,20 @@ if [[ "$(sudo docker image inspect nexo-sandbox:latest -f '{{index .Config.Label
   echo "Imagen del sandbox actualizada"
 fi
 sudo install -o root -g root -m 755 "$SRC/sandbox/run.sh" /usr/local/bin/nexo-sandbox
+
+if ! sudo docker network inspect nexo-sandbox >/dev/null 2>&1; then
+  sudo docker network create --internal -o com.docker.network.bridge.gateway_mode_ipv4=isolated nexo-sandbox >/dev/null
+  echo "Red del sandbox creada"
+fi
+if [[ "$(sudo docker inspect nexo-sandbox-egress -f '{{index .Config.Labels "nexo.hash"}} {{.State.Running}}' 2>/dev/null)" != "$SANDBOX_HASH true" ]]; then
+  sudo docker rm -f nexo-sandbox-egress >/dev/null 2>&1 || true
+  sudo docker run -d --name nexo-sandbox-egress --label "nexo.hash=$SANDBOX_HASH" \
+    --restart unless-stopped --read-only --cap-drop ALL --security-opt no-new-privileges \
+    --memory 256m --pids-limit 64 --user node --network bridge \
+    --entrypoint node nexo-sandbox:latest egress.mjs >/dev/null
+  sudo docker network connect nexo-sandbox nexo-sandbox-egress
+  echo "Proxy de salida del sandbox actualizado"
+fi
 
 cd "$DEST"
 pnpm install --frozen-lockfile --prefer-offline

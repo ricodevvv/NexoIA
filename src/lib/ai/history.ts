@@ -51,7 +51,7 @@ export function attachmentNote(file: AttachmentData, hasCode: boolean) {
   const lines = [`<adjunto nombre="${file.name}" tipo="${file.mediaType}" tamaño="${humanSize(file.data.length)}">`];
   lines.push(
     hasCode
-      ? `No lo puedes leer directo, pero está en /mnt/data/${file.name} dentro de run_python (usa zipfile, tarfile, openpyxl, etc.).`
+      ? `No lo puedes leer directo, pero está en /mnt/data/${file.name} dentro de run_python (usa zipfile, tarfile o pandas; openpyxl y python-docx se instalan con micropip).`
       : "No lo puedes abrir en esta conversación: la ejecución de código no está disponible. Díselo al usuario si lo necesitas.",
   );
   if (isZip(file.mediaType, file.name)) {

@@ -15,7 +15,7 @@ export type RunOutput = {
   durationMs: number;
 };
 
-const TIMEOUT_MS = 75_000;
+const TIMEOUT_MS = 135_000;
 const WARM_TIMEOUT_MS = 10 * 60_000;
 const MAX_STDOUT = 40 * 1024 * 1024;
 const WARM_PACKAGES = ["numpy", "pandas", "matplotlib", "scipy", "sympy", "scikit-learn"];
@@ -26,8 +26,9 @@ const runner = path.join(root, "sandbox", "python-runner.mjs");
 
 /**
  * Comando externo que corre el sandbox (por ejemplo el contenedor de Docker
- * sin red). Si no hay, se usa un proceso local con el modelo de permisos de
- * Node, que sirve para desarrollo pero no aísla la red.
+ * cuya única salida es el proxy de egress). Si no hay, se usa un proceso local
+ * con el modelo de permisos de Node, que sirve para desarrollo pero no aísla la
+ * red y no descarga paquetes.
  */
 function sandboxCommand() {
   return process.env.CODE_SANDBOX_COMMAND?.trim().split(/\s+/).filter(Boolean) ?? [];
@@ -70,7 +71,8 @@ function socketPath() {
 
 /**
  * Manda el trabajo al servicio del sandbox por un socket unix (modo
- * docker-compose, donde el sandbox corre en su propio contenedor sin red).
+ * docker-compose, donde el sandbox corre en una red interna que solo sale por
+ * el proxy de egress).
  */
 function viaSocket(payload: object, socket: string): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
@@ -84,7 +86,7 @@ function viaSocket(payload: object, socket: string): Promise<Record<string, unkn
           try {
             resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
           } catch {
-            reject(new Error("La ejecución se detuvo sin respuesta (probablemente pasó de 60 segundos)."));
+            reject(new Error("La ejecución se detuvo sin respuesta (probablemente pasó de 120 segundos)."));
           }
         });
       },
@@ -154,7 +156,8 @@ export function warmCache() {
 /**
  * Corre código Python en un proceso aparte: Pyodide (WebAssembly) dentro de
  * Node con el modelo de permisos activado, sin variables de entorno, sin
- * escritura a disco, sin procesos hijos y con límite de tiempo.
+ * escritura a disco fuera de su caché de paquetes, sin procesos hijos y con
+ * límite de tiempo.
  */
 export async function runPython(input: RunInput): Promise<RunOutput> {
   await warmCache();

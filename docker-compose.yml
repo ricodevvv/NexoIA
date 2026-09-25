@@ -21,13 +21,29 @@ services:
       db: { condition: service_healthy }
     restart: "no"
 
+  sandbox-egress:
+    build: ./sandbox
+    entrypoint: ["node", "egress.mjs"]
+    user: node
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    networks:
+      default: {}
+      sandbox:
+        aliases: [nexo-sandbox-egress]
+    restart: unless-stopped
+
   sandbox:
     build: ./sandbox
     entrypoint: ["node", "server.mjs"]
-    network_mode: none
+    environment:
+      SANDBOX_PROXY: http://nexo-sandbox-egress:3128
+    networks: [sandbox]
     read_only: true
     tmpfs:
-      - /tmp:size=64m,noexec,nosuid
+      - /tmp:size=1g,noexec,nosuid,uid=1000,gid=1000
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     mem_limit: 2g
@@ -51,7 +67,14 @@ services:
       db: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
       sandbox: { condition: service_started }
+      sandbox-egress: { condition: service_started }
     restart: unless-stopped
+
+networks:
+  sandbox:
+    internal: true
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv4: isolated
 
 volumes:
   db:

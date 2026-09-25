@@ -14,7 +14,7 @@ import { logError } from "@/lib/log";
 
 export const WORKSPACE_SERVER_ID = "workspace";
 
-const IMAGE = process.env.NEXO_WORKSPACE_IMAGE ?? "nexo-workspace:1";
+const IMAGE = process.env.NEXO_WORKSPACE_IMAGE ?? "nexo-workspace:2";
 const IDLE_MS = Number(process.env.NEXO_WORKSPACE_IDLE_MINUTES ?? 15) * 60_000;
 const newId = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 12);
 
@@ -92,7 +92,8 @@ function providerFor(model: ModelInfo) {
 /**
  * Arma la config de nexocode del espacio: cada proveedor apunta al proxy de
  * modelos de Nexo con el token del espacio, así las API keys reales nunca
- * entran al pod.
+ * entran al pod. Las instrucciones del agente vienen en la imagen, sacadas de
+ * `prompts/code/AGENTS.md`.
  */
 export async function workspaceConfig(userId: string, token: string) {
   const base = (process.env.NEXO_PUBLIC_URL ?? process.env.BETTER_AUTH_URL ?? "").replace(/\/+$/, "");
@@ -114,6 +115,7 @@ export async function workspaceConfig(userId: string, token: string) {
         environment: { NEXO_URL: base, NEXO_TOKEN: token },
       },
     },
+    instructions: ["/usr/local/lib/nexo/AGENTS.md"],
     ...(first ? { model: first } : {}),
     autoupdate: false,
     share: "disabled",

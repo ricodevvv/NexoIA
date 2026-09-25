@@ -213,11 +213,12 @@ export async function POST(request: Request) {
           isNew && body.text.trim() ? generateTitle(model, key.apiKey, body.text, controller.signal) : Promise.resolve(null);
         const workspace = await activeWorkspace(auth);
         const toolbox = await openToolbox(user.id, workspace?.id ?? null);
+        const code = settings.codeEnabled && codeExecutionEnabled();
         const builtins = builtinTools({
           userId: user.id,
           artifacts: settings.artifactsEnabled,
           memory: settings.memoryEnabled,
-          code: settings.codeEnabled && codeExecutionEnabled(),
+          code,
           files: [...attachments.values()],
           conversationId: conversation.id,
         });
@@ -233,6 +234,7 @@ export async function POST(request: Request) {
               memories,
               project: project ? { name: project.name, instructions: project.instructions } : null,
               artifacts: settings.artifactsEnabled,
+              code,
               style,
               research: researching,
             }),

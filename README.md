@@ -82,7 +82,7 @@ You need Node 22+, pnpm, PostgreSQL 16 and Docker (only for the code sandbox).
    sudo systemctl restart caddy
    ```
 
-5. Optional, to let the model run Python safely: build the sandbox image with `docker build -t nexo-sandbox sandbox` and set `CODE_EXECUTION=1` plus `CODE_SANDBOX_COMMAND` (see `sandbox/run.sh`).
+5. Optional, to let the model run Python safely: build the sandbox image with `docker build -t nexo-sandbox sandbox` and set `CODE_EXECUTION=1` plus `CODE_SANDBOX_COMMAND` (see `sandbox/run.sh`). The sandbox reaches the internet only through an egress proxy that blocks private addresses, so it can install packages with micropip and download data without seeing your host or cluster. `deploy/redeploy.sh` creates the isolated `nexo-sandbox` network and the `nexo-sandbox-egress` container for you.
 
 To update later, pull the code and run `./deploy/redeploy.sh`.
 
@@ -105,10 +105,10 @@ Nexo can give each user their own coding workspace: a pod with 2 GB of RAM, a pe
 3. Build the workspace image. Put a compiled `nexocode` binary in `deploy/workspace/` first (from the nexocode repo: `bun run script/build.ts --single`), then:
 
    ```bash
-   cd deploy/workspace
-   docker build -t nexo-workspace:1 .
-   docker save nexo-workspace:1 | sudo k3s ctr images import -
+   deploy/workspace/build.sh
    ```
+
+   It builds the image with the agent's instructions, skills and subagents from `prompts/code/` and imports it into k3s. Pods pick it up the next time they start.
 
 4. Give Nexo access to the cluster. Add these to `/etc/nexo/nexo.env`:
 
