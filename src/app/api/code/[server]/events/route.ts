@@ -16,6 +16,9 @@ const FORWARD = new Set([
   "session.diff",
   "permission.asked",
   "permission.replied",
+  "question.asked",
+  "question.replied",
+  "question.rejected",
 ]);
 
 type Upstream = {

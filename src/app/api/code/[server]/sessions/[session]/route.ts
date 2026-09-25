@@ -7,17 +7,19 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/code/[serve
     const { server: serverId, session } = await ctx.params;
     const server = await getCodeServer(user, serverId);
     const id = encodeURIComponent(session);
-    const [info, messages, status, permissions] = await Promise.all([
+    const [info, messages, status, permissions, questions] = await Promise.all([
       nexocodeJson<{ id: string; title: string }>(server, `/session/${id}`),
       nexocodeJson<unknown[]>(server, `/session/${id}/message`),
       nexocodeJson<Record<string, { type: string }>>(server, "/session/status").catch(() => ({}) as Record<string, { type: string }>),
       nexocodeJson<{ sessionID: string }[]>(server, "/permission").catch(() => []),
+      nexocodeJson<{ sessionID: string }[]>(server, "/question").catch(() => []),
     ]);
     return Response.json({
       session: { id: info.id, title: info.title },
       messages,
       busy: status[info.id]?.type === "busy",
       permissions: permissions.filter((p) => p.sessionID === info.id),
+      questions: questions.filter((q) => q.sessionID === info.id),
     });
   } catch (err) {
     return handleError(err);

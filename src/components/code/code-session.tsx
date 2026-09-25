@@ -7,6 +7,7 @@ import { ThinkingLine } from "../chat/activity";
 import { Message } from "../chat/message";
 import chat from "../chat/chat.module.css";
 import { applyNcEvent, initialState, type NcEvent, type NcMessage, type SessionState, toUIMessages } from "./map";
+import { QuestionCard, type QuestionRequest } from "./question-card";
 import styles from "./code.module.css";
 
 export type CodeModel = { providerID: string; modelID: string; label: string; provider: string };
@@ -52,6 +53,7 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
   const [text, setText] = useState("");
   const [agent, setAgent] = useState<"build" | "plan">("build");
   const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [questions, setQuestions] = useState<QuestionRequest[]>([]);
   const [atBottom, setAtBottom] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
@@ -74,6 +76,7 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
         setState(initialState(data.messages as NcMessage[]));
         setBusy(Boolean(data.busy));
         setPermissions((data.permissions ?? []) as Permission[]);
+        setQuestions((data.questions ?? []) as QuestionRequest[]);
       });
   }, [base]);
 
@@ -127,6 +130,14 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
       }
       if (event.type === "permission.asked") {
         setPermissions((all) => [...all.filter((x) => x.id !== p.id), p as unknown as Permission]);
+        return;
+      }
+      if (event.type === "question.asked") {
+        setQuestions((all) => [...all.filter((x) => x.id !== p.id), p as unknown as QuestionRequest]);
+        return;
+      }
+      if (event.type === "question.replied" || event.type === "question.rejected") {
+        setQuestions((all) => all.filter((x) => x.id !== p.requestID));
         return;
       }
       if (event.type === "permission.replied") {
@@ -204,6 +215,16 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
     if (!res.ok) setError((await res.json().catch(() => ({}))).error ?? "No se pudo responder el permiso");
   }
 
+  async function answerQuestion(id: string, body: { answers: string[][] } | { reject: true }) {
+    setQuestions((all) => all.filter((x) => x.id !== id));
+    const res = await fetch(`/api/code/${serverId}/questions/${encodeURIComponent(id)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) setError((await res.json().catch(() => ({}))).error ?? "No se pudo mandar tu respuesta");
+  }
+
   const current = AGENTS.find((a) => a.id === agent)!;
 
   return (
@@ -243,6 +264,14 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
         </button>
       )}
       <div className={chat.dock}>
+        {questions.map((q) => (
+          <QuestionCard
+            key={q.id}
+            request={q}
+            onAnswer={(answers) => answerQuestion(q.id, { answers })}
+            onSkip={() => answerQuestion(q.id, { reject: true })}
+          />
+        ))}
         {permissions.map((p) => {
           const info = permissionText(p);
           return (

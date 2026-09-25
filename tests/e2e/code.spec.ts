@@ -34,3 +34,24 @@ test("Nexo Code conecta un servidor, pide permiso, corre el comando y muestra lo
   await page.reload();
   await expect(page.getByText("Listo, las pruebas pasan.")).toBeVisible();
 });
+
+test("cuando el agente pregunta, sale un menú para elegir y la respuesta le llega", async ({ page }) => {
+  await signup(page, "Preguntas");
+  await page.goto("/code");
+  await page.getByLabel("Nombre").fill("Mock");
+  await page.getByLabel("URL del servidor").fill("http://127.0.0.1:4130");
+  await page.getByLabel("Contraseña").fill("clave-de-prueba");
+  await page.getByRole("button", { name: "Conectar servidor" }).click();
+  await page.getByRole("button", { name: "Nueva sesión" }).first().click();
+  await page.locator("#code-input").fill("hazme un plugin #pregunta");
+  await page.keyboard.press("Enter");
+
+  const menu = page.getByRole("group", { name: "Versión" });
+  await expect(menu).toContainText("¿Para qué versión de Minecraft hago el plugin?");
+  await expect(menu.getByRole("button", { name: "Enviar" })).toBeDisabled();
+  await menu.getByRole("radio", { name: /1\.20\.4/ }).click();
+  await menu.getByRole("button", { name: "Enviar" }).click();
+
+  await expect(menu).toHaveCount(0);
+  await expect(page.getByText("Perfecto, lo hago para 1.20.4.")).toBeVisible();
+});

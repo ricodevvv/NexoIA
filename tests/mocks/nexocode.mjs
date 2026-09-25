@@ -9,6 +9,7 @@ const sessions = new Map();
 const clients = new Set();
 const pending = new Map();
 const status = new Map();
+const questions = new Map();
 let changed = false;
 
 function emit(type, properties) {
@@ -64,6 +65,32 @@ async function run(session, text) {
   emit("session.status", { sessionID: session.id, status: { type: "busy" } });
   addMessage(session, "user", [{ type: "text", text }]);
   if (/#archivos/.test(text)) await scaffold(session);
+  let chosen = null;
+  if (/#pregunta/.test(text)) {
+    const info = {
+      id: id("que"),
+      sessionID: session.id,
+      questions: [
+        {
+          header: "Versión",
+          question: "¿Para qué versión de Minecraft hago el plugin?",
+          options: [
+            { label: "1.8.8", description: "La clásica para PvP" },
+            { label: "1.20.4", description: "Estable y con buena API" },
+            { label: "1.21", description: "La más nueva" },
+          ],
+        },
+      ],
+    };
+    const answers = await new Promise((resolve) => {
+      questions.set(info.id, { info, resolve });
+      emit("question.asked", info);
+    });
+    questions.delete(info.id);
+    if (answers) emit("question.replied", { sessionID: session.id, requestID: info.id, answers });
+    else emit("question.rejected", { sessionID: session.id, requestID: info.id });
+    chosen = answers?.[0]?.join(", ") ?? "la que yo elija";
+  }
   if (/#comando/.test(text)) {
     const tool = { type: "tool", tool: "bash", callID: "call_1", state: { status: "running", input: { command: "npm test", description: "Corre las pruebas" }, time: { start: Date.now() } } };
     const msg = addMessage(session, "assistant", [tool]);
@@ -85,7 +112,7 @@ async function run(session, text) {
   const answer = addMessage(session, "assistant", [{ type: "text", text: "" }]);
   const partID = answer.parts[0].id;
   let full = "";
-  for (const word of ["Listo, ", "las pruebas ", "pasan."]) {
+  for (const word of chosen ? ["Perfecto, ", `lo hago para ${chosen}.`] : ["Listo, ", "las pruebas ", "pasan."]) {
     full += word;
     emit("message.part.delta", { sessionID: session.id, messageID: answer.info.id, partID, field: "text", delta: word });
     await new Promise((r) => setTimeout(r, 30));
@@ -122,6 +149,13 @@ const server = http.createServer(async (req, res) => {
   }
   if (path === "/vcs/diff") {
     return json(res, 200, changed ? [{ file: "src/app.js", patch: "--- a/src/app.js\n+++ b/src/app.js\n@@ -1 +1 @@\n-viejo\n+nuevo\n", additions: 1, deletions: 1, status: "modified" }] : []);
+  }
+  if (path === "/question" && req.method === "GET") {
+    return json(res, 200, [...questions.values()].map((q) => q.info));
+  }
+  if ((m = path.match(/^\/question\/([^/]+)\/(reply|reject)$/))) {
+    questions.get(m[1])?.resolve(m[2] === "reply" ? data.answers : null);
+    return json(res, 200, true);
   }
   if (path === "/permission" && req.method === "GET") {
     return json(res, 200, [...pending.values()].map((p) => p.info));
