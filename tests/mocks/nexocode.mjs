@@ -193,6 +193,15 @@ const server = http.createServer(async (req, res) => {
     run(s, text);
     return json(res, 204);
   }
+  if ((m = path.match(/^\/session\/([^/]+)\/shell$/))) {
+    const s = sessions.get(m[1]);
+    const repo = /nexo:clonado (\S+?)'?$/.exec(data.command ?? "")?.[1];
+    addMessage(s, "user", [{ type: "text", text: "The following tool was executed by the user", synthetic: true }]);
+    const msg = addMessage(s, "assistant", [
+      { type: "tool", tool: "bash", callID: id("call"), state: { status: "completed", input: { command: data.command }, output: repo ? `nexo:clonado ${repo}\n` : "" } },
+    ]);
+    return json(res, 200, msg.info);
+  }
   if ((m = path.match(/^\/session\/([^/]+)\/abort$/))) return json(res, 200, true);
   if ((m = path.match(/^\/permission\/([^/]+)\/reply$/))) {
     pending.get(m[1])?.resolve(data.reply);

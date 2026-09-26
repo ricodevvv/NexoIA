@@ -4,7 +4,9 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { FileDiff as DiffIcon, PanelLeft } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { withViewTransition } from "@/lib/motion";
+import type { SetupEvent } from "@/lib/code-setup";
 import { NexoLogo } from "../brand/logo";
+import { Message } from "../chat/message";
 import { useShell } from "../shell";
 import { useStoredState } from "../use-stored-state";
 import chat from "../chat/chat.module.css";
@@ -13,10 +15,12 @@ import { CodeSession, type CodeModel } from "./code-session";
 import { DiffPanel, type FileDiff } from "./diff-panel";
 import { NewSession, type StartInput } from "./new-session";
 import { ServerForm } from "./server-form";
+import { SetupRow, type SetupSteps } from "./setup";
 import styles from "./code.module.css";
 
 export type PublicServer = { id: string; name: string; url: string; directory: string | null; managed: boolean; hasPassword: boolean; cloud?: boolean };
 type SessionItem = { id: string; title: string; updated: number };
+type Boot = { text: string; repo: string | null; steps: SetupSteps; error: string | null };
 
 function syncUrl(server: string | null, session: string | null) {
   const url = new URL(window.location.href);
@@ -50,11 +54,12 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
   const [adding, setAdding] = useState(false);
   const [storedVariant, setStoredVariant] = useStoredState<string>(`nexo-code-variant:${serverId ?? ""}`, "");
   const [starting, setStarting] = useState(false);
-  const [startError, setStartError] = useState<string | null>(null);
+  const [boot, setBoot] = useState<Boot | null>(null);
+  const [draft, setDraft] = useState("");
 
   const model = models.find((m) => `${m.providerID}/${m.modelID}` === storedModel) ?? defaultModel;
   const variant = storedVariant && model?.variants?.includes(storedVariant) ? storedVariant : null;
-  const title = sessionId ? (titles[sessionId] ?? sessions.find((s) => s.id === sessionId)?.title ?? "Sesión") : "Nexo Code";
+  const title = sessionId ? (titles[sessionId] ?? sessions.find((s) => s.id === sessionId)?.title ?? "Sesión") : boot ? boot.text.slice(0, 60) : "Nexo Code";
 
   const loadDiff = useCallback(async () => {
     if (!serverId) return;
@@ -106,44 +111,62 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
   }
 
   function newSession() {
-    setStartError(null);
+    if (starting) return;
+    setBoot(null);
     openSession(null);
   }
 
   async function startSession(input: StartInput) {
     if (!serverId) return;
     setStarting(true);
-    setStartError(null);
+    const steps: SetupSteps = {};
+    setBoot({ text: input.text, repo: input.repo?.fullName ?? null, steps, error: null });
     const fail = (message: string) => {
-      setStartError(message);
+      setBoot((b) => b && { ...b, error: message });
       setStarting(false);
     };
-    const created = await fetch(`/api/code/${serverId}/sessions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: input.text.slice(0, 60), ask: input.ask }),
-    });
-    const session = await created.json().catch(() => ({}));
-    if (!created.ok) return fail(session.error ?? "No se pudo crear la sesión");
-    const context = input.repo
-      ? `Trabaja en el repositorio de GitHub ${input.repo.fullName} (rama por defecto: ${input.repo.defaultBranch}${input.repo.canPush ? "" : ", solo lectura"}). Si todavía no está en la carpeta del proyecto, clónalo con \`git clone https://github.com/${input.repo.fullName}.git\` y trabaja dentro de esa carpeta. git y gh ya están autenticados.`
-      : undefined;
-    const prompt = await fetch(`/api/code/${serverId}/sessions/${encodeURIComponent(session.id)}/prompt`, {
+    const res = await fetch(`/api/code/${serverId}/start`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text: input.text,
         files: input.files,
-        context,
+        ask: input.ask,
+        repo: input.repo?.fullName ?? null,
         agent: "build",
         model: model ? { providerID: model.providerID, modelID: model.modelID } : undefined,
         ...(variant ? { variant } : {}),
       }),
-    });
-    if (!prompt.ok) return fail((await prompt.json().catch(() => ({}))).error ?? "No se pudo mandar tu mensaje");
-    setSessions((all) => [{ id: session.id, title: session.title, updated: Date.now() }, ...all]);
+    }).catch(() => null);
+    if (!res?.ok || !res.body) return fail((await res?.json().catch(() => ({})))?.error ?? "No se pudo iniciar la sesión");
+
+    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = "";
+    let session: { id: string; title: string } | null = null;
+    let error: string | null = null;
+    while (true) {
+      const { done, value } = await reader.read().catch(() => ({ done: true, value: undefined }));
+      if (value) buffer += value;
+      const lines = buffer.split("\n");
+      buffer = done ? "" : (lines.pop() ?? "");
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line) as SetupEvent;
+        if ("step" in event) {
+          steps[event.step] = event.status;
+          setBoot((b) => b && { ...b, steps: { ...steps } });
+        } else if ("session" in event) session = event.session;
+        else error = event.error;
+      }
+      if (done) break;
+    }
+    if (!session) return fail(error ?? "La conexión se cortó antes de terminar");
+    const started = session;
+    setSessions((all) => [{ id: started.id, title: started.title, updated: Date.now() }, ...all]);
     setStarting(false);
-    openSession(session.id);
+    setBoot(null);
+    setDraft("");
+    openSession(started.id);
   }
 
   async function removeServer() {
@@ -241,14 +264,36 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
           </button>
           <h1 className={`${chat.title} ${styles.sessionTitleBlock}`}>
             <span className={chat.titleText}>{title}</span>
-            {sessionId && <span className={styles.sessionSub}>{server.name}</span>}
+            {(sessionId || boot) && <span className={styles.sessionSub}>{server.name}</span>}
           </h1>
           <button type="button" className={chat.countBtn} onClick={() => setDiffOpen((v) => !v)} aria-pressed={diffOpen} aria-label="Cambios">
             <DiffIcon size={17} aria-hidden="true" />
             <span>{diff.length}</span>
           </button>
         </header>
-        {sessionId ? (
+        {boot ? (
+          <div className={chat.scroll}>
+            <div className={chat.thread}>
+              <Message message={{ id: "boot", role: "user", parts: [{ type: "text", text: boot.text }] }} live={false} isLast={false} busy={false} />
+              <SetupRow steps={boot.steps} repo={boot.repo} cloud={Boolean(server.cloud)} />
+              {boot.error && (
+                <div className={chat.notice} data-level="error" role="alert">
+                  <span className={styles.bootError}>{boot.error}</span>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => {
+                      setDraft(boot.text);
+                      setBoot(null);
+                    }}
+                  >
+                    Editar y reintentar
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : sessionId ? (
           <CodeSession
             key={`${serverId}:${sessionId}`}
             serverId={server.id}
@@ -259,10 +304,12 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
             onTitle={onTitle}
             onChanges={loadDiff}
             variant={variant}
+            cloud={Boolean(server.cloud)}
           />
         ) : (
           <NewSession
             userName={props.userName}
+            initialText={draft}
             environments={servers.map((s) => ({ id: s.id, name: s.name, cloud: Boolean(s.cloud) }))}
             environment={serverId}
             onEnvironment={selectServer}
@@ -273,7 +320,7 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
             variant={variant}
             onVariant={(v) => setStoredVariant(v)}
             starting={starting}
-            error={startError ?? serverError}
+            error={serverError}
             onBack={toggle}
             onStart={startSession}
           />

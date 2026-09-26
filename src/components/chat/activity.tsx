@@ -241,7 +241,7 @@ function hasDetail(entry: ActivityEntry) {
   return true;
 }
 
-function Spinner() {
+export function Spinner() {
   return (
     <span className={styles.spinner} role="status" aria-label="Trabajando">
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">

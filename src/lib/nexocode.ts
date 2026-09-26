@@ -151,3 +151,66 @@ export async function nexocodeJson<T>(server: CodeServer, path: string, options?
 export function publicServer(s: CodeServer) {
   return { id: s.id, name: s.name, url: s.url, directory: s.directory, managed: s.managed, hasPassword: Boolean(s.password), cloud: s.id === WORKSPACE_SERVER_ID };
 }
+
+export const PromptInput = z.object({
+  text: z.string().trim().min(1).max(100_000),
+  model: z.object({ providerID: z.string().max(100), modelID: z.string().max(200) }).optional(),
+  agent: z.enum(["build", "plan"]).optional(),
+  variant: z.string().max(40).optional(),
+  context: z.string().max(4000).optional(),
+  files: z
+    .array(z.object({ name: z.string().max(200), mime: z.string().max(120), url: z.string().startsWith("data:").max(14_000_000) }))
+    .max(10)
+    .default([]),
+});
+
+export type PromptInput = z.infer<typeof PromptInput>;
+
+/**
+ * Crea una sesión en nexocode. Con `ask` el agente pide permiso antes de
+ * correr comandos, editar archivos o leer páginas.
+ */
+export async function createSession(server: CodeServer, { title, ask }: { title?: string; ask?: boolean }) {
+  const permission = ask ? ["bash", "edit", "webfetch"].map((p) => ({ permission: p, pattern: "*", action: "ask" })) : undefined;
+  return nexocodeJson<{ id: string; title: string }>(server, "/session", {
+    method: "POST",
+    body: JSON.stringify({ ...(title ? { title } : {}), ...(permission ? { permission } : {}) }),
+  });
+}
+
+/**
+ * Manda un mensaje a la sesión sin esperar la respuesta; lo que contesta el
+ * agente llega por los eventos.
+ */
+export async function sendPrompt(server: CodeServer, session: string, input: PromptInput) {
+  await nexocodeFetch(server, `/session/${encodeURIComponent(session)}/prompt_async`, {
+    method: "POST",
+    body: JSON.stringify({
+      parts: [
+        ...(input.context ? [{ type: "text", text: input.context, synthetic: true }] : []),
+        ...input.files.map((f) => ({ type: "file", mime: f.mime, filename: f.name, url: f.url })),
+        { type: "text", text: input.text },
+      ],
+      model: input.model,
+      agent: input.agent,
+      ...(input.variant ? { variant: input.variant } : {}),
+    }),
+  });
+}
+
+type ShellPart = { type: string; tool?: string; state?: { status?: string; input?: { command?: string }; output?: string; error?: string } };
+
+/**
+ * Corre un comando en la carpeta del proyecto como si lo escribiera el
+ * usuario (no pasa por los permisos del agente) y devuelve su salida. Queda
+ * guardado en la sesión, así el agente sabe que se corrió.
+ */
+export async function runShell(server: CodeServer, session: string, command: string, model?: PromptInput["model"]) {
+  const id = encodeURIComponent(session);
+  await nexocodeFetch(server, `/session/${id}/shell`, { method: "POST", timeout: 10 * 60_000, body: JSON.stringify({ agent: "build", command, ...(model ? { model } : {}) }) });
+  const messages = await nexocodeJson<{ parts: ShellPart[] }[]>(server, `/session/${id}/message`);
+  const part = messages
+    .flatMap((m) => m.parts)
+    .findLast((p) => p.type === "tool" && p.tool === "bash" && p.state?.input?.command === command);
+  return { ok: part?.state?.status === "completed", output: part?.state?.output ?? part?.state?.error ?? "" };
+}

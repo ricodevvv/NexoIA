@@ -73,6 +73,7 @@ export function envLabel(env: Environment | undefined) {
  */
 export function NewSession(props: {
   userName: string;
+  initialText?: string;
   environments: Environment[];
   environment: string | null;
   onEnvironment: (id: string) => void;
@@ -87,7 +88,7 @@ export function NewSession(props: {
   onBack?: () => void;
   onStart: (input: StartInput) => void;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(props.initialText ?? "");
   const [files, setFiles] = useState<PromptFile[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
   const [repo, setRepo] = useState<Repo | null>(null);

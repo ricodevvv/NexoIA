@@ -1,4 +1,5 @@
 import type { FileRef, MessagePart } from "@/lib/ai/types";
+import { clonedRepo, cloneSucceeded } from "@/lib/code-setup";
 import type { UIMessage } from "../chat/message";
 
 export type NcPart = {
@@ -109,6 +110,33 @@ export function presentedFiles(output: string): { files: FileRef[]; text: string
   }
 }
 
+function isSetupPart(p: NcPart) {
+  return (p.type === "text" && p.synthetic) || (p.type === "tool" && p.tool === "bash" && clonedRepo(p.state?.input?.command) !== null);
+}
+
+function isSetupMessage(parts: NcPart[]) {
+  return parts.some((p) => p.type === "tool") && parts.every((p) => isSetupPart(p) || !["text", "tool", "reasoning", "file"].includes(p.type));
+}
+
+export type SessionSetup = { repo: string; status: "running" | "done" | "error" };
+
+/**
+ * Busca el clonado que se hizo al arrancar la sesión, para pintarlo como la
+ * fila de "Sesión inicializada" en vez de como un comando más.
+ */
+export function sessionSetup(state: SessionState): SessionSetup | null {
+  for (const m of Object.values(state.messages)) {
+    for (const p of Object.values(m.parts)) {
+      const repo = p.type === "tool" && p.tool === "bash" ? clonedRepo(p.state?.input?.command) : null;
+      if (!repo) continue;
+      const status = p.state?.status;
+      if (status === "completed") return { repo, status: cloneSucceeded(p.state?.output ?? "") ? "done" : "error" };
+      return { repo, status: status === "error" ? "error" : "running" };
+    }
+  }
+  return null;
+}
+
 function toPart(p: NcPart): MessagePart | null {
   if (p.type === "text" && !p.synthetic && !p.ignored && p.text) return { type: "text", text: p.text };
   if (p.type === "reasoning") return { type: "reasoning", text: p.text ?? "" };
@@ -143,7 +171,9 @@ export function toUIMessages(state: SessionState): UIMessage[] {
   const out: UIMessage[] = [];
   for (const [id, m] of ordered) {
     const info = m.info!;
-    const parts = Object.values(m.parts)
+    const raw = Object.values(m.parts);
+    if (info.role === "user" ? raw.length > 0 && raw.every((p) => p.type === "text" && p.synthetic) : isSetupMessage(raw)) continue;
+    const parts = raw
       .sort((a, b) => a.id.localeCompare(b.id))
       .map(toPart)
       .filter((p): p is MessagePart => p !== null);
