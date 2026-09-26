@@ -30,6 +30,16 @@ describe("clonado al arrancar una sesión", () => {
     expect(clonedRepo("ls -la")).toBeNull();
   });
 
+  it("clona la rama elegida y la cambia si el repo ya estaba", () => {
+    const command = cloneCommand("ricodevvv/nexocode", "feat/axo");
+    expect(command).toContain("git clone --quiet --branch 'feat/axo' 'https://github.com/ricodevvv/nexocode.git' 'nexocode'");
+    expect(command).toContain("git -C 'nexocode' checkout --quiet 'feat/axo'");
+    expect(clonedRepo(command)).toBe("ricodevvv/nexocode");
+    expect(() => cloneCommand("ricodevvv/nexocode", "x'; rm -rf ~")).toThrow();
+    expect(() => cloneCommand("ricodevvv/nexocode", "-c evil")).toThrow();
+    expect(() => cloneCommand("ricodevvv/nexocode", "a/../b")).toThrow();
+  });
+
   it("no deja pasar nombres que rompan el comando", () => {
     expect(() => cloneCommand("a/b'; rm -rf ~")).toThrow();
     expect(() => cloneCommand("a/..")).toThrow();

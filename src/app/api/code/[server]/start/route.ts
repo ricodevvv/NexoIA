@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { cloneCommand, cloneSucceeded, REPO_NAME, repoFolder, scriptCommand, scriptSucceeded, type SetupEvent, type SetupStep } from "@/lib/code-setup";
+import { BRANCH_NAME, cloneCommand, cloneSucceeded, REPO_NAME, repoFolder, scriptCommand, scriptSucceeded, type SetupEvent, type SetupStep } from "@/lib/code-setup";
 import { db, schema } from "@/lib/db";
 import { githubAppEnabled, githubConnection, listRepos } from "@/lib/github";
 import { logError } from "@/lib/log";
@@ -12,6 +12,7 @@ import { CLOUD_PREFIX, createSessionRow, deleteSession, ensureSessionPod, getEnv
 const Start = PromptInput.extend({
   ask: z.boolean().optional(),
   repo: z.string().regex(REPO_NAME).max(200).nullable().optional(),
+  branch: z.string().regex(BRANCH_NAME).nullable().optional(),
 });
 
 async function sharedRepo(userId: string, fullName: string) {
@@ -39,6 +40,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/code/[serve
     const serverId = (await ctx.params).server;
     const input = Start.parse(await request.json());
     const repo = input.repo ? await sharedRepo(user.id, input.repo) : null;
+    const branch = repo && input.branch && input.branch !== repo.defaultBranch ? input.branch : null;
     const cloud = isCloud(serverId);
     const env = cloud ? await getEnvironment(user.id, serverId.slice(CLOUD_PREFIX.length)) : null;
     const title = input.text.slice(0, 60);
@@ -67,7 +69,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/code/[serve
           if (repo) {
             step = "clone";
             emit({ step, status: "running", detail: repo.fullName });
-            const clone = await runShell(server, agentSession, cloneCommand(repo.fullName), input.model);
+            const clone = await runShell(server, agentSession, cloneCommand(repo.fullName, branch), input.model);
             if (!clone.ok || !cloneSucceeded(clone.output)) {
               throw new HttpError(502, `No se pudo clonar ${repo.fullName}${clone.output ? `:\n${lastLines(clone.output)}` : "."}`);
             }
@@ -89,7 +91,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/code/[serve
           step = "agent";
           emit({ step, status: "running" });
           const context = repo
-            ? `El repositorio de GitHub ${repo.fullName} ya está clonado en la carpeta \`${repoFolder(repo.fullName)}\` del proyecto (rama por defecto: ${repo.defaultBranch}${repo.canPush ? "" : ", solo lectura"}). Trabaja dentro de esa carpeta. git y gh ya están autenticados.`
+            ? `El repositorio de GitHub ${repo.fullName} ya está clonado en la carpeta \`${repoFolder(repo.fullName)}\` del proyecto, en la rama \`${branch ?? repo.defaultBranch}\`${branch ? ` (la por defecto es ${repo.defaultBranch})` : " (la por defecto)"}${repo.canPush ? "" : ". Es de solo lectura"}. Trabaja dentro de esa carpeta. git y gh ya están autenticados.`
             : input.context;
           await sendPrompt(server, agentSession, { ...input, context });
           emit({ step, status: "done" });

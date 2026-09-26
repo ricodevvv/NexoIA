@@ -3,10 +3,9 @@
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { ArrowDown, ArrowUp, Check, ChevronDown, CornerDownLeft, ShieldQuestion, Square } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ThinkingLine } from "../chat/activity";
 import { Message } from "../chat/message";
 import chat from "../chat/chat.module.css";
-import { AxoLoading } from "./axo";
+import { AxoLoading, AxoWorking } from "./axo";
 import { applyNcEvent, initialState, type NcEvent, type NcMessage, sessionSetup, type SessionState, toUIMessages } from "./map";
 import { QuestionCard, type QuestionRequest } from "./question-card";
 import { SetupRow } from "./setup";
@@ -266,9 +265,7 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
               )}
             </Fragment>
           ))}
-          {busy && messages.at(-1)?.role !== "assistant" && (
-            <ThinkingLine />
-          )}
+          {busy && <AxoWorking />}
           {error && (
             <div className={chat.notice} data-level="error" role="alert">
               <span>{error}</span>

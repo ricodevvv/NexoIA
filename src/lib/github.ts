@@ -335,3 +335,19 @@ export async function disconnect(userId: string) {
     signal: AbortSignal.timeout(10_000),
   }).catch((err) => logError("github", err, { user: userId }));
 }
+
+const MAX_BRANCHES = 300;
+
+/**
+ * Las ramas de un repo al que el usuario le dio acceso a la app, hasta 300.
+ */
+export async function listBranches(userId: string, fullName: string): Promise<string[]> {
+  const { token } = await githubToken(userId);
+  const branches: string[] = [];
+  for (let page = 1; branches.length < MAX_BRANCHES; page++) {
+    const data = await api<{ name: string }[]>(token, `/repos/${fullName}/branches?per_page=100&page=${page}`);
+    branches.push(...data.map((b) => b.name));
+    if (data.length < 100) break;
+  }
+  return branches.slice(0, MAX_BRANCHES);
+}
