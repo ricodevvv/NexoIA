@@ -904,3 +904,87 @@
   flex: 1;
   white-space: pre-wrap;
 }
+
+.networkField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.networkField legend {
+  margin-bottom: 6px;
+  padding: 0;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+.networkOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  cursor: pointer;
+}
+
+.networkOption:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.networkOption input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.networkOption span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text);
+}
+
+.networkOption small,
+.fieldHint {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+
+.fieldHint {
+  margin: 0;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.dangerBtn {
+  margin-right: auto;
+  color: var(--danger);
+}
+
+.linkBtn {
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.linkBtn:hover {
+  color: var(--text);
+}
+
+.envDialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}

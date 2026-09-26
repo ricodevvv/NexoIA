@@ -10,7 +10,7 @@ Nexo is a self-hosted AI chat app, similar to claude.ai, that works with any mod
 - **Files**: upload images, PDFs, text, zips and Office files. The model can read them, run Python on them and send files back (including zips).
 - **Artifacts and widgets**: live HTML/React previews, charts, quizzes, step-by-step guides, diagrams and more, right inside the chat.
 - **Projects**: shared instructions and files for a group of chats.
-- **Nexo Code**: a coding agent in the browser, powered by [nexocode](https://github.com/ricodevvv/nexocode). Connect your own `nexocode serve`, or let Nexo create a cloud workspace for each user on Kubernetes (k3s).
+- **Nexo Code**: a coding agent in the browser, powered by [nexocode](https://github.com/ricodevvv/nexocode). Connect your own `nexocode serve`, or let Nexo spin up a cloud container for each session on Kubernetes (k3s).
 - **Plans and billing**: optional Stripe subscriptions with daily limits.
 - **Share**: public read-only links to chats.
 
@@ -88,7 +88,15 @@ To update later, pull the code and run `./deploy/redeploy.sh`.
 
 ## Optional: cloud workspaces for Nexo Code
 
-Nexo can give each user their own coding workspace: a pod with 2 GB of RAM, a persistent disk and the nexocode agent. Pods are created on demand and turned off after 15 minutes without use. API keys never enter the pod; the agent reaches the models through Nexo.
+Nexo can run each Nexo Code session in its own container, the same way Claude Code on the web does: a pod with 2 GB of RAM, its own disk and the nexocode agent. When you start a session, Nexo creates the pod, clones the repo you picked, runs the environment's setup script and then hands your task to the agent. Pods turn off after 15 minutes without use and come back with the same disk when you reopen the session. Sessions nobody opens for 30 days get deleted with their disk. API keys never enter the pod; the agent reaches the models through Nexo.
+
+Sessions belong to an environment. Everyone gets a "Predeterminado" one, and you can make more from the environment picker. Each environment has:
+
+- Network access: `none` (only GitHub and the domains you add), `trusted` (GitHub, GitLab and the package registries: npm, PyPI, Maven, crates, Go, RubyGems, Debian and similar) or `full` (any public site). All pod traffic goes through an egress proxy in the cluster, and the NetworkPolicy blocks every other way out. Each pod carries its policy signed by Nexo, so the agent can't change it.
+- Environment variables, in `.env` format. The agent can read them.
+- A setup script that runs with bash when each session starts, inside the repo if there is one. If it fails, the session doesn't start.
+
+Changes to an environment apply the next time a session's container starts.
 
 1. Install [k3s](https://k3s.io) on the server:
 
@@ -102,7 +110,18 @@ Nexo can give each user their own coding workspace: a pod with 2 GB of RAM, a pe
    sudo k3s kubectl apply -f deploy/k8s/workspaces.yaml
    ```
 
-3. Build the workspace image. Put a compiled `nexocode` binary in `deploy/workspace/` first (from the nexocode repo: `bun run script/build.ts --single`), then:
+3. Create the secret the egress proxy uses to check each pod's network policy, and build the proxy image (it's the same one as the code sandbox):
+
+   ```bash
+   EGRESS_SECRET=$(openssl rand -hex 32)
+   sudo k3s kubectl -n nexo-ws create secret generic nexo-egress --from-literal=secret="$EGRESS_SECRET"
+   sudo docker build -q -t nexo-sandbox:latest sandbox
+   sudo docker save nexo-sandbox:latest | sudo k3s ctr images import -
+   ```
+
+   Save `$EGRESS_SECRET`, it goes into Nexo's config in step 5.
+
+4. Build the workspace image. Put a compiled `nexocode` binary in `deploy/workspace/` first (from the nexocode repo: `bun run script/build.ts --single`), then:
 
    ```bash
    deploy/workspace/build.sh
@@ -110,7 +129,7 @@ Nexo can give each user their own coding workspace: a pod with 2 GB of RAM, a pe
 
    It builds the image with the agent's instructions, skills and subagents from `prompts/code/` and imports it into k3s. Pods pick it up the next time they start.
 
-4. Give Nexo access to the cluster. Add these to `/etc/nexo/nexo.env`:
+5. Give Nexo access to the cluster. Add these to `/etc/nexo/nexo.env`:
 
    ```bash
    K8S_API=https://127.0.0.1:6443
@@ -118,9 +137,15 @@ Nexo can give each user their own coding workspace: a pod with 2 GB of RAM, a pe
    K8S_TOKEN=   # sudo k3s kubectl -n nexo-ws get secret nexo-controller-token -o jsonpath='{.data.token}' | base64 -d
    K8S_CA=      # sudo k3s kubectl -n nexo-ws get secret nexo-controller-token -o jsonpath='{.data.ca\.crt}'
    NEXO_WORKSPACES=pro   # pro, all or off
+   NEXO_EGRESS_PROXY=nexo-egress.nexo-ws.svc.cluster.local:3128
+   NEXO_EGRESS_SECRET=   # the value from step 3
+   NEXO_SESSION_MAX_RUNNING=3        # containers on at once per user; the oldest one turns off to make room
+   NEXO_SESSION_RETENTION_DAYS=30
    ```
 
-5. Restart Nexo. Users with access will see "Mi espacio en la nube" in `/code`.
+6. Restart Nexo. Users with access will see the "Predeterminado" environment in `/code`.
+
+If you were already running the old per-user workspaces, their `ws-*` pods get turned off by the reaper, but their disks stay. Delete them with `sudo k3s kubectl -n nexo-ws delete pvc -l workspace`.
 
 ## Optional: GitHub for Nexo Code
 

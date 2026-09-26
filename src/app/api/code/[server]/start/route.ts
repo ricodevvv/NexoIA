@@ -1,10 +1,13 @@
+import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { cloneCommand, cloneSucceeded, REPO_NAME, repoFolder, type SetupEvent } from "@/lib/code-setup";
+import { cloneCommand, cloneSucceeded, REPO_NAME, repoFolder, scriptCommand, scriptSucceeded, type SetupEvent, type SetupStep } from "@/lib/code-setup";
+import { db, schema } from "@/lib/db";
 import { githubAppEnabled, githubConnection, listRepos } from "@/lib/github";
 import { logError } from "@/lib/log";
-import { createSession, getCodeServer, nexocodeFetch, PromptInput, runShell, sendPrompt, type CodeServer } from "@/lib/nexocode";
+import { type CodeServer, createSession, getCodeServer, isCloud, nexocodeFetch, PromptInput, runShell, sendPrompt } from "@/lib/nexocode";
 import { enforce, LIMITS } from "@/lib/rate-limit";
 import { apiUser, handleError, HttpError } from "@/lib/session";
+import { CLOUD_PREFIX, createSessionRow, deleteSession, ensureSessionPod, getEnvironment } from "@/lib/workspaces";
 
 const Start = PromptInput.extend({
   ask: z.boolean().optional(),
@@ -19,14 +22,15 @@ async function sharedRepo(userId: string, fullName: string) {
 }
 
 function lastLines(output: string) {
-  return output.trim().split("\n").slice(-4).join("\n");
+  return output.trim().split("\n").slice(-6).join("\n");
 }
 
 /**
  * Arranca una sesión de Nexo Code paso a paso y va contando por dónde va,
- * una línea JSON por evento: prende el entorno, crea la sesión, clona el repo
- * elegido en la carpeta del proyecto y le manda la tarea al agente. Si algo
- * falla borra la sesión a medio hacer.
+ * una línea JSON por evento, como el arranque de Claude Code en la web:
+ * prende el contenedor (en la nube uno nuevo para esta sesión), clona el repo
+ * elegido, corre el script de configuración del entorno y le manda la tarea al
+ * agente. Si algo falla borra la sesión a medio hacer.
  */
 export async function POST(request: Request, ctx: RouteContext<"/api/code/[server]/start">) {
   try {
@@ -35,28 +39,51 @@ export async function POST(request: Request, ctx: RouteContext<"/api/code/[serve
     const serverId = (await ctx.params).server;
     const input = Start.parse(await request.json());
     const repo = input.repo ? await sharedRepo(user.id, input.repo) : null;
+    const cloud = isCloud(serverId);
+    const env = cloud ? await getEnvironment(user.id, serverId.slice(CLOUD_PREFIX.length)) : null;
+    const title = input.text.slice(0, 60);
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         const emit = (event: SetupEvent) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
         let server: CodeServer | null = null;
-        let session: { id: string; title: string } | null = null;
-        let step: "container" | "clone" | "agent" = "container";
+        let agentSession: string | null = null;
+        let rowId: string | null = null;
+        let step: SetupStep = "container";
         try {
           emit({ step, status: "running" });
-          server = await getCodeServer(user, serverId);
-          session = await createSession(server, { title: input.text.slice(0, 60), ask: input.ask });
+          if (env) {
+            const row = await createSessionRow(user, env, { title, repo: repo?.fullName ?? null });
+            rowId = row.id;
+            server = await ensureSessionPod(user, row, env.name);
+          } else {
+            server = await getCodeServer(user, serverId);
+          }
+          agentSession = (await createSession(server, { title, ask: input.ask })).id;
+          if (rowId) await db.update(schema.codeSession).set({ agentSessionId: agentSession }).where(eq(schema.codeSession.id, rowId));
           emit({ step, status: "done" });
 
           if (repo) {
             step = "clone";
             emit({ step, status: "running", detail: repo.fullName });
-            const clone = await runShell(server, session.id, cloneCommand(repo.fullName), input.model);
+            const clone = await runShell(server, agentSession, cloneCommand(repo.fullName), input.model);
             if (!clone.ok || !cloneSucceeded(clone.output)) {
               throw new HttpError(502, `No se pudo clonar ${repo.fullName}${clone.output ? `:\n${lastLines(clone.output)}` : "."}`);
             }
             emit({ step, status: "done", detail: repo.fullName });
+          }
+
+          step = "script";
+          if (env?.setupScript.trim()) {
+            emit({ step, status: "running" });
+            const script = await runShell(server, agentSession, scriptCommand(repo?.fullName ?? null), input.model);
+            if (!script.ok || !scriptSucceeded(script.output)) {
+              throw new HttpError(502, `El script de configuración falló${script.output ? `:\n${lastLines(script.output)}` : "."}`);
+            }
+            emit({ step, status: "done" });
+          } else {
+            emit({ step, status: "skipped" });
           }
 
           step = "agent";
@@ -64,14 +91,15 @@ export async function POST(request: Request, ctx: RouteContext<"/api/code/[serve
           const context = repo
             ? `El repositorio de GitHub ${repo.fullName} ya está clonado en la carpeta \`${repoFolder(repo.fullName)}\` del proyecto (rama por defecto: ${repo.defaultBranch}${repo.canPush ? "" : ", solo lectura"}). Trabaja dentro de esa carpeta. git y gh ya están autenticados.`
             : input.context;
-          await sendPrompt(server, session.id, { ...input, context });
+          await sendPrompt(server, agentSession, { ...input, context });
           emit({ step, status: "done" });
-          emit({ session });
+          emit({ session: { id: rowId ?? agentSession, title } });
         } catch (err) {
           if (!(err instanceof HttpError)) logError("code-start", err);
           emit({ step, status: "error" });
           emit({ error: err instanceof HttpError ? err.message : "No se pudo iniciar la sesión" });
-          if (server && session) await nexocodeFetch(server, `/session/${encodeURIComponent(session.id)}`, { method: "DELETE" }).catch(() => {});
+          if (rowId) await deleteSession(rowId).catch(() => {});
+          else if (server && agentSession) await nexocodeFetch(server, `/session/${encodeURIComponent(agentSession)}`, { method: "DELETE" }).catch(() => {});
         } finally {
           controller.close();
         }

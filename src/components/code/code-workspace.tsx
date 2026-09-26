@@ -14,6 +14,7 @@ import { usePublishCodeNav } from "./code-nav";
 import { CodeSession, type CodeModel } from "./code-session";
 import { DiffPanel, type FileDiff } from "./diff-panel";
 import { NewSession, type StartInput } from "./new-session";
+import { type EnvironmentData, EnvironmentForm } from "./environment-form";
 import { ServerForm } from "./server-form";
 import { SetupRow, type SetupSteps } from "./setup";
 import styles from "./code.module.css";
@@ -52,6 +53,7 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
   const [diff, setDiff] = useState<FileDiff[]>([]);
   const [diffLoading, setDiffLoading] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [envDialog, setEnvDialog] = useState<null | { egress: boolean; env?: EnvironmentData }>(null);
   const [storedVariant, setStoredVariant] = useStoredState<string>(`nexo-code-variant:${serverId ?? ""}`, "");
   const [starting, setStarting] = useState(false);
   const [boot, setBoot] = useState<Boot | null>(null);
@@ -61,13 +63,26 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
   const variant = storedVariant && model?.variants?.includes(storedVariant) ? storedVariant : null;
   const title = sessionId ? (titles[sessionId] ?? sessions.find((s) => s.id === sessionId)?.title ?? "Sesión") : boot ? boot.text.slice(0, 60) : "Nexo Code";
 
+  const diffUrl = serverId ? `/api/code/${serverId}/diff${sessionId ? `?session=${encodeURIComponent(sessionId)}` : ""}` : null;
+
   const loadDiff = useCallback(async () => {
-    if (!serverId) return;
+    if (!diffUrl) return;
     setDiffLoading(true);
-    const res = await fetch(`/api/code/${serverId}/diff`, { cache: "no-store" });
+    const res = await fetch(diffUrl, { cache: "no-store" });
     setDiffLoading(false);
     if (res.ok) setDiff(await res.json());
-  }, [serverId]);
+  }, [diffUrl]);
+
+  useEffect(() => {
+    if (!diffUrl) return;
+    let alive = true;
+    fetch(diffUrl, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((files) => alive && setDiff(files));
+    return () => {
+      alive = false;
+    };
+  }, [diffUrl]);
 
   useEffect(() => {
     if (!serverId) return;
@@ -87,9 +102,6 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
         setModels(list);
         setDefaultModel(list.find((m) => m.providerID === data.default?.providerID && m.modelID === data.default?.modelID) ?? list[0] ?? null);
       });
-    fetch(`/api/code/${serverId}/diff`, { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((files) => alive && setDiff(files));
     return () => {
       alive = false;
     };
@@ -179,11 +191,26 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
     syncUrl(null, null);
   }
 
-  async function refreshServers(created: string) {
+  async function refreshServers(created: string | null) {
     const res = await fetch("/api/code/servers", { cache: "no-store" });
-    if (res.ok) setServers(await res.json());
+    const list: PublicServer[] = res.ok ? await res.json() : servers;
+    setServers(list);
     setAdding(false);
-    selectServer(created);
+    setEnvDialog(null);
+    const next = created ?? list[0]?.id ?? null;
+    if (next && next !== serverId) selectServer(next);
+  }
+
+  async function openEnvironment(serverIdToEdit: string | null) {
+    const hasCloud = servers.some((s) => s.cloud);
+    if (!serverIdToEdit && !hasCloud) {
+      setAdding(true);
+      return;
+    }
+    const res = await fetch("/api/code/environments", { cache: "no-store" });
+    const data = res.ok ? ((await res.json()) as { environments: EnvironmentData[]; egress: boolean }) : { environments: [], egress: false };
+    const env = serverIdToEdit ? data.environments.find((e) => e.serverId === serverIdToEdit) : undefined;
+    setEnvDialog({ egress: data.egress, env });
   }
 
   const publish = usePublishCodeNav();
@@ -313,7 +340,8 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
             environments={servers.map((s) => ({ id: s.id, name: s.name, cloud: Boolean(s.cloud) }))}
             environment={serverId}
             onEnvironment={selectServer}
-            onCreateEnvironment={() => setAdding(true)}
+            onCreateEnvironment={() => openEnvironment(null)}
+            onEditEnvironment={(id) => openEnvironment(id)}
             models={models}
             model={model}
             onModel={(m) => setStoredModel(`${m.providerID}/${m.modelID}`)}
@@ -334,6 +362,37 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
           <Dialog.Content className="dialog" aria-describedby={undefined}>
             <Dialog.Title>Conectar un servidor de nexocode</Dialog.Title>
             <ServerForm onCreated={refreshServers} onCancel={() => setAdding(false)} />
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root open={Boolean(envDialog)} onOpenChange={(o) => !o && setEnvDialog(null)}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="dialog-overlay" />
+          <Dialog.Content className={`dialog ${styles.envDialog}`} aria-describedby={undefined}>
+            <Dialog.Title>{envDialog?.env ? `Editar ${envDialog.env.name}` : "Nuevo entorno en la nube"}</Dialog.Title>
+            {envDialog && (
+              <EnvironmentForm
+                key={envDialog.env?.id ?? "new"}
+                initial={envDialog.env}
+                egress={envDialog.egress}
+                onSaved={(env) => refreshServers(env.serverId)}
+                onDeleted={() => refreshServers(null)}
+                onCancel={() => setEnvDialog(null)}
+              />
+            )}
+            {envDialog && !envDialog.env && (
+              <button
+                type="button"
+                className={styles.linkBtn}
+                onClick={() => {
+                  setEnvDialog(null);
+                  setAdding(true);
+                }}
+              >
+                ¿Tienes tu propio nexocode? Conecta un servidor
+              </button>
+            )}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

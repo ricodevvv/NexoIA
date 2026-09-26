@@ -2,9 +2,10 @@ export const REPO_NAME = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 const CLONED = "nexo:clonado";
 const CLONED_LINE = new RegExp(`${CLONED} (\\S+)`);
+const CONFIGURED = "nexo:configurado";
 
-export type SetupStep = "container" | "clone" | "agent";
-export type StepStatus = "pending" | "running" | "done" | "error";
+export type SetupStep = "container" | "clone" | "script" | "agent";
+export type StepStatus = "pending" | "running" | "done" | "skipped" | "error";
 export type SetupEvent = { step: SetupStep; status: StepStatus; detail?: string } | { error: string } | { session: { id: string; title: string } };
 
 /**
@@ -37,4 +38,22 @@ export function clonedRepo(command: unknown) {
  */
 export function cloneSucceeded(output: string) {
   return output.split("\n").some((line) => line.trim().startsWith(`${CLONED} `));
+}
+
+/**
+ * Comando que corre el script de configuración del entorno (viene en la
+ * variable `NEXO_SETUP_SCRIPT` del contenedor) dentro del repo si hay uno, y
+ * al final imprime su marca.
+ */
+export function scriptCommand(repo: string | null) {
+  const cd = repo ? `cd '${repoFolder(repo)}' && ` : "";
+  return `${cd}bash -e -c "$NEXO_SETUP_SCRIPT" && echo '${CONFIGURED}'`;
+}
+
+export function isScriptCommand(command: unknown) {
+  return typeof command === "string" && command.includes(`echo '${CONFIGURED}'`);
+}
+
+export function scriptSucceeded(output: string) {
+  return output.split("\n").some((line) => line.trim() === CONFIGURED);
 }
