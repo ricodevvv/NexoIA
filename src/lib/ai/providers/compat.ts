@@ -36,6 +36,17 @@ function userContent(message: HistoryMessage, opts: SessionOptions): ChatComplet
   return content.length ? content : [{ type: "text", text: "(mensaje vacío)" }];
 }
 
+const NO_EFFORT = new Set<string>();
+
+/**
+ * Dice si el endpoint rechazó la petición por el `reasoning_effort`: pasa con
+ * modelos que no razonan o APIs compatibles que no conocen el parámetro.
+ */
+function rejectsEffort(err: unknown) {
+  const status = (err as { status?: number }).status;
+  return (status === 400 || status === 422) && /reasoning|effort|unrecognized|unknown|extra|not permitted|unsupported/i.test(String((err as Error).message));
+}
+
 /**
  * Algunos modelos abiertos (gpt-oss, por ejemplo) dejan colar tokens de su
  * formato interno en el nombre de la tool: `run_python<|channel|>commentary`.
@@ -95,8 +106,10 @@ export function createCompatSession(opts: SessionOptions): ProviderSession {
     function: { name: t.name, description: t.description, parameters: { type: "object", ...t.inputSchema } },
   }));
 
-  async function* step(signal: AbortSignal): AsyncGenerator<ProviderEvent, StepResult> {
-    const stream = await client.chat.completions.create(
+  const effortKey = `${opts.model.baseURL ?? process.env.COMPAT_BASE_URL}|${modelId}`;
+
+  function create(signal: AbortSignal, withEffort: boolean) {
+    return client.chat.completions.create(
       {
         model: modelId,
         messages,
@@ -104,9 +117,19 @@ export function createCompatSession(opts: SessionOptions): ProviderSession {
         stream_options: { include_usage: true },
         max_tokens: opts.model.maxOutput,
         ...(tools.length ? { tools } : {}),
+        ...(withEffort ? { reasoning_effort: opts.effort } : {}),
       },
       { signal },
     );
+  }
+
+  async function* step(signal: AbortSignal): AsyncGenerator<ProviderEvent, StepResult> {
+    const withEffort = opts.model.reasoning === "compat" && !NO_EFFORT.has(effortKey);
+    const stream = await create(signal, withEffort).catch((err) => {
+      if (!withEffort || !rejectsEffort(err)) throw err;
+      NO_EFFORT.add(effortKey);
+      return create(signal, false);
+    });
 
     let text = "";
     let finish: string | null = null;

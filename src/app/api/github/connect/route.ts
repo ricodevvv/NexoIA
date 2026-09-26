@@ -1,6 +1,5 @@
-import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
-import { authorizeUrl, GITHUB_STATE_COOKIE, githubAppEnabled, installUrl } from "@/lib/github";
+import { authorizeUrl, GITHUB_STATE_COOKIE, githubAppEnabled, installUrl, newState } from "@/lib/github";
 import { getUser } from "@/lib/session";
 
 /**
@@ -11,11 +10,11 @@ import { getUser } from "@/lib/session";
 export async function GET(request: Request) {
   const user = await getUser();
   if (!user) return NextResponse.redirect(new URL("/login", request.url), 303);
-  if (!githubAppEnabled()) return NextResponse.redirect(new URL("/settings?tab=github&github=error&reason=La%20integraci%C3%B3n%20no%20est%C3%A1%20configurada", request.url), 303);
-  const state = randomBytes(24).toString("base64url");
-  const to = new URL(request.url).searchParams.get("to") === "install" ? installUrl(state) : authorizeUrl(state);
+  if (!(await githubAppEnabled())) return NextResponse.redirect(new URL("/settings?tab=github&github=error&reason=La%20integraci%C3%B3n%20no%20est%C3%A1%20configurada", request.url), 303);
+  const { state, cookie } = newState(user.id);
+  const to = new URL(request.url).searchParams.get("to") === "install" ? await installUrl(state) : await authorizeUrl(state);
   const res = NextResponse.redirect(to, 303);
-  res.cookies.set(GITHUB_STATE_COOKIE, `${state}.${user.id}`, {
+  res.cookies.set(GITHUB_STATE_COOKIE, cookie, {
     httpOnly: true,
     secure: new URL(request.url).protocol === "https:",
     sameSite: "lax",

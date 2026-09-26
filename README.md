@@ -126,7 +126,9 @@ Nexo can give each user their own coding workspace: a pod with 2 GB of RAM, a pe
 
 With this on, each user connects their GitHub account in Settings → GitHub, installs the app on their account or organizations, and picks the repos. The coding agent can then clone them, commit, push branches and open pull requests as that user. `git` and `gh` in the workspace ask Nexo for a fresh token every time, so no token is stored in the pod.
 
-It uses a GitHub App, not the OAuth App of the GitHub login. Create one at github.com → Settings → Developer settings → GitHub Apps → New GitHub App:
+It uses a GitHub App, not the OAuth App of the GitHub login. The quick way is to let Nexo create it: put your email in `NEXO_ADMIN_EMAILS`, open Settings → GitHub and click "Crear la GitHub App". GitHub opens with everything filled in; confirm, and the credentials come back to Nexo encrypted in the database. Rename the app there if the suggested name is taken.
+
+To create it by hand instead, go to github.com → Settings → Developer settings → GitHub Apps → New GitHub App:
 
 - Callback URL: `https://<your site>/api/github/callback`. Also tick "Expire user authorization tokens".
 - Setup URL: the same URL, with "Redirect on update" ticked. Leave "Request user authorization (OAuth) during installation" unticked.
@@ -159,7 +161,8 @@ All settings are environment variables. `.env.example` lists every one of them. 
 | `RESEND_API_KEY`, `EMAIL_FROM` | Sending emails (verification, password reset) |
 | `STRIPE_SECRET_KEY` | Enables paid plans |
 | `STORAGE_DRIVER=s3`, `S3_*` | Store uploads in S3/R2/MinIO instead of the database |
-| `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` | GitHub App so the coding agent can use the user's repos |
+| `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` | GitHub App so the coding agent can use the user's repos; optional if you create it from Settings |
+| `NEXO_ADMIN_EMAILS` | Comma-separated emails allowed to create the GitHub App from Settings |
 
 ## License
 

@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   try {
     const row = await workspaceFromRequest(request);
     await enforce([{ key: `github:u:${row.userId}`, ...LIMITS.github }]);
-    if (!githubAppEnabled()) throw new HttpError(404, "La integración con GitHub no está configurada en este servidor.");
+    if (!(await githubAppEnabled())) throw new HttpError(404, "La integración con GitHub no está configurada en este servidor.");
     const conn = await githubConnection(row.userId);
     if (!conn) throw new HttpError(404, "El usuario no ha conectado GitHub. Pídele que lo haga en Ajustes → GitHub.");
     const [installations, repos] = await Promise.all([listInstallations(row.userId), listRepos(row.userId)]);

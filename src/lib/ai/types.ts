@@ -94,7 +94,7 @@ export type ModelInfo = {
   tier: "free" | "pro";
   vision: boolean;
   pdf: boolean;
-  reasoning: "adaptive" | "budget" | "openai" | "none";
+  reasoning: "adaptive" | "budget" | "openai" | "compat" | "none";
   webSearch: "web_search_20260209" | "web_search_20250305" | "openai" | null;
   webFetch: "web_fetch_20260209" | "web_fetch_20250910" | null;
   fallbacks: boolean;

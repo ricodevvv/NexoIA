@@ -7,7 +7,7 @@ import { Section } from "./settings";
 import styles from "./settings.module.css";
 
 type Installation = { id: number; account: string; type: "User" | "Organization"; selection: "all" | "selected"; settingsUrl: string };
-type Status = { enabled: boolean; connection: { login: string } | null; installations: Installation[]; expired?: boolean };
+type Status = { enabled: boolean; canSetup?: boolean; connection: { login: string } | null; installations: Installation[]; expired?: boolean };
 
 async function fetchStatus(): Promise<{ status: Status | null; error: string | null }> {
   const res = await fetch("/api/github");
@@ -50,6 +50,11 @@ export function GitHub() {
           <Check size={15} aria-hidden="true" /> Listo, conectaste la cuenta {params.get("login") ?? ""} de GitHub.
         </p>
       )}
+      {result === "app" && (
+        <p className={styles.banner} role="status">
+          <Check size={15} aria-hidden="true" /> Listo, la GitHub App {params.get("slug") ?? ""} quedó creada. Ahora conecta tu cuenta.
+        </p>
+      )}
       {result === "installed" && (
         <p className={styles.banner} role="status">
           <Check size={15} aria-hidden="true" /> GitHub guardó los cambios de la instalación.
@@ -76,7 +81,24 @@ export function GitHub() {
           </p>
         )}
         {error && <p className="error-text">{error}</p>}
-        {status && !status.enabled && <p className="hint">La integración con GitHub todavía no está configurada en este servidor.</p>}
+        {status && !status.enabled && !status.canSetup && <p className="hint">La integración con GitHub todavía no está configurada en este servidor.</p>}
+        {status && !status.enabled && status.canSetup && (
+          <form className={styles.stack} action="/api/github/app" method="get">
+            <p>
+              Falta crear la GitHub App de este servidor. GitHub la crea con todo configurado; solo tienes que ponerle nombre si el sugerido ya existe y
+              confirmar.
+            </p>
+            <label className="field">
+              <span className="label">Organización (opcional)</span>
+              <input name="org" placeholder="Déjalo vacío para crearla en tu cuenta" autoComplete="off" />
+            </label>
+            <div className={styles.rowActions}>
+              <button className="btn btn-accent btn-sm" type="submit">
+                Crear la GitHub App
+              </button>
+            </div>
+          </form>
+        )}
 
         {status?.enabled && !status.connection && (
           <div className={styles.empty}>

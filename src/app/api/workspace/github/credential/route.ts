@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   try {
     const row = await workspaceFromRequest(request);
     await enforce([{ key: `github:u:${row.userId}`, ...LIMITS.github }]);
-    if (!githubAppEnabled()) throw new HttpError(404, "La integración con GitHub no está configurada en este servidor.");
+    if (!(await githubAppEnabled())) throw new HttpError(404, "La integración con GitHub no está configurada en este servidor.");
     const { token, conn } = await githubToken(row.userId);
     return Response.json({ username: "x-access-token", password: token, login: conn.login, ...commitIdentity(conn) });
   } catch (err) {

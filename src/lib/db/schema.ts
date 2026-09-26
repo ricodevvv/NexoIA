@@ -329,3 +329,9 @@ export const githubConnection = pgTable("github_connection", {
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+export const appConfig = pgTable("app_config", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: updatedAt(),
+});

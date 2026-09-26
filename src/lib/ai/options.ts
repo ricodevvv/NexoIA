@@ -23,7 +23,7 @@ export async function modelOptions(userId: string): Promise<ModelOption[]> {
     tier: m.tier,
     available: true,
     byok: true,
-    reasoning: false,
+    reasoning: m.reasoning !== "none",
     webSearch: false,
     vision: false,
     pdf: false,

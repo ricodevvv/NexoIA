@@ -1,4 +1,4 @@
-import { disconnect, githubAppEnabled, githubConnection, listInstallations } from "@/lib/github";
+import { disconnect, githubAppEnabled, githubConnection, isGithubAdmin, listInstallations } from "@/lib/github";
 import { apiUser, handleError, HttpError } from "@/lib/session";
 
 /**
@@ -8,7 +8,7 @@ import { apiUser, handleError, HttpError } from "@/lib/session";
 export async function GET() {
   try {
     const user = await apiUser();
-    if (!githubAppEnabled()) return Response.json({ enabled: false, connection: null, installations: [] });
+    if (!(await githubAppEnabled())) return Response.json({ enabled: false, canSetup: isGithubAdmin(user.email), connection: null, installations: [] });
     const conn = await githubConnection(user.id);
     if (!conn) return Response.json({ enabled: true, connection: null, installations: [] });
     try {

@@ -20,7 +20,7 @@ function toModels(row: EndpointRow): ModelInfo[] {
     tier: "free",
     vision: false,
     pdf: false,
-    reasoning: "none",
+    reasoning: "compat",
     webSearch: null,
     webFetch: null,
     fallbacks: false,

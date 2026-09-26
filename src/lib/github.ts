@@ -1,3 +1,4 @@
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { decrypt, encrypt } from "@/lib/crypto";
 import { db, schema } from "@/lib/db";
@@ -33,28 +34,136 @@ type TokenResponse = {
 };
 
 /**
+ * Arma el `state` de un viaje a GitHub, atado al usuario, y el valor de la
+ * cookie donde se guarda para comprobarlo al volver.
+ */
+export function newState(userId: string) {
+  const state = randomBytes(24).toString("base64url");
+  return { state, cookie: `${state}.${userId}` };
+}
+
+/**
+ * Comprueba que el `state` que volvió de GitHub sea el de la cookie y que la
+ * cookie sea del usuario con sesión.
+ */
+export function stateMatches(request: Request, state: string, userId: string) {
+  const raw = request.headers.get("cookie")?.match(new RegExp(`${GITHUB_STATE_COOKIE}=([^;]+)`))?.[1] ?? "";
+  const [expected, owner] = decodeURIComponent(raw).split(".");
+  if (!expected || owner !== userId) return false;
+  const a = Buffer.from(state);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+type AppConfig = { slug: string; clientId: string; clientSecret: string };
+
+const CONFIG_KEY = "github_app";
+let configCache: { value: AppConfig | null; until: number } | null = null;
+
+/**
+ * Las credenciales de la GitHub App: las de las variables `GITHUB_APP_*` si
+ * están, o las que se guardaron cifradas al crear la app desde Nexo.
+ */
+export async function githubApp(): Promise<AppConfig | null> {
+  const { GITHUB_APP_SLUG: slug, GITHUB_APP_CLIENT_ID: clientId, GITHUB_APP_CLIENT_SECRET: clientSecret } = process.env;
+  if (slug && clientId && clientSecret) return { slug, clientId, clientSecret };
+  if (configCache && configCache.until > Date.now()) return configCache.value;
+  const row = await db.query.appConfig.findFirst({ where: eq(schema.appConfig.key, CONFIG_KEY) });
+  const value = row ? (JSON.parse(decrypt(row.value)) as AppConfig) : null;
+  configCache = { value, until: Date.now() + 60_000 };
+  return value;
+}
+
+/**
  * La integración usa una GitHub App (no la OAuth App del login): el usuario la
  * instala en su cuenta y en sus organizaciones y elige qué repos comparte.
  */
-export function githubAppEnabled() {
-  return Boolean(process.env.GITHUB_APP_SLUG && process.env.GITHUB_APP_CLIENT_ID && process.env.GITHUB_APP_CLIENT_SECRET);
+export async function githubAppEnabled() {
+  return Boolean(await githubApp());
+}
+
+async function requireApp() {
+  const app = await githubApp();
+  if (!app) throw new HttpError(404, "La integración con GitHub no está configurada en este servidor.");
+  return app;
+}
+
+/**
+ * Quién puede crear la GitHub App desde Nexo: los emails de
+ * `NEXO_ADMIN_EMAILS`, y solo mientras la app no exista.
+ */
+export function isGithubAdmin(email: string) {
+  return (process.env.NEXO_ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+    .includes(email.toLowerCase());
+}
+
+function publicBase() {
+  return (process.env.NEXO_PUBLIC_URL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3000").replace(/\/+$/, "");
 }
 
 function callbackUrl() {
-  const base = (process.env.NEXO_PUBLIC_URL ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3000").replace(/\/+$/, "");
-  return `${base}/api/github/callback`;
+  return `${publicBase()}/api/github/callback`;
 }
 
-export function authorizeUrl(state: string) {
+/**
+ * El manifest con el que GitHub crea la app ya configurada: URLs de vuelta,
+ * permisos para clonar, hacer push, abrir pull requests e issues, y sin
+ * webhook.
+ */
+export function appManifest() {
+  const base = publicBase();
+  return {
+    name: `Nexo ${new URL(base).hostname.split(".")[0]}`.slice(0, 34),
+    url: base,
+    hook_attributes: { url: `${base}/api/github/webhook`, active: false },
+    redirect_url: `${base}/api/github/app/callback`,
+    callback_urls: [callbackUrl()],
+    setup_url: callbackUrl(),
+    setup_on_update: true,
+    request_oauth_on_install: false,
+    public: true,
+    default_permissions: { contents: "write", pull_requests: "write", issues: "write", workflows: "write", metadata: "read" },
+    default_events: [],
+  };
+}
+
+/**
+ * Cambia el código que devuelve GitHub al crear la app por sus credenciales y
+ * las guarda cifradas. No pide autenticación: el código solo lo tiene quien
+ * creó la app y sirve una vez.
+ */
+export async function saveAppFromManifest(code: string) {
+  const res = await fetch(`${API}/app-manifests/${encodeURIComponent(code)}/conversions`, {
+    method: "POST",
+    headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "nexo" },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new HttpError(502, `GitHub respondió ${res.status} al crear la app`);
+  const data = (await res.json()) as { slug: string; client_id: string; client_secret: string };
+  const value = encrypt(JSON.stringify({ slug: data.slug, clientId: data.client_id, clientSecret: data.client_secret }));
+  await db
+    .insert(schema.appConfig)
+    .values({ key: CONFIG_KEY, value })
+    .onConflictDoUpdate({ target: schema.appConfig.key, set: { value, updatedAt: new Date() } });
+  configCache = null;
+  return data.slug;
+}
+
+export async function authorizeUrl(state: string) {
+  const app = await requireApp();
   const url = new URL("https://github.com/login/oauth/authorize");
-  url.searchParams.set("client_id", process.env.GITHUB_APP_CLIENT_ID!);
+  url.searchParams.set("client_id", app.clientId);
   url.searchParams.set("redirect_uri", callbackUrl());
   url.searchParams.set("state", state);
   return url.toString();
 }
 
-export function installUrl(state: string) {
-  const url = new URL(`https://github.com/apps/${process.env.GITHUB_APP_SLUG}/installations/new`);
+export async function installUrl(state: string) {
+  const app = await requireApp();
+  const url = new URL(`https://github.com/apps/${app.slug}/installations/new`);
   url.searchParams.set("state", state);
   return url.toString();
 }
@@ -77,10 +186,11 @@ async function api<T>(token: string, path: string, init?: RequestInit): Promise<
 }
 
 async function tokenRequest(params: Record<string, string>): Promise<TokenResponse> {
+  const app = await requireApp();
   const res = await fetch("https://github.com/login/oauth/access_token", {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify({ client_id: process.env.GITHUB_APP_CLIENT_ID, client_secret: process.env.GITHUB_APP_CLIENT_SECRET, ...params }),
+    body: JSON.stringify({ client_id: app.clientId, client_secret: app.clientSecret, ...params }),
     signal: AbortSignal.timeout(15_000),
   });
   return (await res.json().catch(() => ({ error: `http_${res.status}` }))) as TokenResponse;
@@ -215,8 +325,10 @@ export async function disconnect(userId: string) {
   const conn = await githubConnection(userId);
   if (!conn) return;
   await db.delete(schema.githubConnection).where(eq(schema.githubConnection.userId, userId));
-  const basic = Buffer.from(`${process.env.GITHUB_APP_CLIENT_ID}:${process.env.GITHUB_APP_CLIENT_SECRET}`).toString("base64");
-  await fetch(`${API}/applications/${process.env.GITHUB_APP_CLIENT_ID}/grant`, {
+  const app = await githubApp();
+  if (!app) return;
+  const basic = Buffer.from(`${app.clientId}:${app.clientSecret}`).toString("base64");
+  await fetch(`${API}/applications/${app.clientId}/grant`, {
     method: "DELETE",
     headers: { Accept: "application/vnd.github+json", Authorization: `Basic ${basic}`, "User-Agent": "nexo" },
     body: JSON.stringify({ access_token: decrypt(conn.accessToken) }),

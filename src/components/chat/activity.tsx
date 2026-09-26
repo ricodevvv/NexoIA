@@ -13,11 +13,6 @@ import styles from "./chat.module.css";
 
 type ToolCallPart = Extract<MessagePart, { type: "tool_call" }>;
 
-function firstLine(text: string, max = 90) {
-  const line = text.trim().split(/\n|(?<=[.!?])\s/)[0] ?? "";
-  return line.length > max ? `${line.slice(0, max - 1)}…` : line;
-}
-
 function toolTitle(part: ToolCallPart, running: boolean) {
   const n = part.name;
   const code = isCodeTool(n) ? codeToolTitle(part, running) : null;
@@ -46,7 +41,7 @@ function webTitle(calls: ToolCallPart[], running: boolean) {
 }
 
 function entryTitle(entry: ActivityEntry, live: boolean) {
-  if (entry.kind === "reasoning") return entry.text.trim() ? firstLine(entry.text) : live ? "Pensando…" : "Pensó";
+  if (entry.kind === "reasoning") return live ? "Pensando…" : "Pensó";
   if (entry.kind === "web") return webTitle(entry.calls, live && entry.calls.some((c) => c.output === undefined));
   return toolTitle(entry.part, live && entry.part.output === undefined);
 }
@@ -76,7 +71,7 @@ function hostOf(url: string) {
 }
 
 function EntryBody({ entry }: { entry: ActivityEntry }) {
-  if (entry.kind === "reasoning") return <p className={styles.rowText}>{entry.text.trim() || "El modelo razonó sin mostrar el detalle."}</p>;
+  if (entry.kind === "reasoning") return null;
   if (entry.kind === "web") {
     return (
       <ol className={styles.webList}>
@@ -159,7 +154,7 @@ function summaryVerb(entry: ActivityEntry) {
 
 /**
  * Resumen de una línea de lo que hizo el agente, estilo "Ejecutó código,
- * buscó en la web". Si solo razonó, usa la primera frase del razonamiento.
+ * buscó en la web". Si solo razonó, dice "Pensó" sin mostrar el razonamiento.
  */
 export function activitySummary(entries: ActivityEntry[]) {
   const tools = entries.flatMap((e) => (e.kind === "tool" ? [e.part.name] : []));
@@ -175,10 +170,7 @@ export function activitySummary(entries: ActivityEntry[]) {
     ...counted.filter(([n]) => n > 0).map(([, v]) => v),
     ...new Set(entries.filter((e) => e.kind !== "tool" || !skip.has(e.part.name)).map(summaryVerb).filter((v): v is string => Boolean(v))),
   ];
-  if (!verbs.length) {
-    const reasoning = entries.find((e) => e.kind === "reasoning" && e.text.trim());
-    return reasoning && reasoning.kind === "reasoning" ? firstLine(reasoning.text) : "Pensó";
-  }
+  if (!verbs.length) return "Pensó";
   const text = verbs.join(", ");
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -205,7 +197,8 @@ function isRunning(entry: ActivityEntry, live: boolean) {
 }
 
 function hasDetail(entry: ActivityEntry) {
-  if (entry.kind === "reasoning") return entry.text.trim().length > 0;
+  if (entry.kind === "reasoning") return false;
+  if (entry.kind === "tool" && entry.part.name === "skill") return false;
   return true;
 }
 
