@@ -15,14 +15,21 @@ export function repoFolder(fullName: string) {
   return fullName.split("/")[1];
 }
 
+export const BRANCH_NAME = /^(?!-)(?!.*\.\.)(?!.*\/\/)[A-Za-z0-9._\/-]{1,200}$/;
+
 /**
- * Comando que clona el repo en su carpeta, o lo actualiza si ya estaba, y al
- * final imprime una marca para saber que salió bien y qué repo era.
+ * Comando que clona el repo en su carpeta (o lo actualiza si ya estaba),
+ * deja puesta la rama pedida y al final imprime una marca para saber que
+ * salió bien y qué repo era.
  */
-export function cloneCommand(fullName: string) {
+export function cloneCommand(fullName: string, branch?: string | null) {
   if (!REPO_NAME.test(fullName) || fullName.includes("..")) throw new Error("Nombre de repo inválido");
+  if (branch && !BRANCH_NAME.test(branch)) throw new Error("Nombre de rama inválido");
   const dir = repoFolder(fullName);
-  return `if [ -d '${dir}/.git' ]; then git -C '${dir}' fetch --quiet origin; else git clone --quiet 'https://github.com/${fullName}.git' '${dir}'; fi && echo '${CLONED} ${fullName}'`;
+  const url = `https://github.com/${fullName}.git`;
+  const fetch = `git -C '${dir}' fetch --quiet origin${branch ? ` && git -C '${dir}' checkout --quiet '${branch}'` : ""}`;
+  const clone = `git clone --quiet${branch ? ` --branch '${branch}'` : ""} '${url}' '${dir}'`;
+  return `if [ -d '${dir}/.git' ]; then ${fetch}; else ${clone}; fi && echo '${CLONED} ${fullName}'`;
 }
 
 /**

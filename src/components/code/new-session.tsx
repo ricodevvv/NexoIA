@@ -1,5 +1,6 @@
 "use client";
 
+import * as Menu from "@radix-ui/react-dropdown-menu";
 import {
   ArrowUp,
   Camera,
@@ -7,8 +8,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Cloud,
+  ExternalLink,
   FileText,
   FileUp,
+  GitBranch,
   HelpCircle,
   Image as ImageIcon,
   Loader2,
@@ -39,7 +42,7 @@ import styles from "./new-session.module.css";
 export type Environment = { id: string; name: string; cloud: boolean };
 export type Repo = { fullName: string; private: boolean; defaultBranch: string; canPush: boolean; description: string | null };
 export type PromptFile = { name: string; mime: string; url: string };
-export type StartInput = { text: string; files: PromptFile[]; repo: Repo | null; ask: boolean };
+export type StartInput = { text: string; files: PromptFile[]; repo: Repo | null; branch: string | null; ask: boolean };
 
 const MAX_FILE = 10 * 1024 * 1024;
 const VARIANT_LABEL: Record<string, string> = { low: "Bajo", medium: "Medio", high: "Alto", minimal: "Mínimo", max: "Máximo" };
@@ -93,8 +96,11 @@ export function NewSession(props: {
   const [files, setFiles] = useState<PromptFile[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
   const [repo, setRepo] = useState<Repo | null>(null);
+  const [branch, setBranch] = useState<string | null>(null);
+  const [branches, setBranches] = useState<{ repo: string; list: string[] | null; error: string | null } | null>(null);
+  const [branchQuery, setBranchQuery] = useState("");
   const [ask, setAsk] = useState(false);
-  const [sheet, setSheet] = useState<null | "env" | "repos" | "model" | "effort" | "context" | "permission">(null);
+  const [sheet, setSheet] = useState<null | "env" | "repos" | "connect" | "branches" | "model" | "effort" | "context" | "permission">(null);
   const [help, setHelp] = useState(false);
   const [repos, setRepos] = useState<{ connected: boolean; repos: Repo[] } | null>(null);
   const [query, setQuery] = useState("");
@@ -107,10 +113,38 @@ export function NewSession(props: {
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (repos?.repos ?? []).filter((r) => !q || r.fullName.toLowerCase().includes(q));
-  }, [repos, query]);
+    return (repos?.repos ?? []).filter((r) => r.fullName !== repo?.fullName && (!q || r.fullName.toLowerCase().includes(q)));
+  }, [repos, query, repo]);
+
+  const shownBranches = useMemo(() => {
+    const q = branchQuery.trim().toLowerCase();
+    return (branches?.list ?? []).filter((b) => !q || b.toLowerCase().includes(q));
+  }, [branches, branchQuery]);
+
+  function pickRepo(r: Repo) {
+    if (r.fullName !== repo?.fullName) {
+      setRepo(r);
+      setBranch(null);
+      setBranches(null);
+    }
+    setSheet(null);
+  }
+
+  function openBranches() {
+    if (!repo) return;
+    setBranchQuery("");
+    setSheet("branches");
+    if (branches?.repo === repo.fullName && branches.list) return;
+    setBranches({ repo: repo.fullName, list: null, error: null });
+    fetch(`/api/github/branches?repo=${encodeURIComponent(repo.fullName)}`, { cache: "no-store" })
+      .then(async (r) => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))
+      .then(({ ok, data }) => setBranches({ repo: repo.fullName, list: ok ? data.branches : [], error: ok ? null : (data.error ?? "No pude cargar las ramas") }))
+      .catch(() => setBranches({ repo: repo.fullName, list: [], error: "No pude cargar las ramas" }));
+  }
 
   function openRepos() {
+    setDir("forward");
+    setQuery("");
     setSheet("repos");
     if (!repos) {
       fetch("/api/github/repos", { cache: "no-store" })
@@ -135,7 +169,7 @@ export function NewSession(props: {
   function start() {
     const value = text.trim();
     if (!value || props.starting || !current) return;
-    props.onStart({ text: value, files, repo, ask });
+    props.onStart({ text: value, files, repo, branch, ask });
   }
 
   const [dir, setDir] = useState<"forward" | "back">("forward");
@@ -167,24 +201,43 @@ export function NewSession(props: {
             <Cloud size={18} aria-hidden="true" />
             {envLabel(current)}
           </button>
-          <button type="button" className={styles.pill} onClick={openRepos}>
-            <Github size={18} aria-hidden="true" />
-            {repo ? repo.fullName.split("/")[1] : "Agregar repositorio"}
-            {repo && (
-              <span
-                role="button"
-                tabIndex={0}
-                className={styles.pillClear}
-                aria-label="Quitar repositorio"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setRepo(null);
-                }}
-              >
-                <X size={14} />
-              </span>
-            )}
-          </button>
+          {repo ? (
+            <Menu.Root>
+              <Menu.Trigger className={styles.pill}>
+                <Github size={18} aria-hidden="true" />
+                <span className={styles.pillText}>
+                  {repo.fullName.split("/")[1]} · {branch ?? repo.defaultBranch}
+                </span>
+              </Menu.Trigger>
+              <Menu.Portal>
+                <Menu.Content className={`menu ${styles.repoMenu}`} side="top" align="start" sideOffset={8}>
+                  <Menu.Item className="menu-item" onSelect={openRepos}>
+                    <Github size={16} aria-hidden="true" />
+                    Cambiar repositorio
+                  </Menu.Item>
+                  <Menu.Item className="menu-item" onSelect={openBranches}>
+                    <GitBranch size={16} aria-hidden="true" />
+                    Cambiar rama
+                  </Menu.Item>
+                  <Menu.Item
+                    className="menu-item"
+                    onSelect={() => {
+                      setRepo(null);
+                      setBranch(null);
+                    }}
+                  >
+                    <X size={16} aria-hidden="true" />
+                    Quitar repositorio
+                  </Menu.Item>
+                </Menu.Content>
+              </Menu.Portal>
+            </Menu.Root>
+          ) : (
+            <button type="button" className={styles.pill} onClick={openRepos}>
+              <Github size={18} aria-hidden="true" />
+              Agregar repositorio
+            </button>
+          )}
         </div>
 
         <div className={styles.startBox}>
@@ -343,8 +396,32 @@ export function NewSession(props: {
         </button>
       </Sheet>
 
-      <Sheet {...sheetOpen("repos")} title="Repositorios">
-        {!repos ? (
+      <Sheet
+        {...pagesOpen("repos", "connect")}
+        title={sheet === "connect" ? "Conectar repositorios" : `Repositorios (${repo ? 1 : 0})`}
+        onBack={sheet === "connect" ? () => go("repos", "back") : undefined}
+        page={sheet === "connect" ? "connect" : "repos"}
+        dir={dir}
+      >
+        {sheet === "connect" ? (
+          <div className={styles.connect}>
+            <div className={styles.connectArt} aria-hidden="true">
+              <Axo size={36} />
+              {(repos?.repos.length ? repos.repos.slice(0, 3).map((r) => r.fullName) : ["tu-usuario/mi-app", "tu-usuario/api", "tu-org/web"]).map((name) => (
+                <span key={name}>
+                  <Github size={14} />
+                  {name}
+                </span>
+              ))}
+            </div>
+            <h2>Conecta tus repositorios</h2>
+            <p>Instala la app de GitHub de Nexo en tus repositorios para que el agente pueda clonarlos, hacer commits y abrir pull requests.</p>
+            <a className={styles.connectBtn} href="/api/github/connect?to=install">
+              <ExternalLink size={18} aria-hidden="true" />
+              Conectar repositorios
+            </a>
+          </div>
+        ) : !repos ? (
           <p className={styles.sheetHelp}>
             <Loader2 size={16} className={styles.spin} /> Cargando tus repos…
           </p>
@@ -358,31 +435,74 @@ export function NewSession(props: {
           </div>
         ) : (
           <>
-            <div className={styles.repoList}>
+            {repo && (
+              <>
+                <p className={styles.sheetSection}>Seleccionados</p>
+                <div className={styles.sheetGroup}>
+                  <button type="button" className={styles.repoRow} onClick={() => setSheet(null)}>
+                    <small>{repo.fullName.split("/")[0]}</small>
+                    <span>{repo.fullName.split("/")[1]}</span>
+                    <Check size={18} className={styles.check} aria-label="Elegido" />
+                  </button>
+                </div>
+              </>
+            )}
+            <p className={styles.sheetSection}>Repositorios</p>
+            <div className={`${styles.repoList} ${styles.repoListTight}`}>
               {shown.map((r) => {
                 const [owner, name] = r.fullName.split("/");
                 return (
-                  <button
-                    key={r.fullName}
-                    type="button"
-                    className={styles.repoRow}
-                    onClick={() => {
-                      setRepo(r);
-                      setSheet(null);
-                    }}
-                  >
+                  <button key={r.fullName} type="button" className={styles.repoRow} onClick={() => pickRepo(r)}>
                     <small>{owner}</small>
                     <span>{name}</span>
-                    {repo?.fullName === r.fullName && <Check size={18} className={styles.check} aria-label="Elegido" />}
                   </button>
                 );
               })}
-              {!shown.length && <p className={styles.sheetHelp}>{query ? `Ningún repo coincide con "${query}".` : "No compartiste repos con Nexo todavía."}</p>}
+              {!shown.length && <p className={styles.sheetHelp}>{query ? `Ningún repo coincide con "${query}".` : "No hay más repos compartidos con Nexo."}</p>}
             </div>
+            <button type="button" className={`${styles.sheetRow} ${styles.sheetRowSolo} ${styles.connectRow}`} onClick={() => go("connect")}>
+              <span className={styles.sheetRowText}>Conectar más repositorios</span>
+              <ChevronRight size={18} aria-hidden="true" />
+            </button>
             <label className={styles.repoSearch}>
               <Search size={20} aria-hidden="true" />
               <span className="sr-only">Buscar repos</span>
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar" />
+            </label>
+          </>
+        )}
+      </Sheet>
+
+      <Sheet {...sheetOpen("branches")} title="Ramas">
+        {!branches?.list ? (
+          <p className={styles.sheetHelp}>
+            <Loader2 size={16} className={styles.spin} /> Cargando las ramas…
+          </p>
+        ) : (
+          <>
+            {branches.error && <p className={styles.error}>{branches.error}</p>}
+            <div className={styles.repoList}>
+              {shownBranches.map((b) => (
+                <button
+                  key={b}
+                  type="button"
+                  className={styles.repoRow}
+                  onClick={() => {
+                    setBranch(b === repo?.defaultBranch ? null : b);
+                    setSheet(null);
+                  }}
+                >
+                  {b === repo?.defaultBranch && <small>Por defecto</small>}
+                  <span className={styles.branchName}>{b}</span>
+                  {(branch ?? repo?.defaultBranch) === b && <Check size={18} className={styles.check} aria-label="Elegida" />}
+                </button>
+              ))}
+              {!shownBranches.length && !branches.error && <p className={styles.sheetHelp}>Ninguna rama coincide con &quot;{branchQuery}&quot;.</p>}
+            </div>
+            <label className={styles.repoSearch}>
+              <Search size={20} aria-hidden="true" />
+              <span className="sr-only">Buscar ramas</span>
+              <input value={branchQuery} onChange={(e) => setBranchQuery(e.target.value)} placeholder="Buscar" />
             </label>
           </>
         )}
