@@ -16,7 +16,6 @@ import { DiffPanel, type FileDiff } from "./diff-panel";
 import { NewSession, type StartInput } from "./new-session";
 import { type EnvironmentData, EnvironmentForm } from "./environment-form";
 import { ServerForm } from "./server-form";
-import { AxoWorking } from "./axo";
 import { SetupRow, type SetupSteps } from "./setup";
 import styles from "./code.module.css";
 
@@ -305,7 +304,6 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
             <div className={chat.thread}>
               <Message message={{ id: "boot", role: "user", parts: [{ type: "text", text: boot.text }] }} live={false} isLast={false} busy={false} />
               <SetupRow steps={boot.steps} repo={boot.repo} cloud={Boolean(server.cloud)} />
-              {!boot.error && <AxoWorking />}
               {boot.error && (
                 <div className={chat.notice} data-level="error" role="alert">
                   <span className={styles.bootError}>{boot.error}</span>

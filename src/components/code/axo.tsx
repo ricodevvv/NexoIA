@@ -140,43 +140,37 @@ const LAPTOP = [F, F, F, F, F, Fb, F, F, T, T, TH, TH, TO, TO]
   .concat([PA, PB, PA, PB, PA, PB, PAb, PB, PA, PB, PA, PB, PA, PB, PA, PB])
   .concat([PC, PC, TH, T, F, F]);
 
-const VERBS = ["Ajoloteando", "Nadando entre el código", "Moviendo las branquias", "Regenerando", "Trasteando", "Pensando", "Maquinando", "Remando", "Burbujeando", "Armando"];
-
-function elapsed(seconds: number) {
-  if (seconds < 60) return `${seconds}s`;
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-}
-
 /**
- * Axo sacando la laptop y tecleando, igual que en la terminal de nexocode,
- * con un verbo al azar y cuánto lleva trabajando. Es lo que se ve mientras el
- * agente trabaja. Con movimiento reducido se queda de frente.
+ * Axo de la pantalla de inicio: parpadea, saca la laptop y teclea un rato,
+ * igual que en la terminal de nexocode. `size` es el ancho del ajolote, así
+ * que se ve del mismo tamaño que el `Axo` quieto; la laptop sale a su
+ * derecha sin moverlo del centro. Con movimiento reducido se queda de frente.
  */
-export function AxoWorking({ label }: { label?: string }) {
+export function AxoLaptop({ size = 64, className }: { size?: number; className?: string }) {
   const [frame, setFrame] = useState(0);
-  const [verb] = useState(() => VERBS[Math.floor(Math.random() * VERBS.length)]);
-  const [since] = useState(() => Date.now());
-  const [now, setNow] = useState(since);
 
   useEffect(() => {
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const timer = setInterval(() => {
-      if (!still) setFrame((i) => (i + 1) % LAPTOP.length);
-      setNow(Date.now());
-    }, 100);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = setInterval(() => setFrame((i) => (i + 1) % LAPTOP.length), 100);
     return () => clearInterval(timer);
   }, []);
 
+  const unit = size / 16;
   const pixels = LAPTOP[frame].flatMap((row, y) => [...row].map((c, x) => ({ c, x, y })).filter((p) => COLORS[p.c]));
   return (
-    <div className={styles.working} role="status">
-      <svg width={60} height={24} viewBox="0 0 20 8" aria-hidden="true" shapeRendering="crispEdges">
-        {pixels.map((p) => (
-          <rect key={`${p.x}-${p.y}`} x={p.x} y={p.y} width="1.02" height="1.02" fill={COLORS[p.c]} />
-        ))}
-      </svg>
-      <span className={styles.verb}>{label ?? verb}…</span>
-      <span className={styles.elapsed}>({elapsed(Math.floor((now - since) / 1000))})</span>
-    </div>
+    <svg
+      width={unit * 20}
+      height={unit * 8}
+      viewBox="0 0 20 8"
+      className={className}
+      style={{ marginRight: -unit * 4 }}
+      role="img"
+      aria-label="Axo"
+      shapeRendering="crispEdges"
+    >
+      {pixels.map((p) => (
+        <rect key={`${p.x}-${p.y}`} x={p.x} y={p.y} width="1.02" height="1.02" fill={COLORS[p.c]} />
+      ))}
+    </svg>
   );
 }
