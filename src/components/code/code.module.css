@@ -762,3 +762,9 @@
   align-items: center;
   gap: 6px;
 }
+
+@media (max-width: 860px) {
+  .main > .startHeader {
+    display: none;
+  }
+}

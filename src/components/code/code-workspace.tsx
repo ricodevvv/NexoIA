@@ -10,10 +10,11 @@ import { useStoredState } from "../use-stored-state";
 import chat from "../chat/chat.module.css";
 import { CodeSession, type CodeModel } from "./code-session";
 import { DiffPanel, type FileDiff } from "./diff-panel";
+import { NewSession, type StartInput } from "./new-session";
 import { ServerForm } from "./server-form";
 import styles from "./code.module.css";
 
-export type PublicServer = { id: string; name: string; url: string; directory: string | null; managed: boolean; hasPassword: boolean };
+export type PublicServer = { id: string; name: string; url: string; directory: string | null; managed: boolean; hasPassword: boolean; cloud?: boolean };
 type SessionItem = { id: string; title: string; updated: number };
 
 function relative(ms: number) {
@@ -36,7 +37,7 @@ function syncUrl(server: string | null, session: string | null) {
  * Pantalla de Nexo Code: elige servidor y sesión, y muestra la sesión con su
  * panel de cambios. Si no hay servidores explica cómo conectar uno.
  */
-export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: string; initialSession?: string }) {
+export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: string; initialSession?: string; userName: string }) {
   const { collapsed, toggle } = useShell();
   const [servers, setServers] = useState(props.servers);
   const [storedServer, setStoredServer] = useStoredState<string>("nexo-code-server", "");
@@ -55,8 +56,12 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
   const [diffLoading, setDiffLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [listOpen, setListOpen] = useState(false);
+  const [storedVariant, setStoredVariant] = useStoredState<string>(`nexo-code-variant:${serverId ?? ""}`, "");
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
 
   const model = models.find((m) => `${m.providerID}/${m.modelID}` === storedModel) ?? defaultModel;
+  const variant = storedVariant && model?.variants?.includes(storedVariant) ? storedVariant : null;
   const title = sessionId ? (titles[sessionId] ?? sessions.find((s) => s.id === sessionId)?.title ?? "Sesión") : "Nexo Code";
 
   const loadDiff = useCallback(async () => {
@@ -107,16 +112,45 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
     syncUrl(serverId, id);
   }
 
-  async function newSession() {
+  function newSession() {
+    setStartError(null);
+    openSession(null);
+  }
+
+  async function startSession(input: StartInput) {
     if (!serverId) return;
-    const res = await fetch(`/api/code/${serverId}/sessions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setServerError(data.error ?? "No se pudo crear la sesión");
-      return;
-    }
-    setSessions((all) => [{ id: data.id, title: data.title, updated: Date.now() }, ...all]);
-    openSession(data.id);
+    setStarting(true);
+    setStartError(null);
+    const fail = (message: string) => {
+      setStartError(message);
+      setStarting(false);
+    };
+    const created = await fetch(`/api/code/${serverId}/sessions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: input.text.slice(0, 60), ask: input.ask }),
+    });
+    const session = await created.json().catch(() => ({}));
+    if (!created.ok) return fail(session.error ?? "No se pudo crear la sesión");
+    const context = input.repo
+      ? `Trabaja en el repositorio de GitHub ${input.repo.fullName} (rama por defecto: ${input.repo.defaultBranch}${input.repo.canPush ? "" : ", solo lectura"}). Si todavía no está en la carpeta del proyecto, clónalo con \`git clone https://github.com/${input.repo.fullName}.git\` y trabaja dentro de esa carpeta. git y gh ya están autenticados.`
+      : undefined;
+    const prompt = await fetch(`/api/code/${serverId}/sessions/${encodeURIComponent(session.id)}/prompt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: input.text,
+        files: input.files,
+        context,
+        agent: "build",
+        model: model ? { providerID: model.providerID, modelID: model.modelID } : undefined,
+        ...(variant ? { variant } : {}),
+      }),
+    });
+    if (!prompt.ok) return fail((await prompt.json().catch(() => ({}))).error ?? "No se pudo mandar tu mensaje");
+    setSessions((all) => [{ id: session.id, title: session.title, updated: Date.now() }, ...all]);
+    setStarting(false);
+    openSession(session.id);
   }
 
   async function removeServer() {
@@ -233,7 +267,7 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
       {list}
       {listOpen && <button className={styles.scrim} aria-label="Cerrar sesiones" onClick={() => setListOpen(false)} />}
       <div className={`${chat.chat} ${styles.main}`}>
-        <header className={chat.header} data-collapsed={collapsed}>
+        <header className={`${chat.header} ${sessionId ? "" : styles.startHeader}`} data-collapsed={collapsed}>
           <button className={`icon-btn ${chat.menuBtn}`} onClick={toggle} aria-label="Mostrar barra lateral">
             <PanelLeft />
           </button>
@@ -258,25 +292,25 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
             onModel={(m) => setStoredModel(`${m.providerID}/${m.modelID}`)}
             onTitle={onTitle}
             onChanges={loadDiff}
+            variant={variant}
           />
         ) : (
-          <div className={styles.pick}>
-            <NexoLogo size={28} product="code" />
-            <p>
-              Conectado a <strong>{server.name}</strong>
-              {server.directory ? (
-                <>
-                  {" "}
-                  en <code>{server.directory}</code>
-                </>
-              ) : null}
-              .
-            </p>
-            <button type="button" className="btn btn-primary" onClick={newSession}>
-              <Plus size={16} /> Nueva sesión
-            </button>
-            {sessions.length > 0 && <p className={styles.muted}>o elige una sesión anterior de la lista.</p>}
-          </div>
+          <NewSession
+            userName={props.userName}
+            environments={servers.map((s) => ({ id: s.id, name: s.name, cloud: Boolean(s.cloud) }))}
+            environment={serverId}
+            onEnvironment={selectServer}
+            onCreateEnvironment={() => setAdding(true)}
+            models={models}
+            model={model}
+            onModel={(m) => setStoredModel(`${m.providerID}/${m.modelID}`)}
+            variant={variant}
+            onVariant={(v) => setStoredVariant(v)}
+            starting={starting}
+            error={startError ?? serverError}
+            onBack={() => (sessions.length ? setListOpen(true) : toggle())}
+            onStart={startSession}
+          />
         )}
       </div>
       {diffOpen && <DiffPanel files={diff} loading={diffLoading} onRefresh={loadDiff} onClose={() => setDiffOpen(false)} />}

@@ -20,14 +20,15 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/code/[serve
   }
 }
 
-const Create = z.object({ title: z.string().trim().max(120).optional() });
+const Create = z.object({ title: z.string().trim().max(120).optional(), ask: z.boolean().optional() });
 
 export async function POST(request: Request, ctx: RouteContext<"/api/code/[server]/sessions">) {
   try {
     const user = await apiUser();
     const server = await getCodeServer(user, (await ctx.params).server);
-    const { title } = Create.parse(await request.json().catch(() => ({})));
-    const session = await nexocodeJson<Session>(server, "/session", { method: "POST", body: JSON.stringify(title ? { title } : {}) });
+    const { title, ask } = Create.parse(await request.json().catch(() => ({})));
+    const permission = ask ? ["bash", "edit", "webfetch"].map((p) => ({ permission: p, pattern: "*", action: "ask" })) : undefined;
+    const session = await nexocodeJson<Session>(server, "/session", { method: "POST", body: JSON.stringify({ ...(title ? { title } : {}), ...(permission ? { permission } : {}) }) });
     return Response.json({ id: session.id, title: session.title });
   } catch (err) {
     return handleError(err);

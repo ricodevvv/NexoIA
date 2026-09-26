@@ -10,8 +10,7 @@ test("Nexo Code conecta un servidor, pide permiso, corre el comando y muestra lo
   await page.getByLabel("Contraseña").fill("clave-de-prueba");
   await page.getByRole("button", { name: "Conectar servidor" }).click();
 
-  await page.getByRole("button", { name: "Nueva sesión" }).first().click();
-  await page.locator("#code-input").fill("corre las pruebas #comando");
+  await page.locator("#code-start-input").fill("corre las pruebas #comando");
   await page.keyboard.press("Enter");
 
   const permission = page.getByRole("alertdialog", { name: "Nexo Code quiere ejecutar un comando" });
@@ -42,8 +41,7 @@ test("cuando el agente pregunta, sale un menú para elegir y la respuesta le lle
   await page.getByLabel("URL del servidor").fill("http://127.0.0.1:4130");
   await page.getByLabel("Contraseña").fill("clave-de-prueba");
   await page.getByRole("button", { name: "Conectar servidor" }).click();
-  await page.getByRole("button", { name: "Nueva sesión" }).first().click();
-  await page.locator("#code-input").fill("hazme un plugin #pregunta");
+  await page.locator("#code-start-input").fill("hazme un plugin #pregunta");
   await page.keyboard.press("Enter");
 
   const menu = page.getByRole("group", { name: "Versión" });

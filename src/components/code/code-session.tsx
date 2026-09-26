@@ -10,7 +10,7 @@ import { applyNcEvent, initialState, type NcEvent, type NcMessage, type SessionS
 import { QuestionCard, type QuestionRequest } from "./question-card";
 import styles from "./code.module.css";
 
-export type CodeModel = { providerID: string; modelID: string; label: string; provider: string };
+export type CodeModel = { providerID: string; modelID: string; label: string; provider: string; variants?: string[] };
 
 type Permission = { id: string; permission: string; patterns: string[]; metadata?: Record<string, unknown> };
 
@@ -22,6 +22,7 @@ type Props = {
   onModel: (m: CodeModel) => void;
   onTitle: (title: string) => void;
   onChanges: () => void;
+  variant?: string | null;
 };
 
 const AGENTS = [
@@ -45,7 +46,7 @@ function permissionText(p: Permission) {
  * Una sesión de Nexo Code: carga los mensajes, escucha los eventos en vivo y
  * deja escribir, parar y responder los permisos que pide el agente.
  */
-export function CodeSession({ serverId, sessionId, models, model, onModel, onTitle, onChanges }: Props) {
+export function CodeSession({ serverId, sessionId, models, model, onModel, onTitle, onChanges, variant }: Props) {
   const [state, setState] = useState<SessionState>({ messages: {} });
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -191,7 +192,12 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
     const res = await fetch(`${base}/prompt`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: value, agent, model: model ? { providerID: model.providerID, modelID: model.modelID } : undefined }),
+      body: JSON.stringify({
+        text: value,
+        agent,
+        model: model ? { providerID: model.providerID, modelID: model.modelID } : undefined,
+        ...(variant && model?.variants?.includes(variant) ? { variant } : {}),
+      }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));

@@ -10,5 +10,5 @@ export default async function CodePage({ searchParams }: PageProps<"/code">) {
   const params = await searchParams;
   const servers = (await listCodeServers(user)).map(publicServer);
   const pick = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
-  return <CodeWorkspace servers={servers} initialServer={pick(params.server)} initialSession={pick(params.session)} />;
+  return <CodeWorkspace servers={servers} initialServer={pick(params.server)} initialSession={pick(params.session)} userName={user.name} />;
 }

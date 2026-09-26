@@ -1,0 +1,465 @@
+"use client";
+
+import {
+  ArrowUp,
+  Camera,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Cloud,
+  FileText,
+  FileUp,
+  HelpCircle,
+  Image as ImageIcon,
+  Loader2,
+  Mic,
+  Plus,
+  Search,
+  Server,
+  Shield,
+  Blocks,
+  X,
+} from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { useDictation } from "../chat/use-dictation";
+import { Axo } from "./axo";
+
+function Github({ size = 18 }: { size?: number; "aria-hidden"?: boolean | "true" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 .5a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.2.5-2.3 1.2-3.1-.1-.4-.5-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.8.1 3.2.8.8 1.2 1.9 1.2 3.1 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .5Z" />
+    </svg>
+  );
+}
+import type { CodeModel } from "./code-session";
+import { Sheet } from "./sheet";
+import styles from "./new-session.module.css";
+
+export type Environment = { id: string; name: string; cloud: boolean };
+export type Repo = { fullName: string; private: boolean; defaultBranch: string; canPush: boolean; description: string | null };
+export type PromptFile = { name: string; mime: string; url: string };
+export type StartInput = { text: string; files: PromptFile[]; repo: Repo | null; ask: boolean };
+
+const MAX_FILE = 10 * 1024 * 1024;
+const VARIANT_LABEL: Record<string, string> = { low: "Bajo", medium: "Medio", high: "Alto", minimal: "Mínimo", max: "Máximo" };
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 6) return "Buenas noches";
+  if (h < 13) return "Buenos días";
+  if (h < 20) return "Buenas tardes";
+  return "Buenas noches";
+}
+
+function readFile(file: File): Promise<PromptFile> {
+  return new Promise((resolve, reject) => {
+    if (file.size > MAX_FILE) return reject(new Error(`${file.name} pasa de 10 MB`));
+    const reader = new FileReader();
+    reader.onload = () => resolve({ name: file.name, mime: file.type || "application/octet-stream", url: String(reader.result) });
+    reader.onerror = () => reject(new Error(`No se pudo leer ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+}
+
+export function envLabel(env: Environment | undefined) {
+  if (!env) return "Elegir entorno";
+  return env.cloud ? "Predeterminado" : env.name;
+}
+
+/**
+ * Pantalla para empezar una sesión de Nexo Code: eliges entorno, repo y
+ * modelo, adjuntas contexto y describes la tarea. Sigue el diseño de Claude
+ * Code en la web.
+ */
+export function NewSession(props: {
+  userName: string;
+  environments: Environment[];
+  environment: string | null;
+  onEnvironment: (id: string) => void;
+  onCreateEnvironment: () => void;
+  models: CodeModel[];
+  model: CodeModel | null;
+  onModel: (m: CodeModel) => void;
+  variant: string | null;
+  onVariant: (v: string | null) => void;
+  starting: boolean;
+  error: string | null;
+  onBack?: () => void;
+  onStart: (input: StartInput) => void;
+}) {
+  const [text, setText] = useState("");
+  const [files, setFiles] = useState<PromptFile[]>([]);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [repo, setRepo] = useState<Repo | null>(null);
+  const [ask, setAsk] = useState(false);
+  const [sheet, setSheet] = useState<null | "env" | "repos" | "model" | "effort" | "context" | "permission">(null);
+  const [help, setHelp] = useState(false);
+  const [repos, setRepos] = useState<{ connected: boolean; repos: Repo[] } | null>(null);
+  const [query, setQuery] = useState("");
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const photosRef = useRef<HTMLInputElement>(null);
+  const filesRef = useRef<HTMLInputElement>(null);
+  const dictation = useDictation((spoken) => setText((t) => (t ? `${t} ${spoken}` : spoken)));
+  const current = props.environments.find((e) => e.id === props.environment);
+  const variants = props.model?.variants ?? [];
+
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (repos?.repos ?? []).filter((r) => !q || r.fullName.toLowerCase().includes(q));
+  }, [repos, query]);
+
+  function openRepos() {
+    setSheet("repos");
+    if (!repos) {
+      fetch("/api/github/repos", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : { connected: false, repos: [] }))
+        .then(setRepos)
+        .catch(() => setRepos({ connected: false, repos: [] }));
+    }
+  }
+
+  async function addFiles(list: FileList | null) {
+    if (!list) return;
+    setSheet(null);
+    setFileError(null);
+    try {
+      const read = await Promise.all([...list].slice(0, 10 - files.length).map(readFile));
+      setFiles((all) => [...all, ...read]);
+    } catch (err) {
+      setFileError((err as Error).message);
+    }
+  }
+
+  function start() {
+    const value = text.trim();
+    if (!value || props.starting || !current) return;
+    props.onStart({ text: value, files, repo, ask });
+  }
+
+  const sheetOpen = (name: typeof sheet) => ({ open: sheet === name, onOpenChange: (o: boolean) => setSheet(o ? name : null) });
+
+  return (
+    <div className={styles.newSessionScreen}>
+      {props.onBack && (
+        <button type="button" className={styles.roundBack} onClick={props.onBack} aria-label="Ver sesiones">
+          <ChevronLeft size={22} />
+        </button>
+      )}
+
+      <div className={styles.hero}>
+        <Axo size={72} className={styles.axo} />
+        <h1>
+          {greeting()}, {props.userName.split(" ")[0]}
+        </h1>
+      </div>
+
+      <div className={styles.startDock}>
+        <div className={styles.pills}>
+          <button type="button" className={styles.pill} onClick={() => setSheet("env")}>
+            <Cloud size={18} aria-hidden="true" />
+            {envLabel(current)}
+          </button>
+          <button type="button" className={styles.pill} onClick={openRepos}>
+            <Github size={18} aria-hidden="true" />
+            {repo ? repo.fullName.split("/")[1] : "Agregar repositorio"}
+            {repo && (
+              <span
+                role="button"
+                tabIndex={0}
+                className={styles.pillClear}
+                aria-label="Quitar repositorio"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setRepo(null);
+                }}
+              >
+                <X size={14} />
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className={styles.startBox}>
+          {files.length > 0 && (
+            <ul className={styles.startFiles}>
+              {files.map((f, i) => (
+                <li key={`${f.name}-${i}`}>
+                  {f.mime.startsWith("image/") ? <ImageIcon size={13} /> : <FileText size={13} />}
+                  <span>{f.name}</span>
+                  <button type="button" aria-label={`Quitar ${f.name}`} onClick={() => setFiles((all) => all.filter((_, j) => j !== i))}>
+                    <X size={12} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <label className="sr-only" htmlFor="code-start-input">
+            Describe la tarea
+          </label>
+          <textarea
+            id="code-start-input"
+            className={styles.startInput}
+            rows={1}
+            value={text}
+            placeholder="Describe una tarea o haz una pregunta…"
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                start();
+              }
+            }}
+          />
+          <div className={styles.startBar}>
+            <button type="button" className={styles.roundIcon} onClick={() => setSheet("context")} aria-label="Agregar contexto">
+              <Plus size={20} />
+            </button>
+            <button type="button" className={styles.modelPill} onClick={() => setSheet("model")}>
+              {props.model?.label ?? "Modelo"}
+              {props.variant && <span>{VARIANT_LABEL[props.variant] ?? props.variant}</span>}
+            </button>
+            <span className={styles.spacer} />
+            {dictation.supported && (
+              <button
+                type="button"
+                className={styles.roundIcon}
+                aria-pressed={dictation.listening}
+                aria-label={dictation.listening ? "Dejar de dictar" : "Dictar por voz"}
+                onClick={dictation.toggle}
+              >
+                <Mic size={18} />
+              </button>
+            )}
+            <button type="button" className={styles.sendRound} onClick={start} disabled={!text.trim() || props.starting || !current} aria-label="Empezar">
+              {props.starting ? <Loader2 size={18} className={styles.spin} /> : <ArrowUp size={20} />}
+            </button>
+          </div>
+        </div>
+        {(fileError || props.error) && (
+          <p className={styles.error} role="alert">
+            {fileError ?? props.error}
+          </p>
+        )}
+      </div>
+
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => addFiles(e.target.files)} />
+      <input ref={photosRef} type="file" accept="image/*" multiple hidden onChange={(e) => addFiles(e.target.files)} />
+      <input ref={filesRef} type="file" multiple hidden onChange={(e) => addFiles(e.target.files)} />
+
+      <Sheet
+        {...sheetOpen("env")}
+        title="Elegir entorno"
+        action={
+          <button type="button" className={styles.sheetAction} onClick={() => setHelp((v) => !v)} aria-label="Qué es un entorno" aria-pressed={help}>
+            <HelpCircle size={20} />
+          </button>
+        }
+      >
+        {help && (
+          <p className={styles.sheetHelp}>
+            El entorno es la máquina donde trabaja el agente. El predeterminado es tu espacio en la nube: tiene su propio disco, se apaga solo
+            cuando no lo usas y guarda tus archivos. También puedes conectar un nexocode que corra en tu computadora.
+          </p>
+        )}
+        {props.environments.some((e) => e.cloud) && <p className={styles.sheetSection}>Entornos en la nube</p>}
+        <div className={styles.sheetGroup}>
+          {props.environments
+            .filter((e) => e.cloud)
+            .map((e) => (
+              <button
+                key={e.id}
+                type="button"
+                className={styles.sheetRow}
+                onClick={() => {
+                  props.onEnvironment(e.id);
+                  setSheet(null);
+                }}
+              >
+                <Cloud size={20} aria-hidden="true" />
+                <span className={styles.sheetRowText}>Predeterminado</span>
+                {e.id === props.environment && <Check size={20} className={styles.check} aria-label="Elegido" />}
+              </button>
+            ))}
+        </div>
+        {props.environments.some((e) => !e.cloud) && <p className={styles.sheetSection}>Tus servidores</p>}
+        <div className={styles.sheetGroup}>
+          {props.environments
+            .filter((e) => !e.cloud)
+            .map((e) => (
+              <button
+                key={e.id}
+                type="button"
+                className={styles.sheetRow}
+                onClick={() => {
+                  props.onEnvironment(e.id);
+                  setSheet(null);
+                }}
+              >
+                <Server size={20} aria-hidden="true" />
+                <span className={styles.sheetRowText}>{e.name}</span>
+                {e.id === props.environment && <Check size={20} className={styles.check} aria-label="Elegido" />}
+              </button>
+            ))}
+        </div>
+        <button
+          type="button"
+          className={`${styles.sheetRow} ${styles.sheetRowSolo}`}
+          onClick={() => {
+            setSheet(null);
+            props.onCreateEnvironment();
+          }}
+        >
+          <Plus size={22} aria-hidden="true" />
+          <span className={styles.sheetRowText}>Crear entorno</span>
+        </button>
+      </Sheet>
+
+      <Sheet {...sheetOpen("repos")} title="Repositorios">
+        {!repos ? (
+          <p className={styles.sheetHelp}>
+            <Loader2 size={16} className={styles.spin} /> Cargando tus repos…
+          </p>
+        ) : !repos.connected ? (
+          <div className={styles.sheetEmpty}>
+            <Github size={28} aria-hidden="true" />
+            <p>Conecta tu cuenta de GitHub para que el agente pueda clonar tus repos, hacer commits y abrir pull requests.</p>
+            <a className="btn btn-primary" href="/settings?tab=github">
+              Conectar GitHub
+            </a>
+          </div>
+        ) : (
+          <>
+            <div className={styles.repoList}>
+              {shown.map((r) => {
+                const [owner, name] = r.fullName.split("/");
+                return (
+                  <button
+                    key={r.fullName}
+                    type="button"
+                    className={styles.repoRow}
+                    onClick={() => {
+                      setRepo(r);
+                      setSheet(null);
+                    }}
+                  >
+                    <small>{owner}</small>
+                    <span>{name}</span>
+                    {repo?.fullName === r.fullName && <Check size={18} className={styles.check} aria-label="Elegido" />}
+                  </button>
+                );
+              })}
+              {!shown.length && <p className={styles.sheetHelp}>{query ? `Ningún repo coincide con "${query}".` : "No compartiste repos con Nexo todavía."}</p>}
+            </div>
+            <label className={styles.repoSearch}>
+              <Search size={20} aria-hidden="true" />
+              <span className="sr-only">Buscar repos</span>
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar" />
+            </label>
+          </>
+        )}
+      </Sheet>
+
+      <Sheet {...sheetOpen("model")} title="Seleccionar modelo">
+        <div className={styles.sheetGroup}>
+          {props.models.map((m) => (
+            <button
+              key={`${m.providerID}/${m.modelID}`}
+              type="button"
+              className={styles.sheetRow}
+              onClick={() => {
+                props.onModel(m);
+                if (!m.variants?.includes(props.variant ?? "")) props.onVariant(null);
+                setSheet(null);
+              }}
+            >
+              <span className={styles.sheetRowText}>
+                {m.label}
+                <small>{m.provider}</small>
+              </span>
+              {props.model?.modelID === m.modelID && props.model.providerID === m.providerID && <Check size={20} className={styles.check} aria-label="Elegido" />}
+            </button>
+          ))}
+        </div>
+        {variants.length > 0 && (
+          <button type="button" className={`${styles.sheetRow} ${styles.sheetRowSolo}`} onClick={() => setSheet("effort")}>
+            <span className={styles.sheetRowText}>Esfuerzo</span>
+            <span className={styles.sheetValue}>{props.variant ? (VARIANT_LABEL[props.variant] ?? props.variant) : "Normal"}</span>
+            <ChevronRight size={18} aria-hidden="true" />
+          </button>
+        )}
+      </Sheet>
+
+      <Sheet {...sheetOpen("effort")} title="Esfuerzo" onBack={() => setSheet("model")}>
+        <div className={styles.sheetGroup}>
+          {[null, ...variants].map((v) => (
+            <button
+              key={v ?? "default"}
+              type="button"
+              className={styles.sheetRow}
+              onClick={() => {
+                props.onVariant(v);
+                setSheet("model");
+              }}
+            >
+              <span className={styles.sheetRowText}>{v ? (VARIANT_LABEL[v] ?? v) : "Normal"}</span>
+              {props.variant === v && <Check size={20} className={styles.check} aria-label="Elegido" />}
+            </button>
+          ))}
+        </div>
+      </Sheet>
+
+      <Sheet {...sheetOpen("context")} title="Agregar contexto">
+        <div className={styles.tiles}>
+          <button type="button" onClick={() => cameraRef.current?.click()}>
+            <Camera size={24} aria-hidden="true" />
+            Cámara
+          </button>
+          <button type="button" onClick={() => photosRef.current?.click()}>
+            <ImageIcon size={24} aria-hidden="true" />
+            Fotos
+          </button>
+          <button type="button" onClick={() => filesRef.current?.click()}>
+            <FileUp size={24} aria-hidden="true" />
+            Archivos
+          </button>
+        </div>
+        <button type="button" className={`${styles.sheetRow} ${styles.sheetRowSolo}`} onClick={() => setSheet("permission")}>
+          <Shield size={20} aria-hidden="true" />
+          <span className={styles.sheetRowText}>Permiso</span>
+          <span className={styles.sheetValue}>{ask ? "Preguntar" : "Auto"}</span>
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
+        <a className={`${styles.sheetRow} ${styles.sheetRowSolo}`} href="/settings?tab=github">
+          <Blocks size={20} aria-hidden="true" />
+          <span className={styles.sheetRowText}>Conectores</span>
+          <ChevronRight size={18} aria-hidden="true" />
+        </a>
+      </Sheet>
+
+      <Sheet {...sheetOpen("permission")} title="Permiso" onBack={() => setSheet("context")}>
+        <div className={styles.sheetGroup}>
+          {[
+            { value: false, label: "Auto", hint: "El agente edita archivos y corre comandos sin pedirte permiso." },
+            { value: true, label: "Preguntar", hint: "Te pide permiso antes de correr comandos, editar archivos o leer páginas web." },
+          ].map((o) => (
+            <button
+              key={o.label}
+              type="button"
+              className={styles.sheetRow}
+              onClick={() => {
+                setAsk(o.value);
+                setSheet("context");
+              }}
+            >
+              <span className={styles.sheetRowText}>
+                {o.label}
+                <small>{o.hint}</small>
+              </span>
+              {ask === o.value && <Check size={20} className={styles.check} aria-label="Elegido" />}
+            </button>
+          ))}
+        </div>
+      </Sheet>
+    </div>
+  );
+}
