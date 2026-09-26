@@ -137,6 +137,7 @@ const server = http.createServer(async (req, res) => {
   }
   const policy = readPolicy(req);
   if (!policy) {
+    log("AUTH", url.host, req.headers["proxy-authorization"] ? "firma inválida" : "sin credenciales");
     res.writeHead(407, { "Proxy-Authenticate": 'Basic realm="nexo"' }).end("falta la política de red");
     return;
   }
@@ -179,7 +180,8 @@ server.on("connect", async (req, client, head) => {
   }
   const policy = readPolicy(req);
   if (!policy) {
-    client.end('HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="nexo"\r\n\r\n');
+    log("AUTH", `${host}:${port}`, req.headers["proxy-authorization"] ? "firma inválida" : "sin credenciales");
+    client.end('HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="nexo"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n');
     return;
   }
   if (!permitted(policy, host)) {

@@ -264,11 +264,26 @@ function ready(pod: Pod) {
   return pod.status?.phase === "Running" && Boolean(pod.status.podIP) && pod.status.conditions?.some((c) => c.type === "Ready" && c.status === "True");
 }
 
+/**
+ * Variables para que todo en el pod salga por el proxy. Git por defecto
+ * negocia la autenticación del proxy mandando primero el CONNECT sin
+ * credenciales, y como el proxy cierra la conexión después del 407 nunca
+ * llega a reintentar; con `basic` las manda desde el principio.
+ */
 function proxyEnv(env: Environment): Record<string, string> {
   const proxy = egressProxyUrl(env.network as NetworkLevel, parseDomains(env.domains));
   if (!proxy) return {};
   const noProxy = "localhost,127.0.0.1,::1";
-  return { HTTPS_PROXY: proxy, HTTP_PROXY: proxy, https_proxy: proxy, http_proxy: proxy, NO_PROXY: noProxy, no_proxy: noProxy, NODE_USE_ENV_PROXY: "1" };
+  return {
+    HTTPS_PROXY: proxy,
+    HTTP_PROXY: proxy,
+    https_proxy: proxy,
+    http_proxy: proxy,
+    NO_PROXY: noProxy,
+    no_proxy: noProxy,
+    NODE_USE_ENV_PROXY: "1",
+    GIT_HTTP_PROXY_AUTHMETHOD: "basic",
+  };
 }
 
 async function replaceSecret(name: string, labels: Record<string, string>, stringData: Record<string, string>) {
