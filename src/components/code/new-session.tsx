@@ -136,7 +136,13 @@ export function NewSession(props: {
     props.onStart({ text: value, files, repo, ask });
   }
 
+  const [dir, setDir] = useState<"forward" | "back">("forward");
   const sheetOpen = (name: typeof sheet) => ({ open: sheet === name, onOpenChange: (o: boolean) => setSheet(o ? name : null) });
+  const pagesOpen = (...names: (typeof sheet)[]) => ({ open: names.includes(sheet), onOpenChange: (o: boolean) => !o && setSheet(null) });
+  const go = (name: typeof sheet, to: "forward" | "back" = "forward") => {
+    setDir(to);
+    setSheet(name);
+  };
 
   return (
     <div className={styles.newSessionScreen}>
@@ -211,10 +217,10 @@ export function NewSession(props: {
             }}
           />
           <div className={styles.startBar}>
-            <button type="button" className={styles.roundIcon} onClick={() => setSheet("context")} aria-label="Agregar contexto">
+            <button type="button" className={styles.roundIcon} onClick={() => go("context")} aria-label="Agregar contexto">
               <Plus size={20} />
             </button>
-            <button type="button" className={styles.modelPill} onClick={() => setSheet("model")}>
+            <button type="button" className={styles.modelPill} onClick={() => go("model")}>
               {props.model?.label ?? "Modelo"}
               {props.variant && <span>{VARIANT_LABEL[props.variant] ?? props.variant}</span>}
             </button>
@@ -359,106 +365,128 @@ export function NewSession(props: {
         )}
       </Sheet>
 
-      <Sheet {...sheetOpen("model")} title="Seleccionar modelo">
-        <div className={styles.sheetGroup}>
-          {props.models.map((m) => (
-            <button
-              key={`${m.providerID}/${m.modelID}`}
-              type="button"
-              className={styles.sheetRow}
-              onClick={() => {
-                props.onModel(m);
-                if (!m.variants?.includes(props.variant ?? "")) props.onVariant(null);
-                setSheet(null);
-              }}
-            >
-              <span className={styles.sheetRowText}>
-                {m.label}
-                <small>{m.provider}</small>
-              </span>
-              {props.model?.modelID === m.modelID && props.model.providerID === m.providerID && <Check size={20} className={styles.check} aria-label="Elegido" />}
-            </button>
-          ))}
-        </div>
-        {variants.length > 0 && (
-          <button type="button" className={`${styles.sheetRow} ${styles.sheetRowSolo}`} onClick={() => setSheet("effort")}>
-            <span className={styles.sheetRowText}>Esfuerzo</span>
-            <span className={styles.sheetValue}>{props.variant ? (VARIANT_LABEL[props.variant] ?? props.variant) : "Normal"}</span>
-            <ChevronRight size={18} aria-hidden="true" />
-          </button>
+      <Sheet
+        {...pagesOpen("model", "effort")}
+        title={sheet === "effort" ? "Esfuerzo" : "Seleccionar modelo"}
+        onBack={sheet === "effort" ? () => go("model", "back") : undefined}
+        page={sheet === "effort" ? "effort" : "model"}
+        dir={dir}
+      >
+        {sheet === "effort" ? (
+          <>
+            <div className={styles.sheetGroup}>
+              {[null, ...variants].map((v) => (
+                <button
+                  key={v ?? "default"}
+                  type="button"
+                  className={styles.sheetRow}
+                  onClick={() => {
+                    props.onVariant(v);
+                    go("model", "back");
+                  }}
+                >
+                  <span className={styles.sheetRowText}>{v ? (VARIANT_LABEL[v] ?? v) : "Normal"}</span>
+                  {props.variant === v && <Check size={20} className={styles.check} aria-label="Elegido" />}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className={styles.sheetGroup}>
+              {props.models.map((m) => (
+                <button
+                  key={`${m.providerID}/${m.modelID}`}
+                  type="button"
+                  className={styles.sheetRow}
+                  onClick={() => {
+                    props.onModel(m);
+                    if (!m.variants?.includes(props.variant ?? "")) props.onVariant(null);
+                    setSheet(null);
+                  }}
+                >
+                  <span className={styles.sheetRowText}>
+                    {m.label}
+                    <small>{m.provider}</small>
+                  </span>
+                  {props.model?.modelID === m.modelID && props.model.providerID === m.providerID && (
+                    <Check size={20} className={styles.check} aria-label="Elegido" />
+                  )}
+                </button>
+              ))}
+            </div>
+            {variants.length > 0 && (
+              <button type="button" className={`${styles.sheetRow} ${styles.sheetRowSolo}`} onClick={() => go("effort")}>
+                <span className={styles.sheetRowText}>Esfuerzo</span>
+                <span className={styles.sheetValue}>{props.variant ? (VARIANT_LABEL[props.variant] ?? props.variant) : "Normal"}</span>
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+            )}
+          </>
         )}
       </Sheet>
 
-      <Sheet {...sheetOpen("effort")} title="Esfuerzo" onBack={() => setSheet("model")}>
-        <div className={styles.sheetGroup}>
-          {[null, ...variants].map((v) => (
-            <button
-              key={v ?? "default"}
-              type="button"
-              className={styles.sheetRow}
-              onClick={() => {
-                props.onVariant(v);
-                setSheet("model");
-              }}
-            >
-              <span className={styles.sheetRowText}>{v ? (VARIANT_LABEL[v] ?? v) : "Normal"}</span>
-              {props.variant === v && <Check size={20} className={styles.check} aria-label="Elegido" />}
+      <Sheet
+        {...pagesOpen("context", "permission")}
+        title={sheet === "permission" ? "Permiso" : "Agregar contexto"}
+        onBack={sheet === "permission" ? () => go("context", "back") : undefined}
+        page={sheet === "permission" ? "permission" : "context"}
+        dir={dir}
+      >
+        {sheet === "permission" ? (
+          <>
+            <div className={styles.sheetGroup}>
+              {[
+                { value: false, label: "Auto", hint: "El agente edita archivos y corre comandos sin pedirte permiso." },
+                { value: true, label: "Preguntar", hint: "Te pide permiso antes de correr comandos, editar archivos o leer páginas web." },
+              ].map((o) => (
+                <button
+                  key={o.label}
+                  type="button"
+                  className={styles.sheetRow}
+                  onClick={() => {
+                    setAsk(o.value);
+                    go("context", "back");
+                  }}
+                >
+                  <span className={styles.sheetRowText}>
+                    {o.label}
+                    <small>{o.hint}</small>
+                  </span>
+                  {ask === o.value && <Check size={20} className={styles.check} aria-label="Elegido" />}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className={styles.tiles}>
+              <button type="button" onClick={() => cameraRef.current?.click()}>
+                <Camera size={24} aria-hidden="true" />
+                Cámara
+              </button>
+              <button type="button" onClick={() => photosRef.current?.click()}>
+                <ImageIcon size={24} aria-hidden="true" />
+                Fotos
+              </button>
+              <button type="button" onClick={() => filesRef.current?.click()}>
+                <FileUp size={24} aria-hidden="true" />
+                Archivos
+              </button>
+            </div>
+            <button type="button" className={`${styles.sheetRow} ${styles.sheetRowSolo}`} onClick={() => go("permission")}>
+              <Shield size={20} aria-hidden="true" />
+              <span className={styles.sheetRowText}>Permiso</span>
+              <span className={styles.sheetValue}>{ask ? "Preguntar" : "Auto"}</span>
+              <ChevronRight size={18} aria-hidden="true" />
             </button>
-          ))}
-        </div>
-      </Sheet>
-
-      <Sheet {...sheetOpen("context")} title="Agregar contexto">
-        <div className={styles.tiles}>
-          <button type="button" onClick={() => cameraRef.current?.click()}>
-            <Camera size={24} aria-hidden="true" />
-            Cámara
-          </button>
-          <button type="button" onClick={() => photosRef.current?.click()}>
-            <ImageIcon size={24} aria-hidden="true" />
-            Fotos
-          </button>
-          <button type="button" onClick={() => filesRef.current?.click()}>
-            <FileUp size={24} aria-hidden="true" />
-            Archivos
-          </button>
-        </div>
-        <button type="button" className={`${styles.sheetRow} ${styles.sheetRowSolo}`} onClick={() => setSheet("permission")}>
-          <Shield size={20} aria-hidden="true" />
-          <span className={styles.sheetRowText}>Permiso</span>
-          <span className={styles.sheetValue}>{ask ? "Preguntar" : "Auto"}</span>
-          <ChevronRight size={18} aria-hidden="true" />
-        </button>
-        <a className={`${styles.sheetRow} ${styles.sheetRowSolo}`} href="/settings?tab=github">
-          <Blocks size={20} aria-hidden="true" />
-          <span className={styles.sheetRowText}>Conectores</span>
-          <ChevronRight size={18} aria-hidden="true" />
-        </a>
-      </Sheet>
-
-      <Sheet {...sheetOpen("permission")} title="Permiso" onBack={() => setSheet("context")}>
-        <div className={styles.sheetGroup}>
-          {[
-            { value: false, label: "Auto", hint: "El agente edita archivos y corre comandos sin pedirte permiso." },
-            { value: true, label: "Preguntar", hint: "Te pide permiso antes de correr comandos, editar archivos o leer páginas web." },
-          ].map((o) => (
-            <button
-              key={o.label}
-              type="button"
-              className={styles.sheetRow}
-              onClick={() => {
-                setAsk(o.value);
-                setSheet("context");
-              }}
-            >
-              <span className={styles.sheetRowText}>
-                {o.label}
-                <small>{o.hint}</small>
-              </span>
-              {ask === o.value && <Check size={20} className={styles.check} aria-label="Elegido" />}
-            </button>
-          ))}
-        </div>
+            <a className={`${styles.sheetRow} ${styles.sheetRowSolo}`} href="/settings?tab=github">
+              <Blocks size={20} aria-hidden="true" />
+              <span className={styles.sheetRowText}>Conectores</span>
+              <ChevronRight size={18} aria-hidden="true" />
+            </a>
+          </>
+        )}
       </Sheet>
     </div>
   );

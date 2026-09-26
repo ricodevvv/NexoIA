@@ -21,7 +21,7 @@ import type {
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
 type ImageType = (typeof IMAGE_TYPES)[number];
 
-const BUDGETS = { low: 0, medium: 4000, high: 12000 };
+const BUDGETS = { low: 0, medium: 4000, high: 12000, xhigh: 20000, max: 28000 };
 
 function userContent(message: HistoryMessage, opts: SessionOptions): BetaContentBlockParam[] {
   const blocks: BetaContentBlockParam[] = [];

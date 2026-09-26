@@ -15,12 +15,13 @@ const WEB_TOOLS = new Set(["web_search", "web_fetch"]);
 const STANDALONE_TOOLS = new Set(["artifact", "show_widget"]);
 
 function isStandalone(part: MessagePart) {
+  if (part.type === "tool_call" && part.name === "question") return part.output !== undefined && !part.isError;
   return part.type === "text" || part.type === "notice" || (part.type === "tool_call" && STANDALONE_TOOLS.has(part.name) && !part.isError);
 }
 
 /**
- * Arma lo que se pinta de una respuesta: el texto, los avisos, los artifacts
- * y los widgets van sueltos; todo lo que hace el agente entre medio (razonar,
+ * Arma lo que se pinta de una respuesta: el texto, los avisos, los artifacts,
+ * los widgets y las preguntas ya respondidas van sueltos; todo lo que hace el agente entre medio (razonar,
  * usar tools, buscar en la web) se junta en una caja de actividad. Las
  * búsquedas web seguidas se juntan en una sola fila.
  */

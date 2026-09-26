@@ -8,6 +8,7 @@ import type { MessagePart } from "@/lib/ai/types";
 import type { ActivityEntry } from "./group-parts";
 import { CodeToolBody, codeToolTitle, codeToolVerb, isCodeTool } from "../code/code-tools";
 import { FileCard, kindOf } from "./file-card";
+import { useDragToClose } from "../use-drag-to-close";
 import { MessageContext } from "./message-context";
 import styles from "./chat.module.css";
 
@@ -153,6 +154,42 @@ function summaryVerb(entry: ActivityEntry) {
 }
 
 /**
+ * Si el comando hace `git push`, devuelve la rama a la que subió (o "" si no
+ * la dice); si no es un push, nada.
+ */
+function pushTarget(input: unknown): string[] {
+  const command = (input as { command?: unknown } | null)?.command;
+  if (typeof command !== "string") return [];
+  const match = command.match(/\bgit\s+push\b([^;&|\n]*)/);
+  if (!match) return [];
+  const args = match[1].trim().split(/\s+/).filter((a) => a && !a.startsWith("-"));
+  const ref = args.length > 1 ? args.at(-1)! : "";
+  return [ref.split(":").at(-1) ?? ""];
+}
+
+/**
+ * Cuántas líneas agregó y quitó el agente en esta actividad, sumando los
+ * diffs de sus ediciones y las líneas de los archivos que creó.
+ */
+export function diffStats(entries: ActivityEntry[]) {
+  let added = 0;
+  let removed = 0;
+  for (const e of entries) {
+    if (e.kind !== "tool" || e.part.isError) continue;
+    if (e.part.diff) {
+      for (const line of e.part.diff.split("\n")) {
+        if (line.startsWith("+") && !line.startsWith("+++")) added++;
+        else if (line.startsWith("-") && !line.startsWith("---")) removed++;
+      }
+    } else if (e.part.name === "write") {
+      const content = (e.part.input as { content?: unknown } | null)?.content;
+      if (typeof content === "string" && content) added += content.split("\n").length;
+    }
+  }
+  return { added, removed };
+}
+
+/**
  * Resumen de una línea de lo que hizo el agente, estilo "Ejecutó código,
  * buscó en la web". Si solo razonó, dice "Pensó" sin mostrar el razonamiento.
  */
@@ -166,9 +203,11 @@ export function activitySummary(entries: ActivityEntry[]) {
     [count(["bash"]), `ejecutó ${plural(count(["bash"]), "comando", "comandos")}`],
   ];
   const skip = new Set(["write", "edit", "multiedit", "patch", "apply_patch", "bash"]);
+  const pushed = entries.flatMap((e) => (e.kind === "tool" && e.part.name === "bash" && !e.part.isError ? pushTarget(e.part.input) : []));
   const verbs = [
     ...counted.filter(([n]) => n > 0).map(([, v]) => v),
     ...new Set(entries.filter((e) => e.kind !== "tool" || !skip.has(e.part.name)).map(summaryVerb).filter((v): v is string => Boolean(v))),
+    ...new Set(pushed.map((branch) => (branch ? `envió a ${branch}` : "subió los cambios"))),
   ];
   if (!verbs.length) return "Pensó";
   const text = verbs.join(", ");
@@ -285,6 +324,8 @@ export function ActivityBox({
 }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<number | null>(null);
+  const [dir, setDir] = useState<"forward" | "back">("forward");
+  const { sheetRef, handleProps } = useDragToClose<HTMLDivElement>(() => setOpen(false));
   const current = entries.at(-1);
   if (!current) return null;
 
@@ -292,6 +333,7 @@ export function ActivityBox({
   const lineEntry = live ? current : (lastTool ?? current);
   const running = live && (isRunning(current, live) || current.kind === "reasoning");
   const title = live ? entryTitle(current, true) : activitySummary(entries);
+  const stats = diffStats(entries);
   const detail = picked === null ? null : timeline.find((e) => e.index === picked);
 
   return (
@@ -302,11 +344,18 @@ export function ActivityBox({
         data-reasoning={!lastTool || undefined}
         onClick={() => {
           setPicked(null);
+          setDir("forward");
           setOpen(true);
         }}
       >
         {createElement(entryIcon(lineEntry), { size: 16, "aria-hidden": true, className: styles.lineIcon })}
         <span className={`${styles.lineTitle} ${running ? styles.shimmer : ""}`}>{title}</span>
+        {!live && (stats.added > 0 || stats.removed > 0) && (
+          <span className={styles.lineDiff} aria-label={`${stats.added} líneas agregadas, ${stats.removed} quitadas`}>
+            <span data-sign="add">+{stats.added}</span>
+            <span data-sign="del">-{stats.removed}</span>
+          </span>
+        )}
         <ChevronRight size={15} aria-hidden="true" className={styles.lineChevron} />
       </button>
       {live && <Spinner />}
@@ -315,23 +364,46 @@ export function ActivityBox({
       <Dialog.Root open={open} onOpenChange={setOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className={styles.sheetOverlay} />
-          <Dialog.Content className={styles.sheet} aria-describedby={undefined}>
-            <span className={styles.grabber} aria-hidden="true" />
-            <header className={styles.sheetHead}>
-              {detail ? (
-                <button type="button" className={styles.sheetBtn} onClick={() => setPicked(null)} aria-label="Volver al resumen">
-                  <ChevronLeft size={20} />
-                </button>
-              ) : (
-                <Dialog.Close className={styles.sheetBtn} aria-label="Cerrar">
-                  <X size={18} />
-                </Dialog.Close>
-              )}
-              <Dialog.Title className={styles.sheetTitle}>{detail ? entryTitle(detail, isRunning(detail, timelineLive)) : "Resumen"}</Dialog.Title>
-              <span className={styles.sheetSpacer} />
-            </header>
+          <Dialog.Content ref={sheetRef} className={styles.sheet} aria-describedby={undefined}>
+            <div className={styles.dragZone} {...handleProps}>
+              <span className={styles.grabber} aria-hidden="true" />
+              <header className={styles.sheetHead}>
+                {detail ? (
+                  <button
+                    type="button"
+                    className={styles.sheetBtn}
+                    onClick={() => {
+                      setDir("back");
+                      setPicked(null);
+                    }}
+                    aria-label="Volver al resumen"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                ) : (
+                  <Dialog.Close className={styles.sheetBtn} aria-label="Cerrar">
+                    <X size={18} />
+                  </Dialog.Close>
+                )}
+                <Dialog.Title className={styles.sheetTitle}>{detail ? entryTitle(detail, isRunning(detail, timelineLive)) : "Resumen"}</Dialog.Title>
+                <span className={styles.sheetSpacer} />
+              </header>
+            </div>
             <div className={styles.sheetBody}>
-              {detail ? <EntryBody entry={detail} /> : <Timeline entries={timeline} live={timelineLive} onPick={(e) => setPicked(e.index)} />}
+              <div key={detail ? `d${detail.index}` : "summary"} className={styles.sheetPage} data-dir={dir}>
+                {detail ? (
+                  <EntryBody entry={detail} />
+                ) : (
+                  <Timeline
+                    entries={timeline}
+                    live={timelineLive}
+                    onPick={(e) => {
+                      setDir("forward");
+                      setPicked(e.index);
+                    }}
+                  />
+                )}
+              </div>
             </div>
           </Dialog.Content>
         </Dialog.Portal>

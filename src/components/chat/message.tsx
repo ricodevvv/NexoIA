@@ -9,6 +9,7 @@ import { Widget } from "../widgets/widget";
 import { ActivityBox, ThinkingLine } from "./activity";
 import { CopyButton } from "./code-block";
 import { FileCard } from "./file-card";
+import { AnsweredQuestion } from "../code/question-card";
 import { groupParts } from "./group-parts";
 import { Markdown } from "./markdown";
 import { MessageContext } from "./message-context";
@@ -244,6 +245,9 @@ export function Message({ message, live, isLast, busy, modelLabel, onRegenerate,
             return <ActivityBox key={part.id} entries={[{ kind: "tool", part, index: i }]} live={live} />;
           }
           return <ArtifactCard key={part.id} part={part} />;
+        }
+        if (part.type === "tool_call" && part.name === "question" && part.output !== undefined) {
+          return <AnsweredQuestion key={part.id} input={part.input} output={part.output} />;
         }
         if (part.type === "tool_call" && part.name === "show_widget") {
           return <Widget key={part.id} input={part.input} pending={live && part.output === undefined} />;

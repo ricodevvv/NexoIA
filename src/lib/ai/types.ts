@@ -2,7 +2,7 @@ export type ProviderId = "anthropic" | "openai" | "compat";
 
 export type FileRef = { attachmentId: string; name: string; mediaType: string };
 
-export type Effort = "low" | "medium" | "high";
+export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
 export type MessagePart =
   | { type: "text"; text: string }

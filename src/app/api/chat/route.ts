@@ -28,7 +28,7 @@ const Body = z.object({
   text: z.string().max(200_000).default(""),
   attachmentIds: z.array(z.string()).max(20).default([]),
   model: z.string(),
-  effort: z.enum(["low", "medium", "high"]).default("medium"),
+  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).default("medium"),
   webSearch: z.boolean().default(false),
   research: z.boolean().default(false),
   regenerate: z.boolean().default(false),

@@ -748,3 +748,10 @@
     margin-top: -16px;
   }
 }
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}

@@ -4,6 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { ChevronDown, FileDiff as DiffIcon, ListTree, PanelLeft, Plus, Server, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { withViewTransition } from "@/lib/motion";
 import { NexoLogo } from "../brand/logo";
 import { useShell } from "../shell";
 import { useStoredState } from "../use-stored-state";
@@ -107,8 +108,12 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
   }
 
   function openSession(id: string | null) {
-    setSessionId(id);
-    setListOpen(false);
+    const update = () => {
+      setSessionId(id);
+      setListOpen(false);
+    };
+    if (id !== sessionId && window.matchMedia("(max-width: 860px)").matches) withViewTransition(update, "nav-forward");
+    else update();
     syncUrl(serverId, id);
   }
 
@@ -274,8 +279,9 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
           <button className={`icon-btn ${styles.listBtn}`} onClick={() => setListOpen(true)} aria-label="Ver sesiones">
             <ListTree />
           </button>
-          <h1 className={chat.title}>
+          <h1 className={`${chat.title} ${styles.sessionTitleBlock}`}>
             <span className={chat.titleText}>{title}</span>
+            {sessionId && <span className={styles.sessionSub}>{server.name}</span>}
           </h1>
           <button type="button" className={chat.countBtn} onClick={() => setDiffOpen((v) => !v)} aria-pressed={diffOpen} aria-label="Cambios">
             <DiffIcon size={17} aria-hidden="true" />

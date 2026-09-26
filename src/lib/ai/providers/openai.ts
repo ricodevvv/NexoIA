@@ -6,6 +6,7 @@ import type {
   ResponseOutputItem,
   Tool,
 } from "openai/resources/responses/responses";
+import { clampEffort } from "../effort";
 import { attachmentNote, fileAsText, isTextLike, splitAssistant, toolOutput } from "../history";
 import type {
   HistoryMessage,
@@ -108,7 +109,7 @@ export function createOpenAISession(opts: SessionOptions): ProviderSession {
       max_output_tokens: model.maxOutput,
       ...(tools.length ? { tools } : {}),
       ...(model.reasoning === "openai"
-        ? { reasoning: { effort: opts.effort, summary: "auto" as const }, include: ["reasoning.encrypted_content" as const] }
+        ? { reasoning: { effort: clampEffort(opts.effort, model.reasoning), summary: "auto" as const }, include: ["reasoning.encrypted_content" as const] }
         : {}),
     };
   }

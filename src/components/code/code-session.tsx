@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ThinkingLine } from "../chat/activity";
 import { Message } from "../chat/message";
 import chat from "../chat/chat.module.css";
+import { AxoLoading } from "./axo";
 import { applyNcEvent, initialState, type NcEvent, type NcMessage, type SessionState, toUIMessages } from "./map";
 import { QuestionCard, type QuestionRequest } from "./question-card";
 import styles from "./code.module.css";
@@ -237,7 +238,7 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
     <>
       <div className={chat.scroll} ref={scrollRef} onScroll={onScroll} onWheel={(e) => e.deltaY < 0 && (stickRef.current = false)}>
         <div className={chat.thread}>
-          {loading && <p className={styles.muted}>Cargando la sesión…</p>}
+          {loading && <AxoLoading />}
           {!loading && messages.length === 0 && !error && (
             <div className={styles.emptySession}>
               <h2>¿Qué hacemos en este proyecto?</h2>

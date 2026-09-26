@@ -1,4 +1,5 @@
 import type { ModelOption } from "@/components/chat/model-picker";
+import { effortsFor } from "./effort";
 import { resolveKey } from "./keys";
 import { listModels } from "./models";
 import { userModels } from "./user-models";
@@ -24,6 +25,7 @@ export async function modelOptions(userId: string): Promise<ModelOption[]> {
     available: true,
     byok: true,
     reasoning: m.reasoning !== "none",
+    efforts: effortsFor(m.reasoning),
     webSearch: false,
     vision: false,
     pdf: false,
@@ -39,6 +41,7 @@ export async function modelOptions(userId: string): Promise<ModelOption[]> {
       available: Boolean(key),
       byok: Boolean(key?.byok),
       reasoning: m.reasoning !== "none",
+      efforts: effortsFor(m.reasoning),
       webSearch: m.webSearch !== null,
       vision: m.vision,
       pdf: m.pdf,

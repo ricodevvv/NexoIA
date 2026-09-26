@@ -5,6 +5,7 @@ import type {
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
 import { safeFetch } from "@/lib/safe-url";
+import { clampEffort } from "../effort";
 import { attachmentNote, fileAsText, isTextLike, splitAssistant, toolOutput } from "../history";
 import { remoteModelId } from "../models";
 import type {
@@ -117,7 +118,7 @@ export function createCompatSession(opts: SessionOptions): ProviderSession {
         stream_options: { include_usage: true },
         max_tokens: opts.model.maxOutput,
         ...(tools.length ? { tools } : {}),
-        ...(withEffort ? { reasoning_effort: opts.effort } : {}),
+        ...(withEffort ? { reasoning_effort: clampEffort(opts.effort, opts.model.reasoning) } : {}),
       },
       { signal },
     );

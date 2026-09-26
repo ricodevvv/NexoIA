@@ -250,6 +250,12 @@
   padding: 4px 16px 20px;
 }
 
+.codeSheetPage {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .sheetAction {
   display: grid;
   place-items: center;

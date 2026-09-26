@@ -163,3 +163,34 @@ export function QuestionCard({ request, onAnswer, onSkip }: { request: QuestionR
     </div>
   );
 }
+
+/**
+ * Saca las respuestas del texto que devuelve la tool `question` de nexocode:
+ * `User has answered your questions: "pregunta"="respuesta", ...`.
+ */
+export function parseAnswers(output: string) {
+  const answers = new Map<string, string>();
+  for (const m of output.matchAll(/"((?:[^"\\]|\\.)*)"="((?:[^"\\]|\\.)*)"/g)) answers.set(m[1], m[2]);
+  return answers;
+}
+
+/**
+ * Lo que queda en el chat después de responderle al agente: cada pregunta
+ * con la respuesta que diste, como tarjeta aparte del resto de la actividad.
+ */
+export function AnsweredQuestion({ input, output }: { input: unknown; output: string }) {
+  const questions = ((input as { questions?: QuestionInfo[] } | null)?.questions ?? []).filter((q) => q?.question);
+  const answers = parseAnswers(output);
+  if (!questions.length) return null;
+  return (
+    <div className={styles.answered}>
+      <p className={styles.answeredLabel}>{questions.length > 1 ? "Preguntas" : "Pregunta"}</p>
+      {questions.map((q) => (
+        <div key={q.question} className={styles.answeredItem}>
+          <p className={styles.answeredQuestion}>{q.question}</p>
+          <p className={styles.answeredAnswer}>{answers.get(q.question) ?? "Sin respuesta"}</p>
+        </div>
+      ))}
+    </div>
+  );
+}

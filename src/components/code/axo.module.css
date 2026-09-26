@@ -1,0 +1,110 @@
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 18vh 0 0;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  animation: fade var(--dur-base) var(--ease);
+}
+
+.track {
+  width: 120px;
+  display: flex;
+  justify-content: center;
+}
+
+.walker {
+  animation: patrol 3.2s var(--ease) infinite;
+}
+
+.bob {
+  animation: bob 0.36s steps(1) infinite;
+}
+
+.legs {
+  animation: step 0.36s steps(1) infinite;
+}
+
+.legs[data-step="1"] {
+  animation-delay: -0.18s;
+}
+
+.walker rect[data-eye] {
+  animation: blink 4s steps(1) infinite;
+}
+
+.label {
+  letter-spacing: 0.01em;
+}
+
+@keyframes patrol {
+  0% {
+    translate: -22px 0;
+    scale: 1 1;
+  }
+  45% {
+    translate: 22px 0;
+    scale: 1 1;
+  }
+  50% {
+    translate: 22px 0;
+    scale: -1 1;
+  }
+  95% {
+    translate: -22px 0;
+    scale: -1 1;
+  }
+  100% {
+    translate: -22px 0;
+    scale: 1 1;
+  }
+}
+
+@keyframes bob {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.5px);
+  }
+}
+
+@keyframes step {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes blink {
+  0%,
+  92% {
+    fill: #1e0f16;
+  }
+  94%,
+  97% {
+    fill: #f0719e;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .walker,
+  .bob,
+  .legs,
+  .walker rect[data-eye] {
+    animation: none;
+  }
+  .legs[data-step="1"] {
+    opacity: 0;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}

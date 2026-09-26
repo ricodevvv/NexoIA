@@ -27,12 +27,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { NexoLogo } from "./brand/logo";
 import { notifyConversationsChanged, onConversationsChanged } from "./events";
 import styles from "./sidebar.module.css";
+import { useDragToClose } from "./use-drag-to-close";
 import { useShell } from "./shell";
+import { useIsMobile } from "./use-is-mobile";
 import { useTheme } from "./use-theme";
 import { WorkspaceSwitcher, type WorkspaceOption } from "./workspace-switcher";
 
@@ -254,20 +256,6 @@ function RenameDialog({
   );
 }
 
-const subscribeMobile = (cb: () => void) => {
-  const mq = window.matchMedia("(max-width: 860px)");
-  mq.addEventListener("change", cb);
-  return () => mq.removeEventListener("change", cb);
-};
-
-function useIsMobile() {
-  return useSyncExternalStore(
-    subscribeMobile,
-    () => window.matchMedia("(max-width: 860px)").matches,
-    () => false,
-  );
-}
-
 const THEMES = [
   { value: "system", label: "Sistema", Icon: Monitor },
   { value: "light", label: "Claro", Icon: Sun },
@@ -279,6 +267,7 @@ function UserMenu({ user, plan }: { user: Props["user"]; plan: Props["plan"] }) 
   const [theme, setTheme] = useTheme();
   const mobile = useIsMobile();
   const [sheet, setSheet] = useState(false);
+  const { sheetRef, handleProps } = useDragToClose<HTMLDivElement>(() => setSheet(false));
   const initials = user.name
     .split(" ")
     .map((w) => w[0])
@@ -330,7 +319,7 @@ function UserMenu({ user, plan }: { user: Props["user"]; plan: Props["plan"] }) 
         </Dialog.Trigger>
         <Dialog.Portal>
           <Dialog.Overlay className={styles.sheetOverlay} />
-          <Dialog.Content className={styles.sheet} aria-describedby={undefined}>
+          <Dialog.Content ref={sheetRef} className={styles.sheet} aria-describedby={undefined} {...handleProps}>
             <span className={styles.grabber} aria-hidden="true" />
             <Dialog.Title className={styles.sheetEmail}>{user.email}</Dialog.Title>
             {actions.map(({ label, Icon, run }) => (

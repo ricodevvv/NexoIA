@@ -366,7 +366,11 @@
   inset: 0;
   z-index: 60;
   background: var(--overlay);
-  animation: fade 0.2s var(--ease);
+  animation: fade 0.24s var(--ease);
+}
+
+.sheetOverlay[data-state="closed"] {
+  animation: fadeOut 0.22s var(--ease-exit) forwards;
 }
 
 .sheet {
@@ -381,11 +385,26 @@
   border-radius: 18px 18px 0 0;
   background: var(--elevated);
   box-shadow: var(--shadow-pop);
-  animation: sheetUp 0.28s var(--ease);
+  touch-action: none;
+  animation: sheetUp var(--dur-slow) var(--ease-spring);
+}
+
+.sheet[data-state="closed"] {
+  animation: sheetDown 0.22s var(--ease-exit) forwards;
+}
+
+.sheet[data-dragging] {
+  animation: none;
 }
 
 @keyframes sheetUp {
   from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes sheetDown {
+  to {
     transform: translateY(100%);
   }
 }
@@ -531,4 +550,16 @@
 
 .createForm {
   margin-top: var(--space-3);
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
 }

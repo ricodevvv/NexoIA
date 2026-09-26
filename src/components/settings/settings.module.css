@@ -622,3 +622,10 @@
 .chooser li input {
   accent-color: var(--accent);
 }
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}

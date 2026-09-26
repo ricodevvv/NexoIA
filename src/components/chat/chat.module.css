@@ -1031,6 +1031,7 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  animation: fade var(--dur-base) var(--ease);
 }
 
 .status {
@@ -1625,6 +1626,23 @@ div.fileCardMain {
   min-width: 0;
 }
 
+.lineDiff {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  margin-top: 1px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.lineDiff [data-sign="add"] {
+  color: var(--success);
+}
+
+.lineDiff [data-sign="del"] {
+  color: var(--danger);
+}
+
 .lineChevron {
   flex: none;
   margin-top: 3px;
@@ -1676,7 +1694,11 @@ div.fileCardMain {
   inset: 0;
   z-index: 60;
   background: var(--overlay);
-  animation: fade 0.2s var(--ease);
+  animation: fade 0.24s var(--ease);
+}
+
+.sheetOverlay[data-state="closed"] {
+  animation: fadeOut 0.22s var(--ease-exit) forwards;
 }
 
 .sheet {
@@ -1690,12 +1712,54 @@ div.fileCardMain {
   border-radius: 20px 20px 0 0;
   background: var(--elevated);
   box-shadow: var(--shadow-pop);
-  animation: sheetUp 0.28s var(--ease);
+  animation: sheetUp var(--dur-slow) var(--ease-spring);
+}
+
+.sheet[data-state="closed"] {
+  animation: sheetDown 0.22s var(--ease-exit) forwards;
+}
+
+.sheet[data-dragging] {
+  animation: none;
+  transition: none;
 }
 
 @keyframes sheetUp {
   from {
     transform: translateY(100%);
+  }
+}
+
+@keyframes sheetDown {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+.dragZone {
+  touch-action: none;
+  cursor: grab;
+}
+
+.sheetPage {
+  animation: pageForward var(--dur-base) var(--ease-spring);
+}
+
+.sheetPage[data-dir="back"] {
+  animation-name: pageBack;
+}
+
+@keyframes pageForward {
+  from {
+    opacity: 0;
+    translate: 48px 0;
+  }
+}
+
+@keyframes pageBack {
+  from {
+    opacity: 0;
+    translate: -48px 0;
   }
 }
 
@@ -1829,10 +1893,16 @@ button.tlRow:hover {
     max-height: 80dvh;
     border-radius: 16px;
     transform: translate(-50%, -50%);
-    animation: fade 0.2s var(--ease);
+    animation: dialogIn 0.22s var(--ease-spring);
+  }
+  .sheet[data-state="closed"] {
+    animation: dialogOut 0.14s var(--ease-exit) forwards;
   }
   .grabber {
     display: none;
+  }
+  .dragZone {
+    cursor: auto;
   }
 }
 
@@ -1841,4 +1911,60 @@ button.tlRow:hover {
   align-items: center;
   gap: 10px;
   color: var(--text-3);
+}
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.97);
+  }
+}
+
+@keyframes dialogOut {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.97);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.effortCost {
+  background: rgb(245 158 11 / 0.16);
+  color: #f59e0b;
+}
+
+.sheetNote {
+  margin: 0;
+  padding: 0 6px;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+.sheetSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sheetSection > .label {
+  margin: 0;
+  padding: 0 6px;
 }
