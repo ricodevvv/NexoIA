@@ -1,5 +1,5 @@
 import type { FileRef, MessagePart } from "@/lib/ai/types";
-import { clonedRepo, cloneSucceeded, isScriptCommand, scriptSucceeded, type StepStatus } from "@/lib/code-setup";
+import { clonedRepo, cloneSucceeded, isPushCommand, isScriptCommand, scriptSucceeded, type StepStatus } from "@/lib/code-setup";
 import type { UIMessage } from "../chat/message";
 
 export type NcPart = {
@@ -115,6 +115,7 @@ function setupKind(p: NcPart) {
   const command = p.state?.input?.command;
   if (clonedRepo(command)) return "clone";
   if (isScriptCommand(command)) return "script";
+  if (isPushCommand(command)) return "push";
   return null;
 }
 

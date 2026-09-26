@@ -14,6 +14,8 @@ import { usePublishCodeNav } from "./code-nav";
 import { CodeSession, type CodeModel } from "./code-session";
 import { DiffPanel, type FileDiff } from "./diff-panel";
 import { NewSession, type StartInput } from "./new-session";
+import { askNotifications } from "./notify";
+import { PrButton } from "./pr-button";
 import { type EnvironmentData, EnvironmentForm } from "./environment-form";
 import { ServerForm } from "./server-form";
 import { SetupRow, type SetupSteps } from "./setup";
@@ -130,6 +132,7 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
 
   async function startSession(input: StartInput) {
     if (!serverId) return;
+    askNotifications();
     setStarting(true);
     const steps: SetupSteps = {};
     setBoot({ text: input.text, repo: input.repo?.fullName ?? null, steps, error: null });
@@ -294,6 +297,7 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
             <span className={chat.titleText}>{title}</span>
             {(sessionId || boot) && <span className={styles.sessionSub}>{server.name}</span>}
           </h1>
+          {sessionId && server.cloud && <PrButton key={`${serverId}:${sessionId}`} serverId={server.id} sessionId={sessionId} />}
           <button type="button" className={chat.countBtn} onClick={() => setDiffOpen((v) => !v)} aria-pressed={diffOpen} aria-label="Cambios">
             <DiffIcon size={17} aria-hidden="true" />
             <span>{diff.length}</span>
@@ -333,6 +337,7 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
             onChanges={loadDiff}
             variant={variant}
             cloud={Boolean(server.cloud)}
+            title={title}
           />
         ) : (
           <NewSession

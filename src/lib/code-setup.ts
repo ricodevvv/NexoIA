@@ -64,3 +64,54 @@ export function isScriptCommand(command: unknown) {
 export function scriptSucceeded(output: string) {
   return output.split("\n").some((line) => line.trim() === CONFIGURED);
 }
+
+const PUSHED = "nexo:rama";
+const COMMIT = "nexo:commit";
+
+function branchSlug(title: string) {
+  const slug = title
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/, "");
+  return `nexo/${slug || "cambios"}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+/**
+ * Comando que deja lista la rama para un pull request: si el repo está en la
+ * rama por defecto se pasa a una nueva, guarda en un commit lo que quedó sin
+ * guardar, la sube y al final imprime la rama y los commits que lleva por
+ * delante de la rama por defecto.
+ */
+export function pushCommand(fullName: string, base: string, title: string) {
+  if (!REPO_NAME.test(fullName) || fullName.includes("..")) throw new Error("Nombre de repo inválido");
+  if (!BRANCH_NAME.test(base)) throw new Error("Nombre de rama inválido");
+  const message = Buffer.from(title || "Cambios de Nexo Code").toString("base64");
+  return [
+    `cd '${repoFolder(fullName)}'`,
+    `cur=$(git branch --show-current)`,
+    `if [ -z "$cur" ] || [ "$cur" = '${base}' ]; then git switch -q -c '${branchSlug(title)}'; fi`,
+    `if [ -n "$(git status --porcelain)" ]; then git add -A && git commit -q -m "$(printf %s '${message}' | base64 -d)"; fi`,
+    `git push -q -u origin HEAD 2>&1`,
+    `echo "${PUSHED} $(git branch --show-current)"`,
+    `git log --format='${COMMIT} %s' 'origin/${base}..HEAD' 2>/dev/null | head -n 30`,
+  ].join(" && ");
+}
+
+export function isPushCommand(command: unknown) {
+  return typeof command === "string" && command.includes(`echo "${PUSHED} `);
+}
+
+/**
+ * Lee la salida de `pushCommand`: la rama que se subió y los títulos de sus
+ * commits, del más nuevo al más viejo.
+ */
+export function pushResult(output: string) {
+  const lines = output.split("\n").map((l) => l.trim());
+  const branch = lines.find((l) => l.startsWith(`${PUSHED} `))?.slice(PUSHED.length + 1) ?? null;
+  const commits = lines.filter((l) => l.startsWith(`${COMMIT} `)).map((l) => l.slice(COMMIT.length + 1));
+  return { branch: branch || null, commits };
+}

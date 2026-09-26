@@ -333,6 +333,7 @@ export const codeSession = pgTable(
     title: text("title").notNull(),
     repo: text("repo"),
     agentSessionId: text("agent_session_id"),
+    prUrl: text("pr_url"),
     tokenHash: text("token_hash").notNull().unique(),
     token: text("token").notNull(),
     password: text("password").notNull(),

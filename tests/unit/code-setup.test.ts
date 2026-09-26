@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { initialState, type NcMessage, sessionSetup, toUIMessages } from "@/components/code/map";
-import { cloneCommand, clonedRepo, cloneSucceeded, isScriptCommand, repoFolder, scriptCommand, scriptSucceeded } from "@/lib/code-setup";
+import { cloneCommand, clonedRepo, cloneSucceeded, isPushCommand, isScriptCommand, pushCommand, pushResult, repoFolder, scriptCommand, scriptSucceeded } from "@/lib/code-setup";
 import { parseDomains } from "@/lib/egress";
 
 function shellSession(output: string, status: "completed" | "running" = "completed"): NcMessage[] {
@@ -77,5 +77,32 @@ describe("clonado al arrancar una sesión", () => {
 describe("dominios extra del entorno", () => {
   it("limpia la lista y descarta lo que no es dominio", () => {
     expect(parseDomains("https://api.example.com/v1\n*.internal.dev, example.com example.com\nno valido\nlocalhost")).toEqual(["api.example.com", "*.internal.dev", "example.com"]);
+  });
+});
+
+describe("pushCommand", () => {
+  it("cambia de rama solo si está en la por defecto y sube con marca", () => {
+    const cmd = pushCommand("ricodevvv/NexoIA", "main", "Arreglar el login");
+    expect(cmd).toContain("cd 'NexoIA'");
+    expect(cmd).toMatch(/git switch -q -c 'nexo\/arreglar-el-login-[a-z0-9]{1,4}'/);
+    expect(cmd).toContain("'origin/main..HEAD'");
+    expect(isPushCommand(cmd)).toBe(true);
+    expect(isPushCommand("git push")).toBe(false);
+  });
+
+  it("no mete el título en el shell sin codificar", () => {
+    const cmd = pushCommand("a/b", "main", "'; rm -rf / #");
+    expect(cmd).not.toContain("rm -rf");
+  });
+
+  it("rechaza ramas raras", () => {
+    expect(() => pushCommand("a/b", "main'; x", "t")).toThrow();
+  });
+});
+
+describe("pushResult", () => {
+  it("lee la rama y los commits", () => {
+    expect(pushResult("To github.com:a/b\nnexo:rama nexo/x-1\nnexo:commit Dos\nnexo:commit Uno\n")).toEqual({ branch: "nexo/x-1", commits: ["Dos", "Uno"] });
+    expect(pushResult("fatal: error")).toEqual({ branch: null, commits: [] });
   });
 });

@@ -351,3 +351,29 @@ export async function listBranches(userId: string, fullName: string): Promise<st
   }
   return branches.slice(0, MAX_BRANCHES);
 }
+
+export type PullRequest = { url: string; number: number; draft: boolean };
+
+/**
+ * Datos de un repo al que el usuario le dio acceso: su rama por defecto y si
+ * puede hacer push.
+ */
+export async function repoInfo(userId: string, fullName: string) {
+  const { token } = await githubToken(userId);
+  const data = await api<{ full_name: string; default_branch: string; permissions?: { push?: boolean } }>(token, `/repos/${fullName}`);
+  return { fullName: data.full_name, defaultBranch: data.default_branch, canPush: Boolean(data.permissions?.push) };
+}
+
+/**
+ * Abre un pull request de `head` a `base`, o devuelve el que ya estaba
+ * abierto para esa rama, así pedirlo dos veces no crea otro.
+ */
+export async function openPullRequest(userId: string, fullName: string, pr: { head: string; base: string; title: string; body: string }): Promise<PullRequest & { created: boolean }> {
+  const { token } = await githubToken(userId);
+  const owner = fullName.split("/")[0];
+  type Raw = { html_url: string; number: number; draft?: boolean };
+  const open = await api<Raw[]>(token, `/repos/${fullName}/pulls?state=open&head=${encodeURIComponent(`${owner}:${pr.head}`)}&per_page=1`);
+  if (open[0]) return { url: open[0].html_url, number: open[0].number, draft: Boolean(open[0].draft), created: false };
+  const made = await api<Raw>(token, `/repos/${fullName}/pulls`, { method: "POST", body: JSON.stringify(pr) });
+  return { url: made.html_url, number: made.number, draft: Boolean(made.draft), created: true };
+}

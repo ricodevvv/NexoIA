@@ -7,6 +7,7 @@ import { ThinkingLine } from "../chat/activity";
 import { Message } from "../chat/message";
 import chat from "../chat/chat.module.css";
 import { AxoLoading } from "./axo";
+import { askNotifications, notify } from "./notify";
 import { applyNcEvent, initialState, type NcEvent, type NcMessage, sessionSetup, type SessionState, toUIMessages } from "./map";
 import { QuestionCard, type QuestionRequest } from "./question-card";
 import { SetupRow } from "./setup";
@@ -26,6 +27,7 @@ type Props = {
   onChanges: () => void;
   variant?: string | null;
   cloud: boolean;
+  title: string;
 };
 
 const AGENTS = [
@@ -49,7 +51,7 @@ function permissionText(p: Permission) {
  * Una sesión de Nexo Code: carga los mensajes, escucha los eventos en vivo y
  * deja escribir, parar y responder los permisos que pide el agente.
  */
-export function CodeSession({ serverId, sessionId, models, model, onModel, onTitle, onChanges, variant, cloud }: Props) {
+export function CodeSession({ serverId, sessionId, models, model, onModel, onTitle, onChanges, variant, cloud, title }: Props) {
   const [state, setState] = useState<SessionState>({ messages: {} });
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -65,6 +67,7 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
   const readyRef = useRef<Promise<void>>(Promise.resolve());
   const lastEventRef = useRef(0);
   const busyRef = useRef(false);
+  const titleRef = useRef(title);
   const base = `/api/code/${serverId}/sessions/${encodeURIComponent(sessionId)}`;
 
   const load = useCallback(() => {
@@ -88,6 +91,11 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
     let queue: NcEvent[] = [];
     let frame = 0;
     let opened = false;
+    const finished = () => {
+      if (busyRef.current) void notify("Nexo Code terminó", titleRef.current, `nexo-code-${sessionId}`);
+      busyRef.current = false;
+      onChanges();
+    };
     const flush = () => {
       frame = 0;
       const events = queue;
@@ -110,17 +118,22 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
       if (event.type === "session.status") {
         const status = (p.status as { type: string }).type;
         setBusy(status !== "idle");
-        if (status === "idle") onChanges();
+        if (status === "idle") finished();
+        else busyRef.current = true;
         return;
       }
       if (event.type === "session.idle") {
         setBusy(false);
-        onChanges();
+        finished();
         return;
       }
       if (event.type === "session.error") {
         const err = p.error as { data?: { message?: string }; name?: string } | undefined;
-        if (err?.name !== "MessageAbortedError") setError(err?.data?.message ?? "El agente tuvo un error");
+        if (err?.name !== "MessageAbortedError") {
+          const message = err?.data?.message ?? "El agente tuvo un error";
+          setError(message);
+          void notify("Nexo Code tuvo un error", `${titleRef.current}: ${message}`, `nexo-code-${sessionId}`);
+        }
         return;
       }
       if (event.type === "session.updated") {
@@ -133,11 +146,15 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
         return;
       }
       if (event.type === "permission.asked") {
-        setPermissions((all) => [...all.filter((x) => x.id !== p.id), p as unknown as Permission]);
+        const permission = p as unknown as Permission;
+        setPermissions((all) => [...all.filter((x) => x.id !== permission.id), permission]);
+        void notify("Nexo Code necesita tu permiso", `${titleRef.current}: ${permissionText(permission).title.replace(/^Nexo Code quiere /, "quiere ")}`, `nexo-code-${sessionId}`);
         return;
       }
       if (event.type === "question.asked") {
-        setQuestions((all) => [...all.filter((x) => x.id !== p.id), p as unknown as QuestionRequest]);
+        const question = p as unknown as QuestionRequest;
+        setQuestions((all) => [...all.filter((x) => x.id !== question.id), question]);
+        void notify("Nexo Code te hizo una pregunta", question.questions[0]?.question ?? titleRef.current, `nexo-code-${sessionId}`);
         return;
       }
       if (event.type === "question.replied" || event.type === "question.rejected") {
@@ -165,6 +182,10 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
     busyRef.current = busy;
   }, [busy]);
 
+  useEffect(() => {
+    titleRef.current = title;
+  }, [title]);
+
   const messages = useMemo(() => toUIMessages(state), [state]);
   const lastId = messages.at(-1)?.id;
   const setup = useMemo(() => sessionSetup(state), [state]);
@@ -189,6 +210,7 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
     const value = text.trim();
     if (!value || busy) return;
     setText("");
+    askNotifications();
     setBusy(true);
     setError(null);
     stickRef.current = true;

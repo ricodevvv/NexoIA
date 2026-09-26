@@ -988,3 +988,53 @@
   max-height: calc(100dvh - 32px);
   overflow-y: auto;
 }
+
+.prWrap {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.prBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-2);
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+
+.prPop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 10px 8px 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-2);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.prPop[data-level="error"] {
+  color: var(--danger);
+}
+
+@media (max-width: 560px) {
+  .prLabel {
+    display: none;
+  }
+}

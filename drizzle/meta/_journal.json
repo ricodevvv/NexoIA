@@ -120,6 +120,13 @@
       "when": 1790399614466,
       "tag": "0016_drop_code_workspace",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790405970392,
+      "tag": "0017_code_session_pr",
+      "breakpoints": true
     }
   ]
 }
