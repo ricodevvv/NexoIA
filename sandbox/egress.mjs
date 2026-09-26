@@ -7,6 +7,7 @@ const PORT = Number(process.env.EGRESS_PORT ?? 3128);
 const ALLOWED_PORTS = new Set((process.env.EGRESS_PORTS ?? "80,443").split(",").map(Number));
 const IDLE_MS = Number(process.env.EGRESS_IDLE_SECONDS ?? 30) * 1000;
 const SECRET = process.env.EGRESS_SECRET ?? "";
+const CONNECT_TIMEOUT_MS = 15_000;
 
 const TRUSTED = [
   "github.com", "*.github.com", "*.githubusercontent.com", "ghcr.io", "gitlab.com", "*.gitlab.com", "bitbucket.org",
@@ -189,14 +190,26 @@ server.on("connect", async (req, client, head) => {
   }
   try {
     const ip = await resolvePublic(host);
-    const upstream = capped(net.connect({ host: ip, port }));
+    const upstream = net.connect({ host: ip, port });
+    let connected = false;
+    const fail = (reason) => {
+      log("FAIL", `${host}:${port}`, `${ip} ${reason}`);
+      upstream.destroy();
+      if (connected) return client.destroy();
+      const body = `nexo: no se pudo conectar con ${host} (${reason})`;
+      client.end(`HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
+    };
+    upstream.setTimeout(CONNECT_TIMEOUT_MS, () => fail("tiempo de conexión agotado"));
     upstream.once("connect", () => {
+      connected = true;
+      upstream.removeAllListeners("timeout");
+      capped(upstream);
       client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
       if (head.length) upstream.write(head);
       upstream.pipe(client);
       capped(client).pipe(upstream);
     });
-    upstream.on("error", () => client.destroy());
+    upstream.on("error", (err) => fail(err.code ?? err.message));
     client.on("close", () => upstream.destroy());
     log("CONNECT", `${host}:${port}`);
   } catch (err) {
