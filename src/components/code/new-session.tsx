@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useDictation } from "../chat/use-dictation";
-import { Axo } from "./axo";
+import { Axo, AxoLaptop } from "./axo";
 
 function Github({ size = 18 }: { size?: number; "aria-hidden"?: boolean | "true" }) {
   return (
@@ -189,7 +189,7 @@ export function NewSession(props: {
       )}
 
       <div className={styles.hero}>
-        <Axo size={72} className={styles.axo} />
+        <AxoLaptop size={72} className={styles.axo} />
         <h1>
           {greeting()}, {props.userName.split(" ")[0]}
         </h1>

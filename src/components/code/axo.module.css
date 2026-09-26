@@ -108,24 +108,3 @@
     opacity: 0;
   }
 }
-
-.working {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  font-size: var(--text-sm);
-  animation: fade var(--dur-base) var(--ease);
-}
-
-.working svg {
-  flex: none;
-}
-
-.verb {
-  color: #f0719e;
-}
-
-.elapsed {
-  color: var(--text-3);
-  font-variant-numeric: tabular-nums;
-}
