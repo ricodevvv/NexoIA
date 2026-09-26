@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { CodeNavProvider } from "./code/code-nav";
 import { ExternalLinkDialog } from "./external-link";
 import { SearchPalette } from "./search-palette";
 import { Sidebar } from "./sidebar";
@@ -134,15 +135,17 @@ export function Shell({
 
   return (
     <ShellContext.Provider value={{ collapsed, toggle, openSearch: () => setSearchOpen(true) }}>
-      <div ref={shellRef} className="shell" data-collapsed={collapsed} data-drawer={mobileOpen}>
-        <div ref={slotRef} className={styles.sidebarSlot} data-open={mobileOpen} {...(mobileOpen ? swipe : {})}>
-          <Sidebar user={user} plan={plan} onToggle={toggle} workspaces={workspaces} activeWorkspace={activeWorkspace} />
+      <CodeNavProvider>
+        <div ref={shellRef} className="shell" data-collapsed={collapsed} data-drawer={mobileOpen}>
+          <div ref={slotRef} className={styles.sidebarSlot} data-open={mobileOpen} {...(mobileOpen ? swipe : {})}>
+            <Sidebar user={user} plan={plan} onToggle={toggle} workspaces={workspaces} activeWorkspace={activeWorkspace} />
+          </div>
+          {mobileOpen && <button className={styles.scrim} aria-label="Cerrar menú" onClick={() => setOpenAt(null)} />}
+          <main className="main">{children}</main>
+          <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
+          <ExternalLinkDialog />
         </div>
-        {mobileOpen && <button className={styles.scrim} aria-label="Cerrar menú" onClick={() => setOpenAt(null)} />}
-        <main className="main">{children}</main>
-        <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
-        <ExternalLinkDialog />
-      </div>
+      </CodeNavProvider>
     </ShellContext.Provider>
   );
 }

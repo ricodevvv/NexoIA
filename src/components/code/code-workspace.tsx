@@ -1,14 +1,14 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import * as Menu from "@radix-ui/react-dropdown-menu";
-import { ChevronDown, FileDiff as DiffIcon, ListTree, PanelLeft, Plus, Server, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { FileDiff as DiffIcon, PanelLeft } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { withViewTransition } from "@/lib/motion";
 import { NexoLogo } from "../brand/logo";
 import { useShell } from "../shell";
 import { useStoredState } from "../use-stored-state";
 import chat from "../chat/chat.module.css";
+import { usePublishCodeNav } from "./code-nav";
 import { CodeSession, type CodeModel } from "./code-session";
 import { DiffPanel, type FileDiff } from "./diff-panel";
 import { NewSession, type StartInput } from "./new-session";
@@ -17,14 +17,6 @@ import styles from "./code.module.css";
 
 export type PublicServer = { id: string; name: string; url: string; directory: string | null; managed: boolean; hasPassword: boolean; cloud?: boolean };
 type SessionItem = { id: string; title: string; updated: number };
-
-function relative(ms: number) {
-  const diff = (Date.now() - ms) / 1000;
-  if (diff < 60) return "ahora";
-  if (diff < 3600) return `hace ${Math.floor(diff / 60)} min`;
-  if (diff < 86400) return `hace ${Math.floor(diff / 3600)} h`;
-  return new Date(ms).toLocaleDateString("es", { day: "numeric", month: "short" });
-}
 
 function syncUrl(server: string | null, session: string | null) {
   const url = new URL(window.location.href);
@@ -56,7 +48,6 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
   const [diff, setDiff] = useState<FileDiff[]>([]);
   const [diffLoading, setDiffLoading] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [listOpen, setListOpen] = useState(false);
   const [storedVariant, setStoredVariant] = useStoredState<string>(`nexo-code-variant:${serverId ?? ""}`, "");
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
@@ -108,10 +99,7 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
   }
 
   function openSession(id: string | null) {
-    const update = () => {
-      setSessionId(id);
-      setListOpen(false);
-    };
+    const update = () => setSessionId(id);
     if (id !== sessionId && window.matchMedia("(max-width: 860px)").matches) withViewTransition(update, "nav-forward");
     else update();
     syncUrl(serverId, id);
@@ -175,6 +163,34 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
     selectServer(created);
   }
 
+  const publish = usePublishCodeNav();
+  const open = (id: string | null) => (id ? openSession(id) : newSession());
+  const handlers = useRef({ open, selectServer, addServer: () => setAdding(true), removeServer });
+  useEffect(() => {
+    handlers.current = { open, selectServer, addServer: () => setAdding(true), removeServer };
+  });
+  useEffect(() => {
+    if (!serverId) {
+      publish(null);
+      return;
+    }
+    publish({
+      servers: servers.map((s) => ({ id: s.id, name: s.name, managed: s.managed })),
+      serverId,
+      sessions,
+      titles,
+      activeId: sessionId,
+      error: serverError,
+      actions: {
+        open: (id) => handlers.current.open(id),
+        selectServer: (id) => handlers.current.selectServer(id),
+        addServer: () => handlers.current.addServer(),
+        removeServer: () => handlers.current.removeServer(),
+      },
+    });
+  }, [publish, servers, serverId, sessions, titles, sessionId, serverError]);
+  useEffect(() => () => publish(null), [publish]);
+
   const onTitle = useCallback(
     (t: string) => {
       if (!sessionId) return;
@@ -216,68 +232,12 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
     );
   }
 
-  const list = (
-    <nav className={styles.rail} aria-label="Sesiones de código" data-open={listOpen}>
-      <div className={styles.railHead}>
-        <Menu.Root>
-          <Menu.Trigger className={styles.serverBtn} aria-label="Cambiar de servidor">
-            <Server size={15} aria-hidden="true" />
-            <span>{server.name}</span>
-            <ChevronDown size={14} aria-hidden="true" />
-          </Menu.Trigger>
-          <Menu.Portal>
-            <Menu.Content className="menu" align="start" sideOffset={6}>
-              <p className="menu-label label">Servidores</p>
-              {servers.map((s) => (
-                <Menu.Item key={s.id} className="menu-item" onSelect={() => selectServer(s.id)}>
-                  <Server /> <span className={styles.grow}>{s.name}</span>
-                  {s.id === server.id && <span className="tag">Actual</span>}
-                </Menu.Item>
-              ))}
-              <Menu.Separator className="menu-sep" />
-              <Menu.Item className="menu-item" onSelect={() => setAdding(true)}>
-                <Plus /> Conectar otro servidor
-              </Menu.Item>
-              {!server.managed && (
-                <Menu.Item className="menu-item" data-danger onSelect={removeServer}>
-                  <Trash2 /> Quitar {server.name}
-                </Menu.Item>
-              )}
-            </Menu.Content>
-          </Menu.Portal>
-        </Menu.Root>
-        <button className={`icon-btn ${styles.railClose}`} onClick={() => setListOpen(false)} aria-label="Cerrar sesiones">
-          <X />
-        </button>
-      </div>
-      <button type="button" className={styles.newSession} onClick={newSession}>
-        <Plus size={16} aria-hidden="true" /> Nueva sesión
-      </button>
-      {serverError && <p className={styles.error}>{serverError}</p>}
-      <ul className={styles.sessionList}>
-        {sessions.map((s) => (
-          <li key={s.id}>
-            <button type="button" data-active={s.id === sessionId} onClick={() => openSession(s.id)}>
-              <span className={styles.sessionTitle}>{titles[s.id] ?? s.title}</span>
-              <span className={styles.sessionTime}>{relative(s.updated)}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  );
-
   return (
     <div className={styles.workspace} data-diff={diffOpen}>
-      {list}
-      {listOpen && <button className={styles.scrim} aria-label="Cerrar sesiones" onClick={() => setListOpen(false)} />}
       <div className={`${chat.chat} ${styles.main}`}>
         <header className={`${chat.header} ${sessionId ? "" : styles.startHeader}`} data-collapsed={collapsed}>
           <button className={`icon-btn ${chat.menuBtn}`} onClick={toggle} aria-label="Mostrar barra lateral">
             <PanelLeft />
-          </button>
-          <button className={`icon-btn ${styles.listBtn}`} onClick={() => setListOpen(true)} aria-label="Ver sesiones">
-            <ListTree />
           </button>
           <h1 className={`${chat.title} ${styles.sessionTitleBlock}`}>
             <span className={chat.titleText}>{title}</span>
@@ -314,7 +274,7 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
             onVariant={(v) => setStoredVariant(v)}
             starting={starting}
             error={startError ?? serverError}
-            onBack={() => (sessions.length ? setListOpen(true) : toggle())}
+            onBack={toggle}
             onStart={startSession}
           />
         )}

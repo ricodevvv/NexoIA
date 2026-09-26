@@ -30,6 +30,7 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { NexoLogo } from "./brand/logo";
+import { CodeSessions, useCodeNav } from "./code/code-nav";
 import { notifyConversationsChanged, onConversationsChanged } from "./events";
 import styles from "./sidebar.module.css";
 import { useDragToClose } from "./use-drag-to-close";
@@ -54,6 +55,7 @@ export function Sidebar({ user, plan, onToggle, workspaces, activeWorkspace }: P
   const pathname = usePathname();
   const [items, setItems] = useState<Conversation[]>([]);
   const { openSearch } = useShell();
+  const codeNav = useCodeNav();
   const [renaming, setRenaming] = useState<Conversation | null>(null);
   const [deleting, setDeleting] = useState<Conversation | null>(null);
 
@@ -143,50 +145,56 @@ export function Sidebar({ user, plan, onToggle, workspaces, activeWorkspace }: P
         </button>
       </div>
 
-      <button type="button" className={styles.search} onClick={openSearch}>
-        <Search size={18} aria-hidden="true" />
-        <span>Buscar</span>
-        <kbd className={styles.kbd}>Ctrl K</kbd>
-      </button>
+      {codeNav && pathname.startsWith("/code") ? (
+        <CodeSessions nav={codeNav} onPicked={() => window.matchMedia("(max-width: 860px)").matches && onToggle()} />
+      ) : (
+        <>
+          <button type="button" className={styles.search} onClick={openSearch}>
+            <Search size={18} aria-hidden="true" />
+            <span>Buscar</span>
+            <kbd className={styles.kbd}>Ctrl K</kbd>
+          </button>
 
-      <div className={styles.nav}>
-        <Link href="/" className={styles.navLink} data-active={pathname === "/"}>
-          <span className={styles.plus} aria-hidden="true">
-            <Plus size={15} />
-          </span>
-          Nuevo chat
-        </Link>
-        <Link href="/projects" className={styles.navLink} data-active={pathname.startsWith("/projects")}>
-          <FolderClosed size={19} aria-hidden="true" />
-          Proyectos
-        </Link>
-        <Link href="/settings?tab=personalization" className={styles.navLink} data-active={pathname.startsWith("/settings")}>
-          <SlidersHorizontal size={19} aria-hidden="true" />
-          Personalizar
-        </Link>
-      </div>
-
-      <div className={styles.switcherSlot}>
-        <WorkspaceSwitcher workspaces={workspaces} active={activeWorkspace} />
-      </div>
-
-      <div className={styles.list}>
-        {pinned.length > 0 && (
-          <section className={styles.group}>
-            <h2 className={styles.groupTitle}>Fijados</h2>
-            <ul>{pinned.map((c) => renderItem(c, true))}</ul>
-          </section>
-        )}
-        <section className={styles.group}>
-          <div className={styles.groupHead}>
-            <h2 className={styles.groupTitle}>Recientes</h2>
-            <button type="button" className={styles.groupAction} onClick={openSearch} aria-label="Buscar chats" title="Buscar chats">
-              <Search size={15} />
-            </button>
+          <div className={styles.nav}>
+            <Link href="/" className={styles.navLink} data-active={pathname === "/"}>
+              <span className={styles.plus} aria-hidden="true">
+                <Plus size={15} />
+              </span>
+              Nuevo chat
+            </Link>
+            <Link href="/projects" className={styles.navLink} data-active={pathname.startsWith("/projects")}>
+              <FolderClosed size={19} aria-hidden="true" />
+              Proyectos
+            </Link>
+            <Link href="/settings?tab=personalization" className={styles.navLink} data-active={pathname.startsWith("/settings")}>
+              <SlidersHorizontal size={19} aria-hidden="true" />
+              Personalizar
+            </Link>
           </div>
-          {recents.length === 0 ? <p className={styles.empty}>Tus chats van a aparecer aquí.</p> : <ul>{recents.map((c) => renderItem(c))}</ul>}
-        </section>
-      </div>
+
+          <div className={styles.switcherSlot}>
+            <WorkspaceSwitcher workspaces={workspaces} active={activeWorkspace} />
+          </div>
+
+          <div className={styles.list}>
+            {pinned.length > 0 && (
+              <section className={styles.group}>
+                <h2 className={styles.groupTitle}>Fijados</h2>
+                <ul>{pinned.map((c) => renderItem(c, true))}</ul>
+              </section>
+            )}
+            <section className={styles.group}>
+              <div className={styles.groupHead}>
+                <h2 className={styles.groupTitle}>Recientes</h2>
+                <button type="button" className={styles.groupAction} onClick={openSearch} aria-label="Buscar chats" title="Buscar chats">
+                  <Search size={15} />
+                </button>
+              </div>
+              {recents.length === 0 ? <p className={styles.empty}>Tus chats van a aparecer aquí.</p> : <ul>{recents.map((c) => renderItem(c))}</ul>}
+            </section>
+          </div>
+        </>
+      )}
 
       <UserMenu user={user} plan={plan} />
 
