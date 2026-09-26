@@ -19,7 +19,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 COPY nexocode /usr/local/bin/nexocode
 COPY entrypoint.sh /usr/local/bin/nexo-workspace
-COPY present-files.mjs git-credential.mjs /usr/local/lib/nexo/
+COPY present-files.mjs git-credential.mjs local-proxy.mjs /usr/local/lib/nexo/
 COPY gh.sh /usr/local/bin/gh
 COPY --from=prompts AGENTS.md /usr/local/lib/nexo/AGENTS.md
 COPY --from=prompts agents/explorer.md agents/reviewer.md /usr/local/lib/nexo/nexocode/agents/

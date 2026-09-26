@@ -21,7 +21,8 @@ const IDLE_MS = Number(process.env.NEXO_WORKSPACE_IDLE_MINUTES ?? 15) * 60_000;
 const RETENTION_MS = Number(process.env.NEXO_SESSION_RETENTION_DAYS ?? 30) * 24 * 3600_000;
 const MAX_RUNNING = Number(process.env.NEXO_SESSION_MAX_RUNNING ?? 3);
 const newId = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 12);
-const RESERVED_ENV = /^(NEXO|NEXOCODE|HTTPS?_PROXY|NO_PROXY|NODE_USE_ENV_PROXY|HOME|PATH)(_|$)/i;
+const LOCAL_PROXY_PORT = 3128;
+const RESERVED_ENV = /^(NEXO|NEXOCODE|HTTPS?_PROXY|ALL_PROXY|NO_PROXY|NODE_USE_ENV_PROXY|JAVA_TOOL_OPTIONS|HOME|PATH)(_|$)/i;
 
 type User = { id: string; email: string; name?: string | null };
 type Pod = {
@@ -265,24 +266,32 @@ function ready(pod: Pod) {
 }
 
 /**
- * Variables para que todo en el pod salga por el proxy. Git por defecto
- * negocia la autenticación del proxy mandando primero el CONNECT sin
- * credenciales, y como el proxy cierra la conexión después del 407 nunca
- * llega a reintentar; con `basic` las manda desde el principio.
+ * Variables para que todo en el pod salga por el proxy. Muchos programas no
+ * saben mandarle credenciales (Java, los plugins de Gradle, algunos CLIs),
+ * así que apuntan sin usuario al proxy local del pod, que añade la política
+ * firmada y reenvía al proxy de salida. Java ignora `HTTP_PROXY`, por eso
+ * también lo recibe en `JAVA_TOOL_OPTIONS`.
  */
 function proxyEnv(env: Environment): Record<string, string> {
   const proxy = egressProxyUrl(env.network as NetworkLevel, parseDomains(env.domains));
   if (!proxy) return {};
+  const local = `http://127.0.0.1:${LOCAL_PROXY_PORT}`;
   const noProxy = "localhost,127.0.0.1,::1";
+  const java = ["http", "https"]
+    .flatMap((p) => [`-D${p}.proxyHost=127.0.0.1`, `-D${p}.proxyPort=${LOCAL_PROXY_PORT}`])
+    .concat("-Dhttp.nonProxyHosts=localhost|127.0.0.1");
   return {
-    HTTPS_PROXY: proxy,
-    HTTP_PROXY: proxy,
-    https_proxy: proxy,
-    http_proxy: proxy,
+    NEXO_UPSTREAM_PROXY: proxy,
+    HTTPS_PROXY: local,
+    HTTP_PROXY: local,
+    https_proxy: local,
+    http_proxy: local,
+    ALL_PROXY: local,
+    all_proxy: local,
     NO_PROXY: noProxy,
     no_proxy: noProxy,
     NODE_USE_ENV_PROXY: "1",
-    GIT_HTTP_PROXY_AUTHMETHOD: "basic",
+    JAVA_TOOL_OPTIONS: java.join(" "),
   };
 }
 

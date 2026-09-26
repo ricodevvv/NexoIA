@@ -31,6 +31,14 @@ if [[ "$(sudo docker inspect nexo-sandbox-egress -f '{{index .Config.Labels "nex
   sudo docker network connect nexo-sandbox nexo-sandbox-egress
   echo "Proxy de salida del sandbox actualizado"
 fi
+if command -v k3s >/dev/null && sudo k3s kubectl -n nexo-ws get deployment nexo-egress >/dev/null 2>&1; then
+  if [[ "$(sudo k3s kubectl -n nexo-ws get deployment nexo-egress -o jsonpath='{.spec.template.metadata.annotations.nexo\.hash}')" != "$SANDBOX_HASH" ]]; then
+    sudo docker save nexo-sandbox:latest | sudo k3s ctr images import - >/dev/null
+    sudo k3s kubectl -n nexo-ws patch deployment nexo-egress --type merge \
+      -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"nexo.hash\":\"$SANDBOX_HASH\"}}}}}" >/dev/null
+    echo "Proxy de salida de los espacios actualizado"
+  fi
+fi
 
 cd "$DEST"
 pnpm install --frozen-lockfile --prefer-offline

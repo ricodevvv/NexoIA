@@ -8,7 +8,7 @@ export type EnvironmentData = { id: string; serverId: string; name: string; netw
 
 const LEVELS: { value: NetworkLevel; label: string; hint: string }[] = [
   { value: "none", label: "Ninguno", hint: "Sin internet. Solo GitHub (para clonar y hacer push) y los dominios extra." },
-  { value: "trusted", label: "De confianza", hint: "GitHub, GitLab y los registros de paquetes: npm, PyPI, Maven, crates, Go, RubyGems, Debian y parecidos." },
+  { value: "trusted", label: "De confianza", hint: "GitHub, GitLab y los registros de paquetes y builds: npm, PyPI, Maven, Gradle, Forge, Fabric, Mojang, crates, Go, Docker Hub, Hugging Face y parecidos." },
   { value: "full", label: "Completo", hint: "Cualquier sitio público. La red interna sigue bloqueada." },
 ];
 

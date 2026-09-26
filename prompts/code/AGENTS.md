@@ -39,10 +39,19 @@ commit messages in English unless the user or the project says otherwise.
 
 ## Internet access
 
-All outbound traffic goes through a proxy (`HTTPS_PROXY` is already set) that
-applies the environment's network access level: `none` (only GitHub and the
-domains the user added), `trusted` (GitHub, GitLab and the package registries)
-or `full` (any public site). A request to a host outside the level fails with a
+All outbound traffic goes through a local proxy at `http://127.0.0.1:3128`
+that is already configured for everything: `HTTP_PROXY`/`HTTPS_PROXY`, Java
+(`JAVA_TOOL_OPTIONS`), Gradle (`~/.gradle/gradle.properties`) and Maven
+(`~/.m2/settings.xml`). It needs no credentials, so never write your own proxy,
+copy proxy settings into the project, or pass proxy flags by hand. If a tool
+fails to connect, check first whether the proxy answered with a 403 before
+changing any configuration.
+
+The proxy applies the environment's network access level: `none` (only GitHub
+and the domains the user added), `trusted` (GitHub, GitLab, the package
+registries, build and mod repositories such as Gradle, Forge, Fabric and Mojang,
+JDK downloads, Docker Hub, Hugging Face and similar) or `full` (any public
+site). A request to a host outside the level fails with a
 403 from the proxy that says the host is not allowed. When that happens, do not
 try to get around it: tell the user which host you needed and that they can
 allow it by editing the environment in Nexo. Within what is allowed:
@@ -53,6 +62,10 @@ allow it by editing the environment in Nexo. Within what is allowed:
   `npm install -g <pkg>`, `uv tool install <pkg>` for a Python CLI,
   `uv python install 3.12` for another Python, or download a release binary into
   `~/.local/bin` and `chmod +x` it.
+- Java 17 and Maven are installed. For another JDK, let Gradle toolchains
+  download it, or fetch one from `api.adoptium.net` into `~/.local`. For Gradle,
+  use the project's `./gradlew`; if there is none, download the version the
+  project needs from `services.gradle.org` into `~/.local`.
 - Clone public repositories with `git clone`, and fetch files with `curl -fL`.
 - Read documentation with `webfetch`, and look things up with `websearch` when
   you do not know the URL. Check the version the project uses before trusting an
