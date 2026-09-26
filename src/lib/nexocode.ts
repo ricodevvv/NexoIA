@@ -4,7 +4,7 @@ import { decrypt } from "@/lib/crypto";
 import { db, schema } from "@/lib/db";
 import { HttpError } from "@/lib/http";
 import { assertSafeUrl } from "@/lib/safe-url";
-import { ensureWorkspace, WORKSPACE_SERVER_ID, workspacesAllowed } from "@/lib/workspaces";
+import { CLOUD_PREFIX, ensureSessionPod, getEnvironment, getSessionRow, listEnvironments, type SessionRow, workspacesAllowed } from "@/lib/workspaces";
 
 export const ENV_SERVER_ID = "env";
 
@@ -74,13 +74,24 @@ export async function listCodeServers(user: { id: string; email: string }): Prom
   }));
   const env = envServerFor(user.email);
   const cloud: CodeServer[] = (await workspacesAllowed(user))
-    ? [{ id: WORKSPACE_SERVER_ID, name: "Mi espacio en la nube", url: "", username: "nexocode", password: null, directory: null, managed: true }]
+    ? (await listEnvironments(user.id)).map((e) => ({ id: `${CLOUD_PREFIX}${e.id}`, name: e.name, url: "", username: "nexocode", password: null, directory: null, managed: true }))
     : [];
   return [...cloud, ...(env ? [env] : []), ...own];
 }
 
-export async function getCodeServer(user: { id: string; email: string; name?: string | null }, id: string): Promise<CodeServer> {
-  if (id === WORKSPACE_SERVER_ID) return ensureWorkspace(user);
+type User = { id: string; email: string; name?: string | null };
+
+export function isCloud(serverId: string) {
+  return serverId.startsWith(CLOUD_PREFIX);
+}
+
+/**
+ * Busca un servidor que el usuario agregó o el del entorno. Los entornos en
+ * la nube no son un servidor fijo (cada sesión tiene su contenedor), así que
+ * para ellos hay que usar `sessionTarget`.
+ */
+export async function getCodeServer(user: User, id: string): Promise<CodeServer> {
+  if (isCloud(id)) throw new HttpError(400, "Falta la sesión");
   if (id === ENV_SERVER_ID) {
     const env = envServerFor(user.email);
     if (env) return env;
@@ -99,6 +110,19 @@ export async function getCodeServer(user: { id: string; email: string; name?: st
     }
   }
   throw new HttpError(404, "No encontré ese servidor de código");
+}
+
+/**
+ * Resuelve a qué nexocode y a qué sesión de adentro hablarle. En la nube la
+ * sesión de Nexo trae su propio contenedor, que se prende si estaba apagado.
+ */
+export async function sessionTarget(user: User, serverId: string, sessionId: string): Promise<{ server: CodeServer; session: string; row: SessionRow | null }> {
+  if (!isCloud(serverId)) return { server: await getCodeServer(user, serverId), session: sessionId, row: null };
+  const row = await getSessionRow(user.id, sessionId);
+  if (`${CLOUD_PREFIX}${row.environmentId}` !== serverId) throw new HttpError(404, "No encontré esa sesión");
+  if (!row.agentSessionId) throw new HttpError(409, "La sesión todavía está arrancando");
+  const env = await getEnvironment(user.id, row.environmentId);
+  return { server: await ensureSessionPod(user, row, env.name), session: row.agentSessionId, row };
 }
 
 type Options = RequestInit & { query?: Record<string, string | undefined>; timeout?: number | null };
@@ -149,7 +173,7 @@ export async function nexocodeJson<T>(server: CodeServer, path: string, options?
 }
 
 export function publicServer(s: CodeServer) {
-  return { id: s.id, name: s.name, url: s.url, directory: s.directory, managed: s.managed, hasPassword: Boolean(s.password), cloud: s.id === WORKSPACE_SERVER_ID };
+  return { id: s.id, name: s.name, url: s.url, directory: s.directory, managed: s.managed, hasPassword: Boolean(s.password), cloud: isCloud(s.id) };
 }
 
 export const PromptInput = z.object({
@@ -213,4 +237,15 @@ export async function runShell(server: CodeServer, session: string, command: str
     .flatMap((m) => m.parts)
     .findLast((p) => p.type === "tool" && p.tool === "bash" && p.state?.input?.command === command);
   return { ok: part?.state?.status === "completed", output: part?.state?.output ?? part?.state?.error ?? "" };
+}
+
+/**
+ * El nexocode al que va una petición que no nombra la sesión en la ruta. En
+ * la nube hace falta `?session=` para saber a qué contenedor ir.
+ */
+export async function serverFromRequest(user: User, serverId: string, request: Request) {
+  if (!isCloud(serverId)) return getCodeServer(user, serverId);
+  const session = new URL(request.url).searchParams.get("session");
+  if (!session) throw new HttpError(400, "Falta la sesión");
+  return (await sessionTarget(user, serverId, session)).server;
 }

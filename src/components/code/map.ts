@@ -1,5 +1,5 @@
 import type { FileRef, MessagePart } from "@/lib/ai/types";
-import { clonedRepo, cloneSucceeded } from "@/lib/code-setup";
+import { clonedRepo, cloneSucceeded, isScriptCommand, scriptSucceeded, type StepStatus } from "@/lib/code-setup";
 import type { UIMessage } from "../chat/message";
 
 export type NcPart = {
@@ -110,31 +110,46 @@ export function presentedFiles(output: string): { files: FileRef[]; text: string
   }
 }
 
+function setupKind(p: NcPart) {
+  if (p.type !== "tool" || p.tool !== "bash") return null;
+  const command = p.state?.input?.command;
+  if (clonedRepo(command)) return "clone";
+  if (isScriptCommand(command)) return "script";
+  return null;
+}
+
 function isSetupPart(p: NcPart) {
-  return (p.type === "text" && p.synthetic) || (p.type === "tool" && p.tool === "bash" && clonedRepo(p.state?.input?.command) !== null);
+  return (p.type === "text" && p.synthetic) || setupKind(p) !== null;
 }
 
 function isSetupMessage(parts: NcPart[]) {
   return parts.some((p) => p.type === "tool") && parts.every((p) => isSetupPart(p) || !["text", "tool", "reasoning", "file"].includes(p.type));
 }
 
-export type SessionSetup = { repo: string; status: "running" | "done" | "error" };
+export type SessionSetup = { repo: string | null; clone: StepStatus | null; script: StepStatus | null };
+
+function partStatus(p: NcPart, ok: (output: string) => boolean): StepStatus {
+  if (p.state?.status === "completed") return ok(p.state.output ?? "") ? "done" : "error";
+  return p.state?.status === "error" ? "error" : "running";
+}
 
 /**
- * Busca el clonado que se hizo al arrancar la sesión, para pintarlo como la
- * fila de "Sesión inicializada" en vez de como un comando más.
+ * Busca el clonado y el script de configuración que se corrieron al arrancar
+ * la sesión, para pintarlos como la fila de "Sesión inicializada" en vez de
+ * como comandos sueltos.
  */
 export function sessionSetup(state: SessionState): SessionSetup | null {
+  const setup: SessionSetup = { repo: null, clone: null, script: null };
   for (const m of Object.values(state.messages)) {
     for (const p of Object.values(m.parts)) {
-      const repo = p.type === "tool" && p.tool === "bash" ? clonedRepo(p.state?.input?.command) : null;
-      if (!repo) continue;
-      const status = p.state?.status;
-      if (status === "completed") return { repo, status: cloneSucceeded(p.state?.output ?? "") ? "done" : "error" };
-      return { repo, status: status === "error" ? "error" : "running" };
+      const kind = setupKind(p);
+      if (kind === "clone") {
+        setup.repo = clonedRepo(p.state?.input?.command);
+        setup.clone = partStatus(p, cloneSucceeded);
+      } else if (kind === "script") setup.script = partStatus(p, scriptSucceeded);
     }
   }
-  return null;
+  return setup.clone || setup.script ? setup : null;
 }
 
 function toPart(p: NcPart): MessagePart | null {

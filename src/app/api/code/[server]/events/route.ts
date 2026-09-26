@@ -1,7 +1,9 @@
-import { logInfo } from "@/lib/log";
-import { getCodeServer, nexocodeFetch } from "@/lib/nexocode";
+import { eq } from "drizzle-orm";
+import { nexocodeFetch, sessionTarget } from "@/lib/nexocode";
 import { apiUser, handleError, HttpError } from "@/lib/session";
-import { touchWorkspace, WORKSPACE_SERVER_ID } from "@/lib/workspaces";
+import { db, schema } from "@/lib/db";
+import { logInfo } from "@/lib/log";
+import { touchSession } from "@/lib/workspaces";
 
 const FORWARD = new Set([
   "message.updated",
@@ -23,7 +25,7 @@ const FORWARD = new Set([
 
 type Upstream = {
   type: string;
-  properties?: { sessionID?: string; info?: { id?: string; sessionID?: string }; part?: { sessionID?: string } };
+  properties?: { sessionID?: string; info?: { id?: string; sessionID?: string; title?: string }; part?: { sessionID?: string } };
 };
 
 function belongsTo(event: Upstream, session: string) {
@@ -39,9 +41,9 @@ function belongsTo(event: Upstream, session: string) {
 export async function GET(request: Request, ctx: RouteContext<"/api/code/[server]/events">) {
   try {
     const user = await apiUser();
-    const server = await getCodeServer(user, (await ctx.params).server);
-    const session = new URL(request.url).searchParams.get("session");
-    if (!session) throw new HttpError(400, "Falta la sesión");
+    const requested = new URL(request.url).searchParams.get("session");
+    if (!requested) throw new HttpError(400, "Falta la sesión");
+    const { server, session, row } = await sessionTarget(user, (await ctx.params).server, requested);
 
     const upstream = await nexocodeFetch(server, "/event", { signal: request.signal, timeout: null, headers: { Accept: "text/event-stream" } });
     if (!upstream.body) throw new HttpError(502, "El servidor no mandó eventos");
@@ -57,7 +59,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/code/[server
         let beats = 0;
         const ping = setInterval(() => {
           controller.enqueue(encoder.encode(": ping\n\n"));
-          if (server.id === WORKSPACE_SERVER_ID && ++beats % 3 === 0) touchWorkspace(user.id).catch(() => {});
+          if (row && ++beats % 3 === 0) touchSession(row.id).catch(() => {});
         }, 20_000);
         try {
           controller.enqueue(encoder.encode(": conectado\n\n"));
@@ -84,6 +86,10 @@ export async function GET(request: Request, ctx: RouteContext<"/api/code/[server
                 if (FORWARD.has(event.type)) dropped[event.type] = (dropped[event.type] ?? 0) + 1;
                 continue;
               }
+              if (row && event.type === "session.updated" && event.properties?.info?.title && event.properties.info.title !== row.title) {
+                row.title = event.properties.info.title;
+                db.update(schema.codeSession).set({ title: row.title }).where(eq(schema.codeSession.id, row.id)).catch(() => {});
+              }
               sent++;
               controller.enqueue(encoder.encode(`data: ${data}\n\n`));
             }
@@ -91,7 +97,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/code/[server
         } catch {
         } finally {
           clearInterval(ping);
-          if (server.id === WORKSPACE_SERVER_ID) {
+          if (row) {
             logInfo("code-events", { server: server.id, session, sent, dropped, seconds: Math.round((Date.now() - started) / 1000) });
           }
           try {

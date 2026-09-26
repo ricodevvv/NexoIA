@@ -55,7 +55,7 @@ metadata:
   namespace: nexo-ws
 spec:
   hard:
-    pods: "8"
+    pods: "9"
     requests.memory: 12Gi
     limits.memory: 16Gi
     requests.storage: 200Gi
@@ -92,6 +92,45 @@ spec:
         - port: 53
           protocol: TCP
     - to:
+        - podSelector:
+            matchLabels:
+              app: nexo-egress
+      ports:
+        - port: 3128
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-proxy
+  namespace: nexo-ws
+spec:
+  podSelector:
+    matchLabels:
+      app: nexo-egress
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: nexo-workspace
+      ports:
+        - port: 3128
+          protocol: TCP
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
         - ipBlock:
             cidr: 0.0.0.0/0
             except:
@@ -101,3 +140,54 @@ spec:
               - 100.64.0.0/10
               - 169.254.0.0/16
               - 127.0.0.0/8
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexo-egress
+  namespace: nexo-ws
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nexo-egress
+  template:
+    metadata:
+      labels:
+        app: nexo-egress
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext: { runAsUser: 1000, runAsGroup: 1000, runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: egress
+          image: nexo-sandbox:latest
+          imagePullPolicy: Never
+          command: ["node", "egress.mjs"]
+          ports:
+            - containerPort: 3128
+          env:
+            - name: EGRESS_SECRET
+              valueFrom:
+                secretKeyRef: { name: nexo-egress, key: secret }
+            - name: EGRESS_IDLE_SECONDS
+              value: "600"
+            - name: EGRESS_MAX_MB
+              value: "4096"
+          resources:
+            requests: { memory: 64Mi, cpu: 50m }
+            limits: { memory: 256Mi, cpu: 500m }
+          readinessProbe: { tcpSocket: { port: 3128 }, periodSeconds: 5 }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ["ALL"] } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nexo-egress
+  namespace: nexo-ws
+spec:
+  selector:
+    app: nexo-egress
+  ports:
+    - port: 3128
+      targetPort: 3128

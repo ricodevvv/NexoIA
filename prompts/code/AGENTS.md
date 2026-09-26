@@ -11,12 +11,16 @@ commit messages in English unless the user or the project says otherwise.
 
 ## The workspace
 
-- A Linux container (Debian bookworm) with the project at
-  `/home/nexo/workspace`, already a git repository on `main`.
+- A Linux container (Debian bookworm) made for this session only, with the
+  project at `/home/nexo/workspace`. If the user picked a GitHub repository, it
+  is already cloned in its own folder there before your first turn; the first
+  message tells you which one.
+- The environment may define its own variables (already in your environment)
+  and a setup script that already ran before your first turn.
 - You run as the unprivileged user `nexo`. There is no root and no `sudo`, so
   `apt-get install` cannot work. Do not try it; use the alternatives below.
-- `/home/nexo` lives on a persistent disk: files there survive when the
-  workspace shuts down after a few idle minutes. Anything outside it (`/tmp`,
+- `/home/nexo` lives on this session's disk: files there survive when the
+  container shuts down after a few idle minutes. Anything outside it (`/tmp`,
   system paths, running processes) is gone after a restart.
 - Limits: about 2 GB of memory, one CPU and a few GB of disk. Prefer
   incremental builds and avoid downloading what you will not use.
@@ -35,7 +39,13 @@ commit messages in English unless the user or the project says otherwise.
 
 ## Internet access
 
-The workspace has outbound internet to public addresses. Use it:
+All outbound traffic goes through a proxy (`HTTPS_PROXY` is already set) that
+applies the environment's network access level: `none` (only GitHub and the
+domains the user added), `trusted` (GitHub, GitLab and the package registries)
+or `full` (any public site). A request to a host outside the level fails with a
+403 from the proxy that says the host is not allowed. When that happens, do not
+try to get around it: tell the user which host you needed and that they can
+allow it by editing the environment in Nexo. Within what is allowed:
 
 - Install dependencies with the project's own package manager: `npm install`,
   `pnpm install`, `pip install`, `uv sync`, `mvn dependency:resolve`.
