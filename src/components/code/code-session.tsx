@@ -2,13 +2,14 @@
 
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { ArrowDown, ArrowUp, Check, ChevronDown, CornerDownLeft, ShieldQuestion, Square } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ThinkingLine } from "../chat/activity";
 import { Message } from "../chat/message";
 import chat from "../chat/chat.module.css";
 import { AxoLoading } from "./axo";
-import { applyNcEvent, initialState, type NcEvent, type NcMessage, type SessionState, toUIMessages } from "./map";
+import { applyNcEvent, initialState, type NcEvent, type NcMessage, sessionSetup, type SessionState, toUIMessages } from "./map";
 import { QuestionCard, type QuestionRequest } from "./question-card";
+import { SetupRow } from "./setup";
 import styles from "./code.module.css";
 
 export type CodeModel = { providerID: string; modelID: string; label: string; provider: string; variants?: string[] };
@@ -24,6 +25,7 @@ type Props = {
   onTitle: (title: string) => void;
   onChanges: () => void;
   variant?: string | null;
+  cloud: boolean;
 };
 
 const AGENTS = [
@@ -47,7 +49,7 @@ function permissionText(p: Permission) {
  * Una sesión de Nexo Code: carga los mensajes, escucha los eventos en vivo y
  * deja escribir, parar y responder los permisos que pide el agente.
  */
-export function CodeSession({ serverId, sessionId, models, model, onModel, onTitle, onChanges, variant }: Props) {
+export function CodeSession({ serverId, sessionId, models, model, onModel, onTitle, onChanges, variant, cloud }: Props) {
   const [state, setState] = useState<SessionState>({ messages: {} });
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -165,6 +167,8 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
 
   const messages = useMemo(() => toUIMessages(state), [state]);
   const lastId = messages.at(-1)?.id;
+  const setup = useMemo(() => sessionSetup(state), [state]);
+  const setupAfter = messages.find((m) => m.role === "user")?.id;
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -246,7 +250,16 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
             </div>
           )}
           {messages.map((m) => (
-            <Message key={m.id} message={m} live={busy && m.id === lastId && m.role === "assistant"} isLast={m.id === lastId} busy={busy} />
+            <Fragment key={m.id}>
+              <Message message={m} live={busy && m.id === lastId && m.role === "assistant"} isLast={m.id === lastId} busy={busy} />
+              {setup && m.id === setupAfter && (
+                <SetupRow
+                  repo={setup.repo}
+                  cloud={cloud}
+                  steps={{ container: "done", clone: setup.status, agent: setup.status === "done" ? "done" : "pending" }}
+                />
+              )}
+            </Fragment>
           ))}
           {busy && messages.at(-1)?.role !== "assistant" && (
             <ThinkingLine />

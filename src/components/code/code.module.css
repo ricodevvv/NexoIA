@@ -804,3 +804,103 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+.setup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 8px;
+}
+
+.setupRow {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.setupRow:hover {
+  color: var(--text-2);
+}
+
+.setupRow[data-state="error"] {
+  color: var(--danger);
+}
+
+.setupLive {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+  font-size: var(--text-sm);
+}
+
+.setupSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 4px 4px 12px;
+  list-style: none;
+}
+
+.setupSteps li {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 0;
+  color: var(--text);
+}
+
+.setupSteps li + li::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 9px;
+  height: 16px;
+  border-left: 1px solid var(--border-strong);
+}
+
+.setupSteps li > :first-child {
+  flex: none;
+  width: 18px;
+  color: var(--text-2);
+}
+
+.setupSteps span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.setupSteps small {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+
+.setupSteps li[data-status="done"] span {
+  color: var(--text-2);
+  text-decoration: line-through;
+  text-decoration-color: var(--text-3);
+}
+
+.setupSteps li[data-status="pending"] {
+  color: var(--text-3);
+}
+
+.setupSteps li[data-status="error"],
+.setupSteps li[data-status="error"] > :first-child {
+  color: var(--danger);
+}
+
+.bootError {
+  flex: 1;
+  white-space: pre-wrap;
+}

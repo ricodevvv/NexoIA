@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getCodeServer, nexocodeJson } from "@/lib/nexocode";
+import { createSession, getCodeServer, nexocodeJson } from "@/lib/nexocode";
 import { apiUser, handleError } from "@/lib/session";
 
 type Session = { id: string; title: string; parentID?: string; time: { created: number; updated: number }; summary?: { additions: number; deletions: number; files: number } };
@@ -27,8 +27,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/code/[serve
     const user = await apiUser();
     const server = await getCodeServer(user, (await ctx.params).server);
     const { title, ask } = Create.parse(await request.json().catch(() => ({})));
-    const permission = ask ? ["bash", "edit", "webfetch"].map((p) => ({ permission: p, pattern: "*", action: "ask" })) : undefined;
-    const session = await nexocodeJson<Session>(server, "/session", { method: "POST", body: JSON.stringify({ ...(title ? { title } : {}), ...(permission ? { permission } : {}) }) });
+    const session = await createSession(server, { title, ask });
     return Response.json({ id: session.id, title: session.title });
   } catch (err) {
     return handleError(err);
