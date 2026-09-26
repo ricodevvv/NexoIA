@@ -5,7 +5,7 @@ import { decrypt } from "@/lib/crypto";
 import { db, schema } from "@/lib/db";
 import { enforce } from "@/lib/rate-limit";
 import { handleError, HttpError } from "@/lib/session";
-import { hashToken, workspaceModels } from "@/lib/workspaces";
+import { sessionFromToken, workspaceModels } from "@/lib/workspaces";
 
 const LIMIT = { window: 60, max: 120 };
 const PASS_HEADERS = ["anthropic-version", "anthropic-beta", "openai-beta", "accept"];
@@ -15,10 +15,7 @@ type Target = { url: string; headers: Record<string, string>; allowed: (model: s
 async function workspaceUser(request: Request) {
   const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   const token = request.headers.get("x-api-key") ?? bearer;
-  if (!token?.startsWith("nws_")) throw new HttpError(401, "Falta el token del espacio de trabajo");
-  const row = await db.query.codeWorkspace.findFirst({ where: eq(schema.codeWorkspace.tokenHash, hashToken(token)) });
-  if (!row) throw new HttpError(401, "Token inválido");
-  return row.userId;
+  return (await sessionFromToken(token ?? "")).userId;
 }
 
 /**

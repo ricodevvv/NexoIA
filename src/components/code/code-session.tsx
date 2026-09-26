@@ -218,7 +218,7 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
 
   async function answer(id: string, reply: "once" | "always" | "reject") {
     setPermissions((all) => all.filter((x) => x.id !== id));
-    const res = await fetch(`/api/code/${serverId}/permissions/${encodeURIComponent(id)}`, {
+    const res = await fetch(`/api/code/${serverId}/permissions/${encodeURIComponent(id)}?session=${encodeURIComponent(sessionId)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ reply }),
@@ -228,7 +228,7 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
 
   async function answerQuestion(id: string, body: { answers: string[][] } | { reject: true }) {
     setQuestions((all) => all.filter((x) => x.id !== id));
-    const res = await fetch(`/api/code/${serverId}/questions/${encodeURIComponent(id)}`, {
+    const res = await fetch(`/api/code/${serverId}/questions/${encodeURIComponent(id)}?session=${encodeURIComponent(sessionId)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -256,7 +256,12 @@ export function CodeSession({ serverId, sessionId, models, model, onModel, onTit
                 <SetupRow
                   repo={setup.repo}
                   cloud={cloud}
-                  steps={{ container: "done", clone: setup.status, agent: setup.status === "done" ? "done" : "pending" }}
+                  steps={{
+                    container: "done",
+                    clone: setup.clone ?? undefined,
+                    script: setup.script ?? "skipped",
+                    agent: [setup.clone, setup.script].some((s) => s === "error" || s === "running") ? "pending" : "done",
+                  }}
                 />
               )}
             </Fragment>

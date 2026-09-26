@@ -13,6 +13,7 @@ import {
   Image as ImageIcon,
   Loader2,
   Mic,
+  Pencil,
   Plus,
   Search,
   Server,
@@ -62,8 +63,7 @@ function readFile(file: File): Promise<PromptFile> {
 }
 
 export function envLabel(env: Environment | undefined) {
-  if (!env) return "Elegir entorno";
-  return env.cloud ? "Predeterminado" : env.name;
+  return env?.name ?? "Elegir entorno";
 }
 
 /**
@@ -78,6 +78,7 @@ export function NewSession(props: {
   environment: string | null;
   onEnvironment: (id: string) => void;
   onCreateEnvironment: () => void;
+  onEditEnvironment: (id: string) => void;
   models: CodeModel[];
   model: CodeModel | null;
   onModel: (m: CodeModel) => void;
@@ -264,8 +265,9 @@ export function NewSession(props: {
       >
         {help && (
           <p className={styles.sheetHelp}>
-            El entorno es la máquina donde trabaja el agente. El predeterminado es tu espacio en la nube: tiene su propio disco, se apaga solo
-            cuando no lo usas y guarda tus archivos. También puedes conectar un nexocode que corra en tu computadora.
+            El entorno es donde trabaja el agente. En la nube cada sesión tiene su propio contenedor con su disco: se apaga solo cuando no lo
+            usas y al volver sigue todo ahí. Cada entorno define el acceso a internet, las variables y un script que corre al iniciar. También
+            puedes conectar un nexocode que corra en tu computadora.
           </p>
         )}
         {props.environments.some((e) => e.cloud) && <p className={styles.sheetSection}>Entornos en la nube</p>}
@@ -283,8 +285,28 @@ export function NewSession(props: {
                 }}
               >
                 <Cloud size={20} aria-hidden="true" />
-                <span className={styles.sheetRowText}>Predeterminado</span>
+                <span className={styles.sheetRowText}>{e.name}</span>
                 {e.id === props.environment && <Check size={20} className={styles.check} aria-label="Elegido" />}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className={styles.rowEdit}
+                  aria-label={`Editar ${e.name}`}
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    setSheet(null);
+                    props.onEditEnvironment(e.id);
+                  }}
+                  onKeyDown={(ev) => {
+                    if (ev.key !== "Enter" && ev.key !== " ") return;
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    setSheet(null);
+                    props.onEditEnvironment(e.id);
+                  }}
+                >
+                  <Pencil size={16} />
+                </span>
               </button>
             ))}
         </div>

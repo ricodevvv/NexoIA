@@ -1,10 +1,25 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import http from "node:http";
 import net from "node:net";
 
 const PORT = Number(process.env.EGRESS_PORT ?? 3128);
 const ALLOWED_PORTS = new Set((process.env.EGRESS_PORTS ?? "80,443").split(",").map(Number));
-const IDLE_MS = 30_000;
+const IDLE_MS = Number(process.env.EGRESS_IDLE_SECONDS ?? 30) * 1000;
+const SECRET = process.env.EGRESS_SECRET ?? "";
+
+const TRUSTED = [
+  "github.com", "*.github.com", "*.githubusercontent.com", "ghcr.io", "gitlab.com", "*.gitlab.com", "bitbucket.org",
+  "registry.npmjs.org", "*.npmjs.org", "*.npmjs.com", "registry.yarnpkg.com", "*.yarnpkg.com", "nodejs.org", "*.nodejs.org",
+  "jsr.io", "*.jsr.io", "deno.land", "*.deno.land", "bun.sh", "*.bun.sh",
+  "pypi.org", "*.pypi.org", "files.pythonhosted.org", "*.pythonhosted.org", "astral.sh", "*.astral.sh",
+  "conda.anaconda.org", "repo.anaconda.com",
+  "repo.maven.apache.org", "repo1.maven.org", "*.maven.org", "*.gradle.org", "jitpack.io",
+  "crates.io", "*.crates.io", "*.rust-lang.org", "sh.rustup.rs",
+  "proxy.golang.org", "sum.golang.org", "*.golang.org", "go.dev", "*.go.dev",
+  "rubygems.org", "*.rubygems.org", "packagist.org", "*.packagist.org", "nuget.org", "*.nuget.org",
+  "deb.debian.org", "security.debian.org", "models.dev",
+];
 const MAX_BYTES = Number(process.env.EGRESS_MAX_MB ?? 512) * 1024 * 1024;
 
 const BLOCKED_V4 = [
@@ -53,6 +68,41 @@ async function resolvePublic(host) {
   return addresses[0].address;
 }
 
+/**
+ * Lee la política de red que manda el pod en Proxy-Authorization: un JSON en
+ * base64url firmado por Nexo con `EGRESS_SECRET`, así el pod no puede
+ * cambiársela. `n` es el nivel (`none`, `trusted` o `full`) y `d` los
+ * dominios extra. Sin secreto configurado todo sale como `full`.
+ */
+function readPolicy(req) {
+  if (!SECRET) return { n: "full", d: [] };
+  const header = String(req.headers["proxy-authorization"] ?? "");
+  if (!header.toLowerCase().startsWith("basic ")) return null;
+  const token = Buffer.from(header.slice(6), "base64").toString("utf8").split(":").slice(1).join(":");
+  const [payload, sig] = token.split(".");
+  if (!payload || !sig) return null;
+  const expected = createHmac("sha256", SECRET).update(payload).digest();
+  const given = Buffer.from(sig, "base64url");
+  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
+  try {
+    const policy = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return ["none", "trusted", "full"].includes(policy.n) && Array.isArray(policy.d) ? policy : null;
+  } catch {
+    return null;
+  }
+}
+
+function matches(pattern, host) {
+  if (pattern.startsWith("*.")) return host.endsWith(pattern.slice(1)) && host.length > pattern.length - 1;
+  return host === pattern;
+}
+
+function permitted(policy, host) {
+  if (policy.n === "full") return true;
+  const name = host.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+  return [...(policy.n === "trusted" ? TRUSTED : []), ...policy.d].some((p) => matches(String(p).toLowerCase(), name));
+}
+
 function capped(socket) {
   let bytes = 0;
   socket.setTimeout(IDLE_MS, () => socket.destroy());
@@ -72,7 +122,9 @@ function log(kind, target, detail = "") {
  * red interna sin ruta al exterior y esta es su única puerta: acepta CONNECT y
  * peticiones HTTP planas a los puertos permitidos, resuelve el nombre, rechaza
  * cualquier IP que no sea pública y se conecta a la misma IP que revisó, así un
- * DNS que cambia de respuesta no sirve para colarse a la red interna.
+ * DNS que cambia de respuesta no sirve para colarse a la red interna. Con
+ * `EGRESS_SECRET` también sirve a los pods de Nexo Code: cada uno trae su
+ * política firmada y solo sale a los dominios que su entorno permite.
  */
 const server = http.createServer(async (req, res) => {
   let url;
@@ -80,6 +132,16 @@ const server = http.createServer(async (req, res) => {
     url = new URL(req.url);
   } catch {
     res.writeHead(400).end("solo peticiones de proxy");
+    return;
+  }
+  const policy = readPolicy(req);
+  if (!policy) {
+    res.writeHead(407, { "Proxy-Authenticate": 'Basic realm="nexo"' }).end("falta la política de red");
+    return;
+  }
+  if (!permitted(policy, url.hostname)) {
+    log("DENY", url.host, "fuera de la política");
+    res.writeHead(403).end(`nexo: ${url.hostname} no está permitido por el acceso a la red de este entorno`);
     return;
   }
   const port = Number(url.port || 80);
@@ -107,10 +169,22 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.on("connect", async (req, client, head) => {
+  client.on("error", () => client.destroy());
   const [host, rawPort] = String(req.url).split(/:(?=\d+$)/);
   const port = Number(rawPort);
   if (!host || !ALLOWED_PORTS.has(port)) {
     client.end("HTTP/1.1 403 Forbidden\r\n\r\n");
+    return;
+  }
+  const policy = readPolicy(req);
+  if (!policy) {
+    client.end('HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="nexo"\r\n\r\n');
+    return;
+  }
+  if (!permitted(policy, host)) {
+    log("DENY", `${host}:${port}`, "fuera de la política");
+    const body = `nexo: ${host} no está permitido por el acceso a la red de este entorno`;
+    client.end(`HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
     return;
   }
   try {
@@ -123,7 +197,7 @@ server.on("connect", async (req, client, head) => {
       capped(client).pipe(upstream);
     });
     upstream.on("error", () => client.destroy());
-    client.on("error", () => upstream.destroy());
+    client.on("close", () => upstream.destroy());
     log("CONNECT", `${host}:${port}`);
   } catch (err) {
     log("DENY", `${host}:${port}`, err.message);

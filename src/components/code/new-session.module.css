@@ -469,3 +469,18 @@
     display: none;
   }
 }
+
+.rowEdit {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-inline-start: 4px;
+  border-radius: var(--radius-1);
+  color: var(--text-3);
+}
+
+.rowEdit:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}

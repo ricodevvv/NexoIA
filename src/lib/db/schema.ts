@@ -302,18 +302,45 @@ export const codeServer = pgTable(
   (t) => [index("code_server_user_idx").on(t.userId)],
 );
 
-export const codeWorkspace = pgTable("code_workspace", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .unique()
-    .references(() => user.id, { onDelete: "cascade" }),
-  tokenHash: text("token_hash").notNull().unique(),
-  token: text("token").notNull(),
-  password: text("password").notNull(),
-  lastActiveAt: timestamp("last_active_at").notNull().defaultNow(),
-  createdAt: createdAt(),
-});
+export const codeEnvironment = pgTable(
+  "code_environment",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    network: text("network").notNull().default("trusted"),
+    domains: text("domains").notNull().default(""),
+    env: text("env"),
+    setupScript: text("setup_script").notNull().default(""),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("code_environment_user_idx").on(t.userId)],
+);
+
+export const codeSession = pgTable(
+  "code_session",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    environmentId: text("environment_id")
+      .notNull()
+      .references(() => codeEnvironment.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    repo: text("repo"),
+    agentSessionId: text("agent_session_id"),
+    tokenHash: text("token_hash").notNull().unique(),
+    token: text("token").notNull(),
+    password: text("password").notNull(),
+    lastActiveAt: timestamp("last_active_at").notNull().defaultNow(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("code_session_user_idx").on(t.userId), index("code_session_environment_idx").on(t.environmentId)],
+);
 
 export const githubConnection = pgTable("github_connection", {
   userId: text("user_id")

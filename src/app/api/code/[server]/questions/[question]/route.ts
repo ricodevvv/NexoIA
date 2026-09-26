@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getCodeServer, nexocodeFetch } from "@/lib/nexocode";
+import { nexocodeFetch, serverFromRequest } from "@/lib/nexocode";
 import { apiUser, handleError } from "@/lib/session";
 
 const Body = z.union([
@@ -14,7 +14,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/code/[serve
   try {
     const user = await apiUser();
     const { server: serverId, question } = await ctx.params;
-    const server = await getCodeServer(user, serverId);
+    const server = await serverFromRequest(user, serverId, request);
     const body = Body.parse(await request.json());
     const id = encodeURIComponent(question);
     if ("reject" in body) await nexocodeFetch(server, `/question/${id}/reject`, { method: "POST", body: "{}" });

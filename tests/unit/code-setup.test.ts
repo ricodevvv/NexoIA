@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { initialState, type NcMessage, sessionSetup, toUIMessages } from "@/components/code/map";
-import { cloneCommand, clonedRepo, cloneSucceeded, repoFolder } from "@/lib/code-setup";
+import { cloneCommand, clonedRepo, cloneSucceeded, isScriptCommand, repoFolder, scriptCommand, scriptSucceeded } from "@/lib/code-setup";
+import { parseDomains } from "@/lib/egress";
 
 function shellSession(output: string, status: "completed" | "running" = "completed"): NcMessage[] {
   const command = cloneCommand("ricodevvv/nexocode");
@@ -45,11 +46,26 @@ describe("clonado al arrancar una sesión", () => {
     const ui = toUIMessages(state);
     expect(ui.map((m) => m.role)).toEqual(["user"]);
     expect(ui[0].parts).toEqual([{ type: "text", text: "Holaa" }]);
-    expect(sessionSetup(state)).toEqual({ repo: "ricodevvv/nexocode", status: "done" });
+    expect(sessionSetup(state)).toEqual({ repo: "ricodevvv/nexocode", clone: "done", script: null });
   });
 
   it("marca el arranque como fallido o en curso según el comando", () => {
-    expect(sessionSetup(initialState(shellSession("fatal: nope")))?.status).toBe("error");
-    expect(sessionSetup(initialState(shellSession("", "running")))?.status).toBe("running");
+    expect(sessionSetup(initialState(shellSession("fatal: nope")))?.clone).toBe("error");
+    expect(sessionSetup(initialState(shellSession("", "running")))?.clone).toBe("running");
+  });
+
+  it("corre el script dentro del repo y lo reconoce", () => {
+    const command = scriptCommand("ricodevvv/nexocode");
+    expect(command.startsWith("cd 'nexocode' && ")).toBe(true);
+    expect(isScriptCommand(command)).toBe(true);
+    expect(isScriptCommand(cloneCommand("ricodevvv/nexocode"))).toBe(false);
+    expect(scriptSucceeded("instalando…\nnexo:configurado\n")).toBe(true);
+    expect(scriptSucceeded("npm ERR!")).toBe(false);
+  });
+});
+
+describe("dominios extra del entorno", () => {
+  it("limpia la lista y descarta lo que no es dominio", () => {
+    expect(parseDomains("https://api.example.com/v1\n*.internal.dev, example.com example.com\nno valido\nlocalhost")).toEqual(["api.example.com", "*.internal.dev", "example.com"]);
   });
 });
