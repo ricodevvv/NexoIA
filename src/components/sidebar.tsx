@@ -100,7 +100,7 @@ export function Sidebar({ onClose, workspaces, activeWorkspace }: Props) {
   const closeOnMobile = () => window.matchMedia("(max-width: 860px)").matches && onClose();
 
   return (
-    <nav id="panel-historial" className={styles.panel} aria-label={codeMode ? "Sesiones de código" : "Historial de chats"}>
+    <nav id="panel-historial" className={styles.panel} aria-label={codeMode ? "Sesiones de código" : "Conversaciones"}>
       <div className={styles.head}>
         <h2 className={styles.heading}>{codeMode ? "Nexo Code" : "Chats"}</h2>
         {!codeMode && (
