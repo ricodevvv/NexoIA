@@ -293,7 +293,7 @@ export function Composer(props: Props) {
       </div>
 
       <div className={styles.composerFoot}>
-        <span className={styles.disclaimer}>Nexo es una IA y puede cometer errores.</span>
+        <span className={styles.disclaimer}>Nexo puede cometer errores.</span>
         <ModelPicker
           models={models}
           value={model}

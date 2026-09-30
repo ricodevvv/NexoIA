@@ -61,7 +61,7 @@ function formatTokens(n: number) {
  * compartidos, uso por persona, plan Team y ajustes generales.
  */
 export function WorkspaceAdmin(props: Props) {
-  const { collapsed, toggle } = useShell();
+  const { toggle } = useShell();
   const [tab, setTab] = useState(TABS.some((t) => t.id === props.initialTab) ? props.initialTab : "members");
 
   function select(id: string) {
@@ -71,8 +71,8 @@ export function WorkspaceAdmin(props: Props) {
 
   return (
     <div className={styles.page}>
-      <header className={styles.header} data-collapsed={collapsed}>
-        <button className={`icon-btn ${styles.mobileMenu}`} onClick={toggle} aria-label="Mostrar barra lateral">
+      <header className={styles.header}>
+        <button className={`icon-btn ${styles.mobileMenu}`} onClick={toggle} aria-label="Abrir historial">
           <PanelLeft />
         </button>
         <div>

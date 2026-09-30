@@ -4,9 +4,12 @@ import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { CodeNavProvider } from "./code/code-nav";
 import { ExternalLinkDialog } from "./external-link";
+import { Rail } from "./rail";
 import { SearchPalette } from "./search-palette";
 import { Sidebar } from "./sidebar";
 import styles from "./shell.module.css";
+import { TabBar } from "./tab-bar";
+import { useIsMobile } from "./use-is-mobile";
 import { useStoredState } from "./use-stored-state";
 import type { WorkspaceOption } from "./workspace-switcher";
 
@@ -90,8 +93,9 @@ function useDrawerSwipe(onClose: () => void) {
 }
 
 /**
- * Estructura base de la app: sidebar a la izquierda (cajón en móvil que
- * empuja el contenido y se cierra deslizándolo) y el contenido a la derecha.
+ * Estructura base de la app: riel de secciones, panel de historial que se
+ * puede ocultar y el contenido en un lienzo. En el celular el panel es un
+ * cajón que se cierra deslizándolo y las secciones van en una barra inferior.
  */
 export function Shell({
   user,
@@ -113,6 +117,8 @@ export function Shell({
   const mobileOpen = openAt === pathname;
   const [searchOpen, setSearchOpen] = useState(false);
   const { shellRef, slotRef, handlers: swipe } = useDrawerSwipe(() => setOpenAt(null));
+  const mobile = useIsMobile();
+  const panelHidden = mobile ? !mobileOpen : collapsed;
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -136,12 +142,21 @@ export function Shell({
   return (
     <ShellContext.Provider value={{ collapsed, toggle, openSearch: () => setSearchOpen(true) }}>
       <CodeNavProvider>
-        <div ref={shellRef} className="shell" data-collapsed={collapsed} data-drawer={mobileOpen}>
-          <div ref={slotRef} className={styles.sidebarSlot} data-open={mobileOpen} {...(mobileOpen ? swipe : {})}>
-            <Sidebar user={user} plan={plan} onToggle={toggle} workspaces={workspaces} activeWorkspace={activeWorkspace} />
+        <a className="skip-link" href="#contenido">
+          Saltar al contenido
+        </a>
+        <div ref={shellRef} className="shell" data-panel={collapsed ? "closed" : "open"} data-drawer={mobileOpen}>
+          <div className={styles.railSlot}>
+            <Rail user={user} plan={plan} panelOpen={!collapsed} onTogglePanel={toggle} onSearch={() => setSearchOpen(true)} />
           </div>
-          {mobileOpen && <button className={styles.scrim} aria-label="Cerrar menú" onClick={() => setOpenAt(null)} />}
-          <main className="main">{children}</main>
+          <div ref={slotRef} className={styles.sidebarSlot} data-open={mobileOpen} inert={panelHidden} {...(mobileOpen ? swipe : {})}>
+            <Sidebar onClose={() => setOpenAt(null)} workspaces={workspaces} activeWorkspace={activeWorkspace} />
+          </div>
+          {mobileOpen && <button className={styles.scrim} aria-label="Cerrar historial" onClick={() => setOpenAt(null)} />}
+          <main id="contenido" className="main" tabIndex={-1}>
+            {children}
+          </main>
+          <TabBar user={user} plan={plan} />
           <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
           <ExternalLinkDialog />
         </div>

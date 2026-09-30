@@ -1,12 +1,13 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Brain, Check, ExternalLink, KeyRound, Link2, Loader2, PanelLeft, Plug, Trash2 } from "lucide-react";
+import { Brain, Check, CreditCard, ExternalLink, KeyRound, Link2, Loader2, PanelLeft, Plug, Sparkles, Trash2, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import type { Plan, PlanId } from "@/lib/billing/plans";
+import { Github } from "../code/github-icon";
 import { useShell } from "../shell";
 import { Endpoints } from "./endpoints";
 import { GitHub } from "./github";
@@ -43,12 +44,12 @@ type Props = {
 };
 
 const TABS = [
-  { id: "account", label: "Cuenta" },
-  { id: "personalization", label: "Personalización" },
-  { id: "keys", label: "API keys" },
-  { id: "connectors", label: "Conectores" },
-  { id: "github", label: "GitHub" },
-  { id: "billing", label: "Plan" },
+  { id: "account", label: "Cuenta", Icon: UserRound },
+  { id: "personalization", label: "Personalización", Icon: Sparkles },
+  { id: "keys", label: "API keys", Icon: KeyRound },
+  { id: "connectors", label: "Conectores", Icon: Plug },
+  { id: "github", label: "GitHub", Icon: Github },
+  { id: "billing", label: "Plan", Icon: CreditCard },
 ] as const;
 
 async function api(url: string, init?: RequestInit) {
@@ -67,7 +68,7 @@ async function api(url: string, init?: RequestInit) {
  * Pantalla de ajustes con pestañas: cuenta, keys, conectores MCP, GitHub y plan.
  */
 export function Settings(props: Props) {
-  const { collapsed, toggle } = useShell();
+  const { toggle } = useShell();
   const [tab, setTab] = useState(TABS.some((t) => t.id === props.initialTab) ? props.initialTab : "account");
 
   function select(id: string) {
@@ -75,23 +76,45 @@ export function Settings(props: Props) {
     window.history.replaceState(null, "", `/settings?tab=${id}`);
   }
 
+  function onTabKey(e: React.KeyboardEvent<HTMLElement>) {
+    const i = TABS.findIndex((t) => t.id === tab);
+    const moves: Record<string, number> = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: TABS.length - 1 };
+    if (!(e.key in moves)) return;
+    e.preventDefault();
+    const next = TABS[(moves[e.key] + TABS.length) % TABS.length].id;
+    select(next);
+    const button = document.getElementById(`tab-${next}`);
+    button?.focus();
+    button?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
   return (
     <div className={styles.page}>
-      <header className={styles.header} data-collapsed={collapsed}>
-        <button className={`icon-btn ${styles.mobileMenu}`} onClick={toggle} aria-label="Mostrar barra lateral">
+      <header className={styles.header}>
+        <button className={`icon-btn ${styles.mobileMenu}`} onClick={toggle} aria-label="Abrir historial">
           <PanelLeft />
         </button>
         <h1>Configuración</h1>
       </header>
       <div className={styles.layout}>
-        <nav className={styles.tabs} role="tablist" aria-label="Secciones de ajustes">
+        <nav className={styles.tabs} role="tablist" aria-label="Secciones de ajustes" onKeyDown={onTabKey}>
           {TABS.map((t) => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} className={styles.tab} onClick={() => select(t.id)}>
+            <button
+              key={t.id}
+              id={`tab-${t.id}`}
+              role="tab"
+              aria-selected={tab === t.id}
+              aria-controls="settings-panel"
+              tabIndex={tab === t.id ? 0 : -1}
+              className={styles.tab}
+              onClick={() => select(t.id)}
+            >
+              <t.Icon size={17} aria-hidden="true" />
               {t.label}
             </button>
           ))}
         </nav>
-        <section className={styles.panel} role="tabpanel">
+        <section id="settings-panel" className={styles.panel} role="tabpanel" aria-labelledby={`tab-${tab}`}>
           {tab === "account" && <Account user={props.user} />}
           {tab === "personalization" && <Personalization data={props.personalization} />}
           {tab === "keys" && (

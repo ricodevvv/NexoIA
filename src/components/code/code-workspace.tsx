@@ -38,7 +38,7 @@ function syncUrl(server: string | null, session: string | null) {
  * panel de cambios. Si no hay servidores explica cómo conectar uno.
  */
 export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: string; initialSession?: string; userName: string }) {
-  const { collapsed, toggle } = useShell();
+  const { toggle } = useShell();
   const [servers, setServers] = useState(props.servers);
   const [storedServer, setStoredServer] = useStoredState<string>("nexo-code-server", "");
   const [picked, setPicked] = useState(props.initialServer ?? null);
@@ -257,8 +257,8 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
   if (!server) {
     return (
       <div className={styles.onboarding}>
-        <header className={chat.header} data-collapsed={collapsed}>
-          <button className={`icon-btn ${chat.menuBtn}`} onClick={toggle} aria-label="Mostrar barra lateral">
+        <header className={chat.header}>
+          <button className={`icon-btn ${chat.menuBtn}`} onClick={toggle} aria-label="Abrir historial">
             <PanelLeft />
           </button>
         </header>
@@ -289,8 +289,8 @@ export function CodeWorkspace(props: { servers: PublicServer[]; initialServer?: 
   return (
     <div className={styles.workspace} data-diff={diffOpen}>
       <div className={`${chat.chat} ${styles.main}`}>
-        <header className={`${chat.header} ${sessionId ? "" : styles.startHeader}`} data-collapsed={collapsed}>
-          <button className={`icon-btn ${chat.menuBtn}`} onClick={toggle} aria-label="Mostrar barra lateral">
+        <header className={`${chat.header} ${sessionId ? "" : styles.startHeader}`}>
+          <button className={`icon-btn ${chat.menuBtn}`} onClick={toggle} aria-label="Abrir historial">
             <PanelLeft />
           </button>
           <h1 className={`${chat.title} ${styles.sessionTitleBlock}`}>

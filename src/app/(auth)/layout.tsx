@@ -9,10 +9,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <p className={styles.mark}>
           <NexoLogo size={34} />
         </p>
-        <div className={styles.coords}>
-          <span>Claude · GPT · MCP</span>
-          <span>N 00°00′ / E 00°00′</span>
-        </div>
+        <p className={styles.models}>Claude, GPT o cualquier API compatible con OpenAI, con tus conectores MCP.</p>
         <p className={styles.quote}>
           Un solo lugar para
           <br />

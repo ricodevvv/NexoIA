@@ -1,15 +1,30 @@
+.railSlot {
+  min-width: 0;
+}
+
 .sidebarSlot {
   min-width: 0;
   overflow: hidden;
-  border-inline-end: 1px solid var(--border);
-  background: var(--sidebar-bg);
+  background: var(--frame);
 }
 
 .scrim {
   display: none;
 }
 
+@media (min-width: 861px) {
+  .sidebarSlot > * {
+    transition: opacity var(--dur-base) var(--ease);
+  }
+  :global(.shell[data-panel="closed"]) .sidebarSlot > * {
+    opacity: 0;
+  }
+}
+
 @media (max-width: 860px) {
+  .railSlot {
+    display: none;
+  }
   .sidebarSlot {
     --drawer-w: min(84vw, 340px);
     position: fixed;

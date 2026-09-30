@@ -1,5 +1,6 @@
 "use client";
 
+import { syncThemeColor } from "./theme-colors";
 import { useStoredState } from "./use-stored-state";
 
 export type Theme = "system" | "light" | "dark";
@@ -13,6 +14,7 @@ export function useTheme(): [Theme, (t: Theme) => void] {
   function setTheme(next: Theme) {
     if (next === "system") delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = next;
+    syncThemeColor(next);
     setStored(next === "system" ? null : next);
   }
 

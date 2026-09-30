@@ -34,11 +34,6 @@
   color: var(--text);
 }
 
-.inlineIcon {
-  display: inline;
-  vertical-align: -1px;
-}
-
 .shareBox {
   display: flex;
   align-items: center;
@@ -48,6 +43,11 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-2);
   color: var(--text-3);
+}
+
+.shareBox:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .shareUrl {
@@ -81,10 +81,6 @@
 
 .menuBtn {
   display: none;
-}
-
-.header[data-collapsed="true"] .menuBtn {
-  display: inline-grid;
 }
 
 @media (max-width: 860px) {
@@ -464,6 +460,7 @@
   min-width: 100%;
   border-collapse: collapse;
   font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .tableWrap th,
@@ -551,6 +548,27 @@
     max-width: 120px;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 4px 8px 4px 6px;
+  margin-inline-start: -6px;
+  border-radius: 8px;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+@media (hover: hover) {
+  .crumb:hover {
+    background: var(--surface-1);
+    color: var(--text);
   }
 }
 
@@ -695,10 +713,6 @@
 }
 
 .composer:focus-within {
-  border-color: #3d3d3d;
-}
-
-:global(:root[data-theme="light"]) .composer:focus-within {
   border-color: var(--text-3);
 }
 
@@ -1010,6 +1024,7 @@
 .time {
   padding-inline: 6px;
   font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
   color: var(--text-3);
   white-space: nowrap;
 }
