@@ -14,10 +14,10 @@
 
 .header h1 {
   margin: 0;
-  font-family: var(--font-body);
-  font-weight: 500;
-  font-size: 1.375rem;
-  letter-spacing: -0.01em;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
 }
 
 .mobileMenu {
@@ -67,8 +67,14 @@
   cursor: pointer;
 }
 
-.tab:hover {
-  color: var(--text-2);
+@media (hover: hover) {
+  .tab:hover {
+    color: var(--text-2);
+  }
+}
+
+.tab:focus-visible {
+  outline-offset: -2px;
 }
 
 .tab[aria-selected="true"] {
@@ -577,6 +583,11 @@
 .chooser {
   border: 1px solid var(--border);
   border-radius: var(--radius-2);
+}
+
+.chooser:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .chooserSearch {

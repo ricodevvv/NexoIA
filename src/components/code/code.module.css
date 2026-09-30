@@ -678,6 +678,11 @@
   background: var(--accent-soft);
 }
 
+.questionOption[data-other]:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 .questionKey {
   display: grid;
   place-items: center;

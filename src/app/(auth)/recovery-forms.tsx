@@ -29,7 +29,6 @@ export function ForgotForm() {
 
   return (
     <div className={styles.card}>
-      <p className="label">Recuperar acceso</p>
       <h1>{sent ? "Revisa tu correo." : "¿Olvidaste tu contraseña?"}</h1>
       <p className="muted">
         {sent
@@ -40,7 +39,7 @@ export function ForgotForm() {
         <form className={styles.form} onSubmit={onSubmit}>
           <label className="field">
             <span>Email</span>
-            <input className="input" name="email" type="email" required autoComplete="email" autoFocus />
+            <input className="input" name="email" type="email" required autoComplete="email" spellCheck={false} placeholder="tu@correo.com" autoFocus />
           </label>
           <button className={`btn btn-primary ${styles.submit}`} disabled={busy} aria-busy={busy}>
             {busy ? "Enviando…" : "Enviar enlace"}
@@ -86,7 +85,6 @@ export function ResetForm({ token, invalid }: { token: string | null; invalid: b
   if (!token || invalid) {
     return (
       <div className={styles.card}>
-        <p className="label">Enlace inválido</p>
         <h1>Este enlace ya no sirve.</h1>
         <p className="muted">Puede que haya caducado o que ya lo hayas usado. Pide uno nuevo.</p>
         <p className={styles.switch}>
@@ -99,7 +97,6 @@ export function ResetForm({ token, invalid }: { token: string | null; invalid: b
   if (done) {
     return (
       <div className={styles.card}>
-        <p className="label">Listo</p>
         <h1>Contraseña actualizada.</h1>
         <p className="muted">Cerramos tus otras sesiones por seguridad. Ya puedes entrar con la nueva.</p>
         <button className={`btn btn-primary ${styles.submit}`} onClick={() => router.replace("/login")} style={{ marginTop: 24 }}>
@@ -111,8 +108,7 @@ export function ResetForm({ token, invalid }: { token: string | null; invalid: b
 
   return (
     <div className={styles.card}>
-      <p className="label">Nueva contraseña</p>
-      <h1>Elige una nueva.</h1>
+      <h1>Elige una contraseña nueva.</h1>
       <form className={styles.form} onSubmit={onSubmit}>
         <label className="field">
           <span>Contraseña nueva</span>

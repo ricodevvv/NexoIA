@@ -14,17 +14,13 @@
   border-bottom: 1px solid var(--border);
 }
 
-.header > div {
-  flex: 1;
-}
-
 .header h1 {
+  flex: 1;
   font-family: var(--font-display);
   font-weight: 400;
   font-size: var(--text-display);
   letter-spacing: -0.03em;
   line-height: 1;
-  margin-top: 6px;
 }
 
 .menuBtn {

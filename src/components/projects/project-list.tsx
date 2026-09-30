@@ -53,10 +53,7 @@ export function ProjectList({ projects, workspace }: { projects: Project[]; work
         <button className={`icon-btn ${styles.menuBtn}`} onClick={toggle} aria-label="Mostrar barra lateral">
           <PanelLeft />
         </button>
-        <div>
-          <p className="label">Espacios de trabajo</p>
-          <h1>Proyectos</h1>
-        </div>
+        <h1>Proyectos</h1>
         <Dialog.Root open={open} onOpenChange={setOpen}>
           <Dialog.Trigger className="btn btn-primary">
             <Plus size={15} /> Nuevo proyecto

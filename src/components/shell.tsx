@@ -136,12 +136,17 @@ export function Shell({
   return (
     <ShellContext.Provider value={{ collapsed, toggle, openSearch: () => setSearchOpen(true) }}>
       <CodeNavProvider>
+        <a className="skip-link" href="#contenido">
+          Saltar al contenido
+        </a>
         <div ref={shellRef} className="shell" data-collapsed={collapsed} data-drawer={mobileOpen}>
           <div ref={slotRef} className={styles.sidebarSlot} data-open={mobileOpen} {...(mobileOpen ? swipe : {})}>
             <Sidebar user={user} plan={plan} onToggle={toggle} workspaces={workspaces} activeWorkspace={activeWorkspace} />
           </div>
           {mobileOpen && <button className={styles.scrim} aria-label="Cerrar menú" onClick={() => setOpenAt(null)} />}
-          <main className="main">{children}</main>
+          <main id="contenido" className="main" tabIndex={-1}>
+            {children}
+          </main>
           <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
           <ExternalLinkDialog />
         </div>

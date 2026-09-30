@@ -50,6 +50,11 @@
   color: var(--text-3);
 }
 
+.shareBox:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 .shareUrl {
   flex: 1;
   min-width: 0;
@@ -464,6 +469,7 @@
   min-width: 100%;
   border-collapse: collapse;
   font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .tableWrap th,
@@ -695,10 +701,6 @@
 }
 
 .composer:focus-within {
-  border-color: #3d3d3d;
-}
-
-:global(:root[data-theme="light"]) .composer:focus-within {
   border-color: var(--text-3);
 }
 
@@ -1010,6 +1012,7 @@
 .time {
   padding-inline: 6px;
   font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
   color: var(--text-3);
   white-space: nowrap;
 }

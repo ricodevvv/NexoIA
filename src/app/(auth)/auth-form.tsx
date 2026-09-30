@@ -67,7 +67,6 @@ export function AuthForm({ mode, providers, next }: Props) {
 
   return (
     <div className={styles.card}>
-      <p className="label">{isSignup ? "Crear cuenta" : "Iniciar sesión"}</p>
       <h1>{isSignup ? "Empecemos." : "Qué bueno verte."}</h1>
       <p className="muted">{isSignup ? "Una cuenta y todos los modelos en un lugar." : "Entra para seguir donde lo dejaste."}</p>
 
@@ -93,7 +92,7 @@ export function AuthForm({ mode, providers, next }: Props) {
         )}
         <label className="field">
           <span>Email</span>
-          <input className="input" name="email" type="email" required autoComplete="email" />
+          <input className="input" name="email" type="email" required autoComplete="email" spellCheck={false} placeholder="tu@correo.com" />
         </label>
         <label className="field">
           <span>Contraseña</span>

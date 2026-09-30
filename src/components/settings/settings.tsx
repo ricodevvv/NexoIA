@@ -75,6 +75,18 @@ export function Settings(props: Props) {
     window.history.replaceState(null, "", `/settings?tab=${id}`);
   }
 
+  function onTabKey(e: React.KeyboardEvent<HTMLElement>) {
+    const i = TABS.findIndex((t) => t.id === tab);
+    const moves: Record<string, number> = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: TABS.length - 1 };
+    if (!(e.key in moves)) return;
+    e.preventDefault();
+    const next = TABS[(moves[e.key] + TABS.length) % TABS.length].id;
+    select(next);
+    const button = document.getElementById(`tab-${next}`);
+    button?.focus();
+    button?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
   return (
     <div className={styles.page}>
       <header className={styles.header} data-collapsed={collapsed}>
@@ -84,14 +96,23 @@ export function Settings(props: Props) {
         <h1>Configuración</h1>
       </header>
       <div className={styles.layout}>
-        <nav className={styles.tabs} role="tablist" aria-label="Secciones de ajustes">
+        <nav className={styles.tabs} role="tablist" aria-label="Secciones de ajustes" onKeyDown={onTabKey}>
           {TABS.map((t) => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} className={styles.tab} onClick={() => select(t.id)}>
+            <button
+              key={t.id}
+              id={`tab-${t.id}`}
+              role="tab"
+              aria-selected={tab === t.id}
+              aria-controls="settings-panel"
+              tabIndex={tab === t.id ? 0 : -1}
+              className={styles.tab}
+              onClick={() => select(t.id)}
+            >
               {t.label}
             </button>
           ))}
         </nav>
-        <section className={styles.panel} role="tabpanel">
+        <section id="settings-panel" className={styles.panel} role="tabpanel" aria-labelledby={`tab-${tab}`}>
           {tab === "account" && <Account user={props.user} />}
           {tab === "personalization" && <Personalization data={props.personalization} />}
           {tab === "keys" && (

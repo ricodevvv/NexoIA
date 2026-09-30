@@ -109,6 +109,10 @@
   background: var(--surface-2);
 }
 
+.startBox:focus-within {
+  border-color: var(--text-3);
+}
+
 .startInput {
   width: 100%;
   min-height: 28px;
@@ -425,6 +429,11 @@
   background: var(--surface-3);
   color: var(--text-2);
   box-shadow: var(--shadow-pop);
+}
+
+.repoSearch:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-pop), 0 0 0 3px var(--accent-soft);
 }
 
 .repoSearch input {
