@@ -34,11 +34,6 @@
   color: var(--text);
 }
 
-.inlineIcon {
-  display: inline;
-  vertical-align: -1px;
-}
-
 .shareBox {
   display: flex;
   align-items: center;
@@ -86,10 +81,6 @@
 
 .menuBtn {
   display: none;
-}
-
-.header[data-collapsed="true"] .menuBtn {
-  display: inline-grid;
 }
 
 @media (max-width: 860px) {
@@ -557,6 +548,27 @@
     max-width: 120px;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 4px 8px 4px 6px;
+  margin-inline-start: -6px;
+  border-radius: 8px;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+@media (hover: hover) {
+  .crumb:hover {
+    background: var(--surface-1);
+    color: var(--text);
   }
 }
 

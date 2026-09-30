@@ -5,12 +5,11 @@
   width: min(620px, calc(100vw - 32px));
   translate: -50% 0;
   border: 1px solid var(--border);
-  border-radius: var(--radius-2);
-  background: var(--bg);
+  border-radius: 14px;
+  background: var(--elevated);
   box-shadow: var(--shadow-pop);
   z-index: 61;
   overflow: hidden;
-  animation: pop 0.16s var(--ease);
 }
 
 .inputRow {
@@ -48,6 +47,7 @@
 .results {
   max-height: min(420px, 55vh);
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px 6px 8px;
   list-style: none;
 }
@@ -57,7 +57,7 @@
   align-items: center;
   gap: 12px;
   padding: 9px 10px;
-  border-radius: var(--radius-1);
+  border-radius: 9px;
   cursor: pointer;
 }
 

@@ -28,10 +28,6 @@
   align-self: flex-start;
 }
 
-.header[data-collapsed="true"] .menuBtn {
-  display: inline-grid;
-}
-
 .form {
   display: flex;
   flex-direction: column;
@@ -64,19 +60,12 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
   width: min(1040px, calc(100% - 32px));
   margin: var(--space-4) auto var(--space-7);
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--border);
-  border-inline-start: 1px solid var(--border);
-}
-
-.grid li {
-  border-bottom: 1px solid var(--border);
-  border-inline-end: 1px solid var(--border);
-  animation: rise 0.4s var(--ease) both;
 }
 
 .card {
@@ -84,34 +73,47 @@
   flex-direction: column;
   gap: 6px;
   height: 100%;
-  min-height: 170px;
-  padding: var(--space-4);
+  min-height: 188px;
+  padding: 18px 18px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
   background: var(--bg);
   color: var(--text);
   text-decoration: none;
-  transition: background 0.15s var(--ease);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 
-.card:hover {
-  background: var(--surface-1);
+@media (hover: hover) {
+  .card:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-1);
+  }
 }
 
-.card:hover h2 {
+.card:active {
+  scale: 0.99;
+}
+
+.monogram {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  background: var(--accent-soft);
   color: var(--accent);
-}
-
-.cardIndex {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--text-3);
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 500;
 }
 
 .card h2 {
   font-family: var(--font-display);
   font-weight: 500;
-  font-size: 1.375rem;
+  font-size: 1.25rem;
   letter-spacing: -0.015em;
-  transition: color 0.15s var(--ease);
+  line-height: 1.2;
 }
 
 .card p {
@@ -122,6 +124,21 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.card p.noDescription {
+  color: var(--text-3);
+}
+
+.cardMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .details {
@@ -301,7 +318,7 @@
 
 .cardTop {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
 }
 

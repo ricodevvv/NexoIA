@@ -59,7 +59,7 @@ function greeting() {
  */
 export function Chat(props: Props) {
   const { models } = props;
-  const { collapsed, toggle } = useShell();
+  const { toggle } = useShell();
   const [conversationId, setConversationId] = useState(props.conversationId);
   const [title, setTitle] = useState(props.title);
   const [messages, setMessages] = useState<UIMessage[]>(props.initialMessages);
@@ -371,9 +371,9 @@ export function Chat(props: Props) {
     <section className={styles.welcome} data-project={Boolean(props.project)}>
       {props.project ? (
         <>
-          <p className="label">
-            <FolderClosed size={12} aria-hidden="true" className={styles.inlineIcon} /> Proyecto
-          </p>
+          <Link href="/projects" className={styles.crumb}>
+            <FolderClosed size={14} aria-hidden="true" /> Proyectos
+          </Link>
           <h2 className={styles.greeting}>{props.project.name}</h2>
           {props.project.description && <p className={styles.projectDescription}>{props.project.description}</p>}
         </>
@@ -407,8 +407,8 @@ export function Chat(props: Props) {
     <MessageContext.Provider value={{ attachmentUrl: (id) => `/api/attachments/${id}`, ...viewer.context }}>
       <div className={styles.layout} data-artifact={Boolean(viewer.panel)}>
         <div className={styles.chat}>
-          <header className={styles.header} data-collapsed={collapsed}>
-            <button className={`icon-btn ${styles.menuBtn}`} onClick={toggle} aria-label="Mostrar barra lateral">
+          <header className={styles.header}>
+            <button className={`icon-btn ${styles.menuBtn}`} onClick={toggle} aria-label="Abrir historial">
               <PanelLeft />
             </button>
             <h1 className={styles.title}>

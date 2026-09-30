@@ -1,6 +1,7 @@
 .page {
   height: 100%;
   overflow-y: auto;
+  container-type: inline-size;
 }
 
 .header {
@@ -22,10 +23,6 @@
 
 .mobileMenu {
   display: none;
-}
-
-.header[data-collapsed="true"] .mobileMenu {
-  display: inline-grid;
 }
 
 .layout {
@@ -77,6 +74,11 @@
   outline-offset: -2px;
 }
 
+.tab svg {
+  display: none;
+  flex: none;
+}
+
 .tab[aria-selected="true"] {
   border-bottom-color: var(--text);
   color: var(--text);
@@ -89,6 +91,70 @@
   min-width: 0;
   padding: 0 var(--space-3);
   animation: rise 0.3s var(--ease) both;
+}
+
+@container (min-width: 900px) {
+  .header,
+  .layout {
+    width: min(1080px, 100%);
+    padding-inline: var(--space-5);
+  }
+  .header {
+    padding-top: var(--space-6);
+    padding-bottom: var(--space-5);
+  }
+  .header h1 {
+    font-size: 2.25rem;
+    letter-spacing: -0.025em;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 208px minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-6);
+  }
+  .tabs {
+    top: var(--space-3);
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    border-bottom: 0;
+    background: none;
+  }
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    margin: 0;
+    border: 0;
+    border-radius: 9px;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    text-align: start;
+    transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  }
+  .tab svg {
+    display: block;
+  }
+  @media (hover: hover) {
+    .tab:hover {
+      background: var(--surface-1);
+    }
+  }
+  .tab[aria-selected="true"] {
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .tab:focus-visible {
+    outline-offset: 2px;
+  }
+  .panel {
+    max-width: 720px;
+    padding: 0;
+  }
 }
 
 .section {

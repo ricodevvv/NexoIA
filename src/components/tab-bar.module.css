@@ -1,0 +1,56 @@
+.bar {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .bar {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+    padding: 0 8px env(safe-area-inset-bottom);
+    border-top: 1px solid var(--frame-line);
+    background: var(--frame);
+  }
+  :global(.shell:has(.main :is(textarea, input:not([type="checkbox"], [type="radio"], [type="file"])):focus)) .bar {
+    display: none;
+  }
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.tab[aria-current="page"],
+.tab[data-state="open"] {
+  color: var(--text);
+}
+
+.tab svg {
+  transition: scale var(--dur-fast) var(--ease);
+}
+
+.tab:active svg {
+  scale: 0.9;
+}
+
+.tab[aria-current="page"] svg {
+  color: var(--accent);
+}

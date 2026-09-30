@@ -25,11 +25,14 @@
   :root {
     color-scheme: light;
     --font-display: var(--font-serif), "Iowan Old Style", Georgia, serif;
-    --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-body: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 
     --bg: #fbfbfa;
-    --sidebar-bg: #f4f4f2;
+    --frame: #edece8;
+    --frame-hover: rgb(27 27 26 / 0.06);
+    --frame-line: rgb(27 27 26 / 0.08);
+    --canvas-shadow: 0 0 0 1px rgb(27 27 26 / 0.07), 0 1px 2px rgb(27 27 26 / 0.04), 0 8px 24px -12px rgb(27 27 26 / 0.12);
     --surface-1: #f1f1ef;
     --surface-2: #e9e9e6;
     --surface-3: #e0e0dc;
@@ -75,9 +78,12 @@
     --text-lg: 1.0625rem;
     --text-display: clamp(1.875rem, 1.4rem + 2vw, 2.5rem);
 
-    --sidebar-w: 288px;
+    --rail-w: 64px;
+    --panel-w: 272px;
+    --gutter: 8px;
+    --tabbar-h: 60px;
     --column-w: 768px;
-    --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+    --ease: cubic-bezier(0.23, 1, 0.32, 1);
     --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
     --ease-exit: cubic-bezier(0.4, 0, 1, 1);
     --dur-fast: 0.16s;
@@ -89,7 +95,10 @@
     :root:not([data-theme="light"]) {
       color-scheme: dark;
       --bg: #151515;
-      --sidebar-bg: #121212;
+      --frame: #0c0c0d;
+    --frame-hover: rgb(255 255 255 / 0.06);
+    --frame-line: rgb(255 255 255 / 0.07);
+    --canvas-shadow: 0 0 0 1px rgb(255 255 255 / 0.06), 0 12px 32px -12px rgb(0 0 0 / 0.8);
       --surface-1: #1d1d1d;
       --surface-2: #252525;
       --surface-3: #2f2f2f;
@@ -122,7 +131,10 @@
   :root[data-theme="dark"] {
     color-scheme: dark;
     --bg: #151515;
-    --sidebar-bg: #121212;
+    --frame: #0c0c0d;
+    --frame-hover: rgb(255 255 255 / 0.06);
+    --frame-line: rgb(255 255 255 / 0.07);
+    --canvas-shadow: 0 0 0 1px rgb(255 255 255 / 0.06), 0 12px 32px -12px rgb(0 0 0 / 0.8);
     --surface-1: #1d1d1d;
     --surface-2: #252525;
     --surface-3: #2f2f2f;
@@ -213,35 +225,48 @@
 @layer layout {
   .shell {
     display: grid;
-    grid-template-columns: var(--sidebar-w) 1fr;
+    grid-template-columns: var(--rail-w) var(--panel-w) minmax(0, 1fr);
     height: 100dvh;
     overflow: hidden;
+    background: var(--frame);
   }
-  .shell[data-collapsed="true"] {
-    grid-template-columns: 0 1fr;
-  }
-  @media (min-width: 861px) {
-    .shell {
-      transition: grid-template-columns var(--dur-base) var(--ease-spring);
-    }
+  .shell[data-panel="closed"] {
+    grid-template-columns: var(--rail-w) 0 minmax(0, 1fr);
   }
   .main {
     position: relative;
     display: flex;
     flex-direction: column;
     min-width: 0;
-    height: 100dvh;
+    height: calc(100dvh - 2 * var(--gutter));
+    margin: var(--gutter) var(--gutter) var(--gutter) 0;
+    overflow: hidden;
+    border-radius: 14px;
+    background: var(--bg);
+    box-shadow: var(--canvas-shadow);
   }
   .main:focus {
     outline: none;
   }
+  @media (min-width: 861px) {
+    .shell {
+      transition: grid-template-columns var(--dur-base) var(--ease-spring);
+    }
+  }
   @media (max-width: 860px) {
     .shell,
-    .shell[data-collapsed="true"] {
-      grid-template-columns: 1fr;
+    .shell[data-panel="closed"] {
+      grid-template-columns: minmax(0, 1fr);
     }
     .main {
+      height: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom));
+      margin: 0;
+      border-radius: 0;
+      box-shadow: none;
       transition: transform var(--dur-slow) var(--ease-spring), filter var(--dur-slow) var(--ease-spring);
+    }
+    .shell:has(.main :is(textarea, input:not([type="checkbox"], [type="radio"], [type="file"])):focus) .main {
+      height: 100dvh;
     }
     .shell[data-drawer="true"] .main {
       transform: translateX(min(84vw, 340px));
@@ -448,6 +473,15 @@
     width: 18px;
     height: 18px;
     color: var(--text-2);
+  }
+  .menu-item .menu-check {
+    display: grid;
+    margin-inline-start: auto;
+  }
+  .menu-item .menu-check svg {
+    width: 16px;
+    height: 16px;
+    color: var(--accent);
   }
   .menu-sep {
     height: 1px;

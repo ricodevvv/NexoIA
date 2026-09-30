@@ -23,7 +23,7 @@ function relative(date: string) {
  */
 export function ProjectList({ projects, workspace }: { projects: Project[]; workspace: { id: string; name: string } | null }) {
   const router = useRouter();
-  const { collapsed, toggle } = useShell();
+  const { toggle } = useShell();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,8 +49,8 @@ export function ProjectList({ projects, workspace }: { projects: Project[]; work
 
   return (
     <div className={styles.page}>
-      <header className={styles.header} data-collapsed={collapsed}>
-        <button className={`icon-btn ${styles.menuBtn}`} onClick={toggle} aria-label="Mostrar barra lateral">
+      <header className={styles.header}>
+        <button className={`icon-btn ${styles.menuBtn}`} onClick={toggle} aria-label="Abrir historial">
           <PanelLeft />
         </button>
         <h1>Proyectos</h1>
@@ -111,17 +111,22 @@ export function ProjectList({ projects, workspace }: { projects: Project[]; work
         </div>
       ) : (
         <ul className={styles.grid}>
-          {projects.map((p, i) => (
-            <li key={p.id} style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}>
+          {projects.map((p) => (
+            <li key={p.id}>
               <Link href={`/projects/${p.id}`} className={styles.card}>
                 <span className={styles.cardTop}>
-                  <span className={styles.cardIndex}>{String(i + 1).padStart(2, "0")}</span>
+                  <span className={styles.monogram} aria-hidden="true">
+                    {p.name.trim().charAt(0).toUpperCase() || "P"}
+                  </span>
                   {p.team && <span className="tag">{p.team}</span>}
                 </span>
                 <h2>{p.name}</h2>
-                <p>{p.description || "Sin descripción"}</p>
-                <span className="label">
-                  {p.chats} {p.chats === 1 ? "chat" : "chats"} · {relative(p.updatedAt)}
+                {p.description ? <p>{p.description}</p> : <p className={styles.noDescription}>Sin descripción</p>}
+                <span className={styles.cardMeta}>
+                  <span>
+                    {p.chats} {p.chats === 1 ? "chat" : "chats"}
+                  </span>
+                  <span>{relative(p.updatedAt)}</span>
                 </span>
               </Link>
             </li>

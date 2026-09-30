@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Source_Serif_4 } from "next/font/google";
+import { Instrument_Sans, Source_Serif_4 } from "next/font/google";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import { THEME_COLORS } from "@/components/theme-colors";
 
 const serif = Source_Serif_4({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-serif" });
+const sans = Instrument_Sans({ subsets: ["latin", "latin-ext"], variable: "--font-sans" });
 
 const description = "Chat con IA para cualquier modelo: Claude, GPT y los que traigas tú. Con tools MCP, artifacts, proyectos y Nexo Code.";
 
@@ -29,7 +30,7 @@ const themeScript = `try{var t=localStorage.getItem("nexo-theme");if(t==="light"
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={serif.variable} suppressHydrationWarning>
+    <html lang="es" className={`${serif.variable} ${sans.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
