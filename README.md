@@ -5,16 +5,60 @@ Nexo is a self-hosted AI chat app, similar to claude.ai, that works with any mod
 ## What it does
 
 - **Chat with any model**: Claude (Anthropic), GPT (OpenAI) and any OpenAI-compatible API (OpenRouter, Ollama, Groq, NVIDIA, DeepSeek, LM Studio…). Users can add their own API keys and endpoints.
-- **Accounts and teams**: sign up, email verification, password reset, Google/GitHub login, shared team projects.
+- **Accounts and teams**: sign up, email verification, password reset, Google/GitHub login, two-step verification with an authenticator app, active sessions you can close, and shared team projects.
 - **Tools**: MCP connectors (with OAuth), web search, memory, search over past chats.
 - **Files**: upload images, PDFs, text, zips and Office files. The model can read them, run Python on them and send files back (including zips).
 - **Artifacts and widgets**: live HTML/React previews, charts, quizzes, step-by-step guides, diagrams and more, right inside the chat.
 - **Projects**: shared instructions and files for a group of chats.
+- **Chat extras**: temporary chats that don't land in your history, archive, export to Markdown, a prompt library you insert with `/`, keyboard shortcuts (`Ctrl /` shows them all).
+- **Platform**: an OpenAI-compatible API with its own keys, a playground to test and compare models, usage and cost dashboards, request logs, a model catalog with prices and an activity log. More on this below.
 - **Nexo Code**: a coding agent in the browser, powered by [nexocode](https://github.com/ricodevvv/nexocode). Connect your own `nexocode serve`, or let Nexo spin up a cloud container for each session on Kubernetes (k3s).
 - **Plans and billing**: optional Stripe subscriptions with daily limits.
 - **Share**: public read-only links to chats.
 
 Built with Next.js 16, React 19, PostgreSQL (Drizzle), Better Auth and the official Anthropic, OpenAI and MCP SDKs.
+
+## The platform
+
+Everything lives under **Plataforma** in the side rail (`/platform`):
+
+| Page | What you get |
+| --- | --- |
+| Resumen | 30-day numbers (requests, tokens, estimated cost, latency), daily activity by source, top models and a quick start for the API |
+| Playground | System prompt, editable messages, `{{variables}}`, side-by-side comparison of two models, tokens/latency/cost per run, and the same request as curl, Python or TypeScript |
+| Prompts | A library of reusable prompts with variables and tags. Open them in the playground or type `/` in the chat to insert one |
+| API keys | Create keys (shown once, stored as a hash), optional expiry, last use, 30-day usage per key, revoke |
+| Uso y costos | 24 h / 7 / 30 / 90 day ranges, chart or table view, breakdowns by model, source and key, CSV export |
+| Logs | Every model request with filters by source, model and status, and a detail view |
+| Límites | Your plan's daily quota and the rate limits |
+| Modelos | Context window, max output, price per million tokens, capabilities and whether you can use each one right now |
+| Documentación | API reference with examples |
+| Actividad | Security log: sign-ins, 2FA changes, keys, connectors, shared chats, exports… with IP and device |
+
+Costs are estimates using each provider's public list prices, so they're handy for keeping an eye on spend but they're not an invoice.
+
+### Using the API
+
+It speaks the OpenAI Chat Completions format, so any OpenAI SDK works. Create a key in Plataforma → API keys and point the SDK at your Nexo:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://chat.example.com/api/v1", api_key="nexo-sk-...")
+reply = client.chat.completions.create(
+    model="claude-opus-5-5",
+    messages=[{"role": "user", "content": "Hola"}],
+)
+print(reply.choices[0].message.content)
+```
+
+- `GET /api/v1/models` lists the models the key can use.
+- `POST /api/v1/chat/completions` supports `stream`, `stream_options.include_usage`, `max_tokens` / `max_completion_tokens`, `reasoning_effort` and images as base64 data URLs.
+- Requests count toward the owner's plan (unless the model runs on their own provider key), show up in Logs and Usage, and are limited to 60 per minute per key and 120 per minute per account.
+
+### Teams
+
+Owners and admins get a **Actividad** tab in the team page with who did what (invites, role changes, connectors), and the **Uso** tab shows requests, tokens and estimated cost per member.
 
 ## Deploy with Docker Compose (easiest)
 
@@ -188,6 +232,7 @@ All settings are environment variables. `.env.example` lists every one of them. 
 | `STORAGE_DRIVER=s3`, `S3_*` | Store uploads in S3/R2/MinIO instead of the database |
 | `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` | GitHub App so the coding agent can use the user's repos; optional if you create it from Settings |
 | `NEXO_ADMIN_EMAILS` | Comma-separated emails allowed to create the GitHub App from Settings |
+| `NEXO_PUBLIC_URL` | Public URL shown in the API docs and code samples (falls back to `BETTER_AUTH_URL`) |
 
 ## License
 
