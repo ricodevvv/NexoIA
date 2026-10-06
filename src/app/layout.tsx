@@ -26,12 +26,13 @@ export const viewport: Viewport = {
   ],
 };
 
-const themeScript = `try{var t=localStorage.getItem("nexo-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;var m=document.createElement("meta");m.id="nexo-theme-color";m.name="theme-color";m.content=${JSON.stringify(THEME_COLORS)}[t];document.head.prepend(m)}}catch(e){}`;
+const themeScript = `try{var d=document.documentElement,t=localStorage.getItem("nexo-theme"),f=localStorage.getItem("nexo-font"),w=localStorage.getItem("nexo-width");if(t==="light"||t==="dark"){d.dataset.theme=t;var m=document.createElement("meta");m.id="nexo-theme-color";m.name="theme-color";m.content=${JSON.stringify(THEME_COLORS)}[t];document.head.prepend(m);var c=document.querySelector('meta[name="color-scheme"]');if(c)c.content=t}if(f==="sm"||f==="lg")d.dataset.font=f;if(w==="wide")d.dataset.width=w}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className={`${serif.variable} ${sans.variable}`} suppressHydrationWarning>
       <head>
+        <meta name="color-scheme" content="light dark" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>{children}</body>

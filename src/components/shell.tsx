@@ -1,14 +1,16 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { CodeNavProvider } from "./code/code-nav";
 import { ExternalLinkDialog } from "./external-link";
 import { Rail } from "./rail";
 import { SearchPalette } from "./search-palette";
+import { ShortcutsDialog } from "./shortcuts-dialog";
 import { Sidebar } from "./sidebar";
 import styles from "./shell.module.css";
 import { TabBar } from "./tab-bar";
+import { ToastProvider } from "./ui/toast";
 import { useIsMobile } from "./use-is-mobile";
 import { useStoredState } from "./use-stored-state";
 import type { WorkspaceOption } from "./workspace-switcher";
@@ -116,20 +118,40 @@ export function Shell({
   const collapsed = sidebar === "collapsed";
   const mobileOpen = openAt === pathname;
   const [searchOpen, setSearchOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const router = useRouter();
   const { shellRef, slotRef, handlers: swipe } = useDrawerSwipe(() => setOpenAt(null));
   const mobile = useIsMobile();
   const panelHidden = mobile ? !mobileOpen : collapsed;
+  const toggleRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      const mod = e.metaKey || e.ctrlKey;
+      const key = e.key.toLowerCase();
+      if (mod && !e.shiftKey && key === "k") {
         e.preventDefault();
         setSearchOpen((v) => !v);
+      } else if (mod && e.shiftKey && key === "o") {
+        e.preventDefault();
+        router.push("/");
+      } else if (mod && e.shiftKey && key === "s") {
+        e.preventDefault();
+        toggleRef.current();
+      } else if (mod && key === "/") {
+        e.preventDefault();
+        setShortcutsOpen((v) => !v);
+      } else if (e.shiftKey && key === "escape") {
+        const input = document.getElementById("composer-input");
+        if (input) {
+          e.preventDefault();
+          input.focus();
+        }
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [router]);
 
   function toggle() {
     if (window.matchMedia("(max-width: 860px)").matches) {
@@ -138,29 +160,42 @@ export function Shell({
     }
     setSidebar(collapsed ? "open" : "collapsed");
   }
+  useEffect(() => {
+    toggleRef.current = toggle;
+  });
 
   return (
     <ShellContext.Provider value={{ collapsed, toggle, openSearch: () => setSearchOpen(true) }}>
-      <CodeNavProvider>
-        <a className="skip-link" href="#contenido">
-          Saltar al contenido
-        </a>
-        <div ref={shellRef} className="shell" data-panel={collapsed ? "closed" : "open"} data-drawer={mobileOpen}>
-          <div className={styles.railSlot}>
-            <Rail user={user} plan={plan} panelOpen={!collapsed} onTogglePanel={toggle} onSearch={() => setSearchOpen(true)} />
+      <ToastProvider>
+        <CodeNavProvider>
+          <a className="skip-link" href="#contenido">
+            Saltar al contenido
+          </a>
+          <div ref={shellRef} className="shell" data-panel={collapsed ? "closed" : "open"} data-drawer={mobileOpen}>
+            <div className={styles.railSlot}>
+              <Rail
+                user={user}
+                plan={plan}
+                panelOpen={!collapsed}
+                hasTeam={Boolean(activeWorkspace)}
+                onTogglePanel={toggle}
+                onSearch={() => setSearchOpen(true)}
+              />
+            </div>
+            <div ref={slotRef} className={styles.sidebarSlot} data-open={mobileOpen} inert={panelHidden} {...(mobileOpen ? swipe : {})}>
+              <Sidebar onClose={() => setOpenAt(null)} workspaces={workspaces} activeWorkspace={activeWorkspace} />
+            </div>
+            {mobileOpen && <button className={styles.scrim} aria-label="Cerrar historial" onClick={() => setOpenAt(null)} />}
+            <main id="contenido" className="main" tabIndex={-1}>
+              {children}
+            </main>
+            <TabBar user={user} plan={plan} />
+            <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
+            <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+            <ExternalLinkDialog />
           </div>
-          <div ref={slotRef} className={styles.sidebarSlot} data-open={mobileOpen} inert={panelHidden} {...(mobileOpen ? swipe : {})}>
-            <Sidebar onClose={() => setOpenAt(null)} workspaces={workspaces} activeWorkspace={activeWorkspace} />
-          </div>
-          {mobileOpen && <button className={styles.scrim} aria-label="Cerrar historial" onClick={() => setOpenAt(null)} />}
-          <main id="contenido" className="main" tabIndex={-1}>
-            {children}
-          </main>
-          <TabBar user={user} plan={plan} />
-          <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
-          <ExternalLinkDialog />
-        </div>
-      </CodeNavProvider>
+        </CodeNavProvider>
+      </ToastProvider>
     </ShellContext.Provider>
   );
 }

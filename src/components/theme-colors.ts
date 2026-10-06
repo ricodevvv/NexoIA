@@ -1,4 +1,4 @@
-export const THEME_COLORS = { light: "#fbfbfa", dark: "#151515" } as const;
+export const THEME_COLORS = { light: "#fdfdfc", dark: "#141416" } as const;
 
 const META_ID = "nexo-theme-color";
 

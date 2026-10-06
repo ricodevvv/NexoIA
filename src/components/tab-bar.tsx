@@ -1,6 +1,6 @@
 "use client";
 
-import { Code2, FolderClosed, MessagesSquare } from "lucide-react";
+import { Code2, FolderClosed, LayoutDashboard, MessagesSquare } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { sectionOf } from "./rail";
@@ -11,6 +11,7 @@ const TABS = [
   { section: "chat", href: "/", label: "Chats", Icon: MessagesSquare },
   { section: "code", href: "/code", label: "Code", Icon: Code2 },
   { section: "projects", href: "/projects", label: "Proyectos", Icon: FolderClosed },
+  { section: "platform", href: "/platform", label: "Plataforma", Icon: LayoutDashboard },
 ] as const;
 
 /**

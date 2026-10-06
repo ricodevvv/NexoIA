@@ -1,7 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { FolderClosed, Loader2, MessageSquare, Search, Settings, SquarePen } from "lucide-react";
+import { BookOpen, Boxes, FileText, FolderClosed, Gauge, KeyRound, LayoutDashboard, ListTree, Loader2, MessageSquare, Palette, Search, Settings, Shield, SquarePen, Terminal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import styles from "./search-palette.module.css";
@@ -13,7 +13,22 @@ type Item = { key: string; label: string; hint?: string; snippet?: string | null
 const SHORTCUTS: Item[] = [
   { key: "new", label: "Nuevo chat", icon: <SquarePen size={15} />, href: "/" },
   { key: "projects", label: "Proyectos", icon: <FolderClosed size={15} />, href: "/projects" },
+  { key: "platform", label: "Plataforma", icon: <LayoutDashboard size={15} />, href: "/platform" },
+  { key: "playground", label: "Playground", icon: <Terminal size={15} />, href: "/platform/playground" },
   { key: "settings", label: "Ajustes", icon: <Settings size={15} />, href: "/settings" },
+];
+
+const PAGES: Item[] = [
+  ...SHORTCUTS,
+  { key: "prompts", label: "Biblioteca de prompts", icon: <FileText size={15} />, href: "/platform/prompts" },
+  { key: "keys", label: "API keys", icon: <KeyRound size={15} />, href: "/platform/keys" },
+  { key: "usage", label: "Uso y costos", icon: <Gauge size={15} />, href: "/platform/usage" },
+  { key: "logs", label: "Logs de peticiones", icon: <ListTree size={15} />, href: "/platform/logs" },
+  { key: "models", label: "Modelos", icon: <Boxes size={15} />, href: "/platform/models" },
+  { key: "docs", label: "Documentación de la API", icon: <BookOpen size={15} />, href: "/platform/docs" },
+  { key: "security", label: "Seguridad y verificación en dos pasos", icon: <Shield size={15} />, href: "/settings?tab=security" },
+  { key: "appearance", label: "Apariencia y tema", icon: <Palette size={15} />, href: "/settings?tab=appearance" },
+  { key: "data", label: "Datos, privacidad y chats archivados", icon: <Settings size={15} />, href: "/settings?tab=data" },
 ];
 
 function Highlight({ text, query }: { text: string; query: string }) {
@@ -62,15 +77,16 @@ export function SearchPalette({ open, onOpenChange }: { open: boolean; onOpenCha
   }, [query]);
 
   const searching = query.trim().length >= 2;
+  const pageMatches = searching ? PAGES.filter((p) => p.label.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 3) : [];
   const items: Item[] = searching
-    ? results.map((r) => ({
+    ? [...pageMatches, ...results.map((r) => ({
         key: r.id,
         label: r.title,
         snippet: r.snippet,
         hint: new Date(r.updatedAt).toLocaleDateString("es", { day: "2-digit", month: "short" }),
         icon: <MessageSquare size={15} />,
         href: `/chat/${r.id}`,
-      }))
+      }))]
     : SHORTCUTS;
 
   function go(item: Item | undefined) {
@@ -141,7 +157,7 @@ export function SearchPalette({ open, onOpenChange }: { open: boolean; onOpenCha
                 {item.hint && <span className="label">{item.hint}</span>}
               </li>
             ))}
-            {searching && !loading && results.length === 0 && <li className={styles.empty}>Nada coincide con “{query.trim()}”.</li>}
+            {searching && !loading && items.length === 0 && <li className={styles.empty}>Nada coincide con “{query.trim()}”.</li>}
           </ul>
         </Dialog.Content>
       </Dialog.Portal>

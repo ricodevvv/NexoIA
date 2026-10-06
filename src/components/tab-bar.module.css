@@ -8,7 +8,7 @@
     inset: auto 0 0;
     z-index: 30;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
     padding: 0 8px env(safe-area-inset-bottom);
     border-top: 1px solid var(--frame-line);

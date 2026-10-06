@@ -12,76 +12,122 @@
   place-items: center;
   width: 44px;
   height: 44px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   border-radius: 12px;
   color: var(--text);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+@media (hover: hover) {
+  .logo:hover {
+    background: var(--frame-hover);
+  }
 }
 
 .group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .bottom {
+  gap: 4px;
   margin-top: auto;
 }
 
 .item {
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 64px;
+  padding: 5px 0 6px;
+  border-radius: 12px;
+  color: var(--text-3);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  line-height: 1.1;
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.icon {
   display: grid;
   place-items: center;
   width: 44px;
-  height: 44px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), scale var(--dur-fast) var(--ease-spring);
+}
+
+.item:active .icon {
+  scale: 0.92;
+}
+
+@media (hover: hover) {
+  .item:hover {
+    color: var(--text);
+  }
+  .item:hover .icon {
+    background: var(--frame-hover);
+  }
+}
+
+.item[aria-current="page"] {
+  color: var(--text);
+}
+
+.item[aria-current="page"] .icon {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.itemLabel {
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border: 0;
   border-radius: 12px;
   background: none;
   color: var(--text-3);
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), scale var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), scale var(--dur-fast) var(--ease);
 }
 
-.item:active {
+.tool:active {
   scale: 0.94;
 }
 
 @media (hover: hover) {
-  .item:hover {
+  .tool:hover {
     background: var(--frame-hover);
     color: var(--text);
   }
 }
 
-.item[aria-current="page"] {
-  background: var(--bg);
-  color: var(--text);
-  box-shadow: var(--canvas-shadow);
-}
-
-.item[aria-current="page"]::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: -10px;
-  width: 6px;
-  height: 6px;
-  margin-top: -3px;
-  border-radius: 50%;
-  background: var(--brand);
-}
-
-.item[aria-expanded="false"] {
-  color: var(--text-2);
+.tool[aria-current="page"] {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .account {
   display: grid;
   place-items: center;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .tip {

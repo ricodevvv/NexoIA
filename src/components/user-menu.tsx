@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { ArrowUpCircle, Check, KeyRound, LogOut, Monitor, Moon, Settings, Sun } from "lucide-react";
+import { ArrowUpCircle, Check, Keyboard, KeyRound, LayoutDashboard, LogOut, Monitor, Moon, Settings, Sun } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
@@ -43,7 +43,13 @@ function useAccountActions(plan: "free" | "pro") {
   const actions = [
     { label: "Configuración", Icon: Settings, run: () => router.push("/settings") },
     ...(plan === "pro" ? [] : [{ label: "Mejorar plan", Icon: ArrowUpCircle, run: () => router.push("/settings?tab=billing") }]),
-    { label: "Claves de API", Icon: KeyRound, run: () => router.push("/settings?tab=keys") },
+    { label: "Plataforma y API", Icon: LayoutDashboard, run: () => router.push("/platform") },
+    { label: "Keys de proveedores", Icon: KeyRound, run: () => router.push("/settings?tab=keys") },
+    {
+      label: "Atajos de teclado",
+      Icon: Keyboard,
+      run: () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "/", ctrlKey: true })),
+    },
   ];
 
   return { actions, logout };

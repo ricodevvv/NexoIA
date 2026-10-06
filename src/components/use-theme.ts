@@ -15,6 +15,8 @@ export function useTheme(): [Theme, (t: Theme) => void] {
     if (next === "system") delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = next;
     syncThemeColor(next);
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
+    if (meta) meta.content = next === "system" ? "light dark" : next;
     setStored(next === "system" ? null : next);
   }
 
