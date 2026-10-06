@@ -1,28 +1,26 @@
-import { and, count, desc, eq, gte, sql, sum } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { WorkspaceAdmin } from "@/components/workspace/workspace-admin";
 import { TEAM_PLAN } from "@/lib/billing/plans";
 import { getTeamSubscription, teamBillingEnabled } from "@/lib/billing/team";
 import { db, schema } from "@/lib/db";
+import { listAudit } from "@/lib/audit";
 import { isConnected } from "@/lib/mcp-oauth";
+import { usageByUser, usageReport } from "@/lib/platform/analytics";
+import { modelLabeler } from "@/lib/platform/labels";
 import { requireSession } from "@/lib/session";
 import { activeWorkspace, canManage } from "@/lib/workspace";
 
 export const metadata: Metadata = { title: "Equipo" };
-
-function daysAgo(days: number) {
-  return new Date(Date.now() - days * 86_400_000);
-}
 
 export default async function WorkspacePage(props: PageProps<"/workspace">) {
   const auth = await requireSession();
   const workspace = await activeWorkspace(auth);
   if (!workspace) redirect("/");
   const { tab, checkout } = await props.searchParams;
-  const since = daysAgo(30);
 
-  const [members, invitations, servers, usage, sub] = await Promise.all([
+  const [members, invitations, servers, sub, label] = await Promise.all([
     db
       .select({
         id: schema.member.id,
@@ -53,20 +51,17 @@ export default async function WorkspacePage(props: PageProps<"/workspace">) {
       .from(schema.mcpServer)
       .where(eq(schema.mcpServer.organizationId, workspace.id))
       .orderBy(desc(schema.mcpServer.createdAt)),
-    db
-      .select({
-        userId: schema.usage.userId,
-        messages: count(),
-        tokens: sql<number>`coalesce(${sum(schema.usage.inputTokens)}, 0) + coalesce(${sum(schema.usage.outputTokens)}, 0)`.mapWith(Number),
-      })
-      .from(schema.usage)
-      .innerJoin(schema.member, and(eq(schema.member.userId, schema.usage.userId), eq(schema.member.organizationId, workspace.id)))
-      .where(gte(schema.usage.createdAt, since))
-      .groupBy(schema.usage.userId),
     getTeamSubscription(workspace.id),
+    modelLabeler(auth.user.id),
   ]);
 
-  const usageByUser = new Map(usage.map((u) => [u.userId, u]));
+  const memberIds = members.map((m) => m.userId);
+  const manage = canManage(workspace.role);
+  const [perUser, report, activity] = await Promise.all([
+    usageByUser(memberIds, 30),
+    usageReport({ userIds: memberIds }, "30d", { model: label, key: () => "API" }),
+    manage ? listAudit({ organizationId: workspace.id }, { limit: 50 }) : Promise.resolve([]),
+  ]);
 
   return (
     <WorkspaceAdmin
@@ -74,13 +69,16 @@ export default async function WorkspacePage(props: PageProps<"/workspace">) {
       checkoutOk={checkout === "ok"}
       me={auth.user.id}
       workspace={{ id: workspace.id, name: workspace.name, role: workspace.role }}
-      manage={canManage(workspace.role)}
+      manage={manage}
+      report={report}
+      activity={activity}
       members={members.map((m) => ({
         ...m,
         role: m.role as "owner" | "admin" | "member",
         joinedAt: m.joinedAt.toISOString(),
-        messages: usageByUser.get(m.userId)?.messages ?? 0,
-        tokens: usageByUser.get(m.userId)?.tokens ?? 0,
+        messages: perUser.get(m.userId)?.requests ?? 0,
+        tokens: (perUser.get(m.userId)?.inputTokens ?? 0) + (perUser.get(m.userId)?.outputTokens ?? 0),
+        cost: perUser.get(m.userId)?.cost ?? 0,
       }))}
       invitations={invitations.map((i) => ({ ...i, role: i.role ?? "member", expiresAt: i.expiresAt.toISOString() }))}
       servers={servers.map(({ oauth, ...s }) => ({ ...s, connected: isConnected({ authType: s.authType, oauth }) }))}

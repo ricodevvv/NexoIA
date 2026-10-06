@@ -1,15 +1,22 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Check, Mail, PanelLeft, Trash2, UserPlus } from "lucide-react";
+import { Check, Coins, Gauge, Mail, MessagesSquare, Trash2, UserPlus, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import type { AuditRow } from "@/lib/audit";
+import { authErrorMessage } from "@/lib/auth-errors";
+import type { UsageReport } from "@/lib/platform/analytics";
+import { StackedColumns } from "../charts/charts";
 import { notifyConversationsChanged } from "../events";
+import { ActivityLog } from "../platform/activity-log";
+import { sourceColumns } from "../platform/overview";
 import { Connectors, Section } from "../settings/settings";
 import styles from "../settings/settings.module.css";
-import { useShell } from "../shell";
-import { authErrorMessage } from "@/lib/auth-errors";
+import { formatCompact, formatCost, formatNumber, percentChange } from "../ui/format";
+import { PageHeader } from "../ui/page-header";
+import { StatCard } from "../ui/stat-card";
 
 type Role = "owner" | "admin" | "member";
 
@@ -19,6 +26,8 @@ type Props = {
   me: string;
   workspace: { id: string; name: string; role: Role };
   manage: boolean;
+  report: UsageReport;
+  activity: AuditRow[];
   members: {
     id: string;
     userId: string;
@@ -28,6 +37,7 @@ type Props = {
     joinedAt: string;
     messages: number;
     tokens: number;
+    cost: number;
   }[];
   invitations: { id: string; email: string; role: string; expiresAt: string }[];
   servers: { id: string; name: string; url: string; enabled: boolean }[];
@@ -43,26 +53,21 @@ type Props = {
 const ROLE_LABEL: Record<Role, string> = { owner: "Dueño", admin: "Admin", member: "Miembro" };
 
 const TABS = [
-  { id: "members", label: "Miembros" },
-  { id: "connectors", label: "Conectores" },
-  { id: "usage", label: "Uso" },
-  { id: "plan", label: "Plan" },
-  { id: "general", label: "General" },
+  { id: "members", label: "Miembros", admin: false },
+  { id: "usage", label: "Uso", admin: false },
+  { id: "activity", label: "Actividad", admin: true },
+  { id: "connectors", label: "Conectores", admin: false },
+  { id: "plan", label: "Plan", admin: false },
+  { id: "general", label: "General", admin: false },
 ];
-
-function formatTokens(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)} M`;
-  if (n >= 1000) return `${Math.round(n / 1000)} k`;
-  return String(n);
-}
 
 /**
  * Administración del equipo activo: miembros e invitaciones, conectores
  * compartidos, uso por persona, plan Team y ajustes generales.
  */
 export function WorkspaceAdmin(props: Props) {
-  const { toggle } = useShell();
-  const [tab, setTab] = useState(TABS.some((t) => t.id === props.initialTab) ? props.initialTab : "members");
+  const tabs = TABS.filter((t) => !t.admin || props.manage);
+  const [tab, setTab] = useState(tabs.some((t) => t.id === props.initialTab) ? props.initialTab : "members");
 
   function select(id: string) {
     setTab(id);
@@ -70,31 +75,34 @@ export function WorkspaceAdmin(props: Props) {
   }
 
   return (
-    <div className={styles.page}>
-      <header className={styles.header}>
-        <button className={`icon-btn ${styles.mobileMenu}`} onClick={toggle} aria-label="Abrir historial">
-          <PanelLeft />
-        </button>
-        <div>
-          <p className="label">Equipo · {ROLE_LABEL[props.workspace.role]}</p>
-          <h1>{props.workspace.name}</h1>
+    <div className="page">
+      <div className="page-inner">
+        <PageHeader
+          eyebrow={
+            <>
+              <Users size={13} aria-hidden="true" /> Equipo · {ROLE_LABEL[props.workspace.role]}
+            </>
+          }
+          title={props.workspace.name}
+          description={`${props.members.length} ${props.members.length === 1 ? "miembro" : "miembros"}. Comparten proyectos y conectores; los chats de cada quien son privados.`}
+        />
+        <div className={styles.layout}>
+          <nav className={styles.tabs} role="tablist" aria-label="Secciones del equipo">
+            {tabs.map((t) => (
+              <button key={t.id} role="tab" aria-selected={tab === t.id} className={styles.tab} onClick={() => select(t.id)}>
+                {t.label}
+              </button>
+            ))}
+          </nav>
+          <section className={styles.panel} role="tabpanel" key={tab}>
+            {tab === "members" && <Members {...props} />}
+            {tab === "connectors" && <Connectors servers={props.servers} workspace readOnly={!props.manage} />}
+            {tab === "usage" && <UsageTab members={props.members} report={props.report} />}
+            {tab === "activity" && props.manage && <ActivityLog initial={props.activity} endpoint="/api/workspace/activity" showActor />}
+            {tab === "plan" && <PlanTab billing={props.billing} manage={props.manage} checkoutOk={props.checkoutOk} members={props.members.length} />}
+            {tab === "general" && <General {...props} />}
+          </section>
         </div>
-      </header>
-      <div className={styles.layout}>
-        <nav className={styles.tabs} role="tablist" aria-label="Secciones del equipo">
-          {TABS.map((t) => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} className={styles.tab} onClick={() => select(t.id)}>
-              {t.label}
-            </button>
-          ))}
-        </nav>
-        <section className={styles.panel} role="tabpanel">
-          {tab === "members" && <Members {...props} />}
-          {tab === "connectors" && <Connectors servers={props.servers} workspace readOnly={!props.manage} />}
-          {tab === "usage" && <UsageTab members={props.members} />}
-          {tab === "plan" && <PlanTab billing={props.billing} manage={props.manage} checkoutOk={props.checkoutOk} members={props.members.length} />}
-          {tab === "general" && <General {...props} />}
-        </section>
       </div>
     </div>
   );
@@ -243,38 +251,73 @@ function Members({ workspace, manage, members, invitations, me }: Props) {
   );
 }
 
-function UsageTab({ members }: { members: Props["members"] }) {
-  const max = Math.max(1, ...members.map((m) => m.messages));
-  const total = members.reduce((acc, m) => acc + m.messages, 0);
+function UsageTab({ members, report }: { members: Props["members"]; report: UsageReport }) {
   const sorted = [...members].sort((a, b) => b.messages - a.messages);
+  const max = Math.max(1, ...members.map((m) => m.messages));
+  const columns = sourceColumns(report);
+  const { totals, previous } = report;
   return (
-    <Section title="Últimos 30 días" description={`${total} mensajes en total. Cuenta todo lo que cada miembro usó en Nexo.`}>
-      <table className={styles.usageTable}>
-        <thead>
-          <tr>
-            <th scope="col">Miembro</th>
-            <th scope="col">Mensajes</th>
-            <th scope="col" className={styles.num}>
-              Tokens
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((m) => (
-            <tr key={m.id}>
-              <td>{m.name}</td>
-              <td>
-                <span className={styles.barCell}>
-                  <span className={styles.bar} style={{ inlineSize: `${(m.messages / max) * 100}%` }} />
-                  <span className={styles.num}>{m.messages}</span>
-                </span>
-              </td>
-              <td className={styles.num}>{formatTokens(m.tokens)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Section>
+    <>
+      <div className="grid-kpi">
+        <StatCard label="Peticiones" icon={<MessagesSquare aria-hidden="true" />} value={formatNumber(totals.requests)} change={percentChange(totals.requests, previous.requests)} hint="30 días" />
+        <StatCard label="Tokens" icon={<Gauge aria-hidden="true" />} value={formatCompact(totals.inputTokens + totals.outputTokens)} />
+        <StatCard label="Costo estimado" icon={<Coins aria-hidden="true" />} value={formatCost(totals.cost)} change={percentChange(totals.cost, previous.cost)} goodWhenUp={false} />
+      </div>
+      <section className="card">
+        <div className="card-head">
+          <h2 className="card-title">Actividad del equipo</h2>
+          <p className="card-desc">Peticiones por día de todos los miembros.</p>
+        </div>
+        <div className="card-body">
+          <StackedColumns points={columns.points} series={columns.series} label="Peticiones del equipo por día" format={formatCompact} height={200} />
+        </div>
+      </section>
+      <section className="card">
+        <div className="card-head">
+          <h2 className="card-title">Por miembro</h2>
+        </div>
+        <div className="card-body flush">
+          <div className="table-wrap">
+            <table className="table stack-sm">
+              <thead>
+                <tr>
+                  <th scope="col">Miembro</th>
+                  <th scope="col">Peticiones</th>
+                  <th scope="col" className="num">
+                    Tokens
+                  </th>
+                  <th scope="col" className="num">
+                    Costo
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((m) => (
+                  <tr key={m.id}>
+                    <th scope="row">
+                      <span className="cell-title">{m.name}</span>
+                      <span className="cell-sub">{m.email}</span>
+                    </th>
+                    <td data-label="Peticiones">
+                      <span className={styles.barCell}>
+                        <span className={styles.bar} style={{ inlineSize: `${(m.messages / max) * 100}%` }} />
+                        <span className={styles.num}>{formatNumber(m.messages)}</span>
+                      </span>
+                    </td>
+                    <td className="num" data-label="Tokens">
+                      {formatCompact(m.tokens)}
+                    </td>
+                    <td className="num" data-label="Costo">
+                      {formatCost(m.cost)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </>
   );
 }
 
