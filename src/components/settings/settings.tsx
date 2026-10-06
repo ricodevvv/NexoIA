@@ -1,16 +1,18 @@
 "use client";
 
-import * as Dialog from "@radix-ui/react-dialog";
-import { Brain, Check, CreditCard, ExternalLink, KeyRound, Link2, Loader2, PanelLeft, Plug, Sparkles, Trash2, UserRound } from "lucide-react";
+import { Brain, Check, CreditCard, Database, KeyRound, Loader2, Palette, Plug, Shield, Sparkles, Trash2, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import type { Plan, PlanId } from "@/lib/billing/plans";
 import { Github } from "../code/github-icon";
-import { useShell } from "../shell";
+import { PageHeader } from "../ui/page-header";
+import { Appearance } from "./appearance";
+import { DataPrivacy } from "./data";
 import { Endpoints } from "./endpoints";
 import { GitHub } from "./github";
+import { Security } from "./security";
 import styles from "./settings.module.css";
 import { authErrorMessage } from "@/lib/auth-errors";
 
@@ -20,7 +22,8 @@ type KeyRow = { provider: "anthropic" | "openai"; hint: string };
 type Props = {
   initialTab: string;
   checkoutOk: boolean;
-  user: { name: string; email: string; emailVerified: boolean };
+  user: { name: string; email: string; emailVerified: boolean; createdAt: string };
+  security: { twoFactorEnabled: boolean; hasPassword: boolean };
   keys: KeyRow[];
   endpoints: { id: string; name: string; baseUrl: string; models: string[]; hasKey: boolean }[];
   personalization: {
@@ -44,12 +47,15 @@ type Props = {
 };
 
 const TABS = [
-  { id: "account", label: "Cuenta", Icon: UserRound },
-  { id: "personalization", label: "Personalización", Icon: Sparkles },
-  { id: "keys", label: "API keys", Icon: KeyRound },
-  { id: "connectors", label: "Conectores", Icon: Plug },
-  { id: "github", label: "GitHub", Icon: Github },
-  { id: "billing", label: "Plan", Icon: CreditCard },
+  { id: "account", label: "Perfil", Icon: UserRound, group: "Cuenta" },
+  { id: "appearance", label: "Apariencia", Icon: Palette, group: "Cuenta" },
+  { id: "security", label: "Seguridad", Icon: Shield, group: "Cuenta" },
+  { id: "data", label: "Datos y privacidad", Icon: Database, group: "Cuenta" },
+  { id: "personalization", label: "Personalización", Icon: Sparkles, group: "Nexo" },
+  { id: "keys", label: "Modelos y keys", Icon: KeyRound, group: "Nexo" },
+  { id: "connectors", label: "Conectores", Icon: Plug, group: "Integraciones" },
+  { id: "github", label: "GitHub", Icon: Github, group: "Integraciones" },
+  { id: "billing", label: "Plan y facturación", Icon: CreditCard, group: "Facturación" },
 ] as const;
 
 async function api(url: string, init?: RequestInit) {
@@ -68,7 +74,6 @@ async function api(url: string, init?: RequestInit) {
  * Pantalla de ajustes con pestañas: cuenta, keys, conectores MCP, GitHub y plan.
  */
 export function Settings(props: Props) {
-  const { toggle } = useShell();
   const [tab, setTab] = useState(TABS.some((t) => t.id === props.initialTab) ? props.initialTab : "account");
 
   function select(id: string) {
@@ -89,44 +94,50 @@ export function Settings(props: Props) {
   }
 
   return (
-    <div className={styles.page}>
-      <header className={styles.header}>
-        <button className={`icon-btn ${styles.mobileMenu}`} onClick={toggle} aria-label="Abrir historial">
-          <PanelLeft />
-        </button>
-        <h1>Configuración</h1>
-      </header>
-      <div className={styles.layout}>
-        <nav className={styles.tabs} role="tablist" aria-label="Secciones de ajustes" onKeyDown={onTabKey}>
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              id={`tab-${t.id}`}
-              role="tab"
-              aria-selected={tab === t.id}
-              aria-controls="settings-panel"
-              tabIndex={tab === t.id ? 0 : -1}
-              className={styles.tab}
-              onClick={() => select(t.id)}
-            >
-              <t.Icon size={17} aria-hidden="true" />
-              {t.label}
-            </button>
-          ))}
-        </nav>
-        <section id="settings-panel" className={styles.panel} role="tabpanel" aria-labelledby={`tab-${tab}`}>
-          {tab === "account" && <Account user={props.user} />}
-          {tab === "personalization" && <Personalization data={props.personalization} />}
-          {tab === "keys" && (
-            <>
-              <Keys keys={props.keys} serverKeys={props.serverKeys} />
-              <Endpoints endpoints={props.endpoints} />
-            </>
-          )}
-          {tab === "connectors" && <Connectors servers={props.servers} />}
-          {tab === "github" && <GitHub />}
-          {tab === "billing" && <Billing billing={props.billing} checkoutOk={props.checkoutOk} />}
-        </section>
+    <div className="page">
+      <div className="page-inner">
+        <PageHeader title="Configuración" description="Tu cuenta, cómo se ve Nexo, la seguridad y todo lo que tienes conectado." />
+        <div className={styles.layout}>
+          <nav className={styles.tabs} role="tablist" aria-label="Secciones de ajustes" aria-orientation="vertical" onKeyDown={onTabKey}>
+            {TABS.map((t, i) => (
+              <span key={t.id} style={{ display: "contents" }}>
+                {(i === 0 || TABS[i - 1].group !== t.group) && (
+                  <span className={styles.tabGroup} aria-hidden="true">
+                    {t.group}
+                  </span>
+                )}
+                <button
+                  id={`tab-${t.id}`}
+                  role="tab"
+                  aria-selected={tab === t.id}
+                  aria-controls="settings-panel"
+                  tabIndex={tab === t.id ? 0 : -1}
+                  className={styles.tab}
+                  onClick={() => select(t.id)}
+                >
+                  <t.Icon size={17} aria-hidden="true" />
+                  {t.label}
+                </button>
+              </span>
+            ))}
+          </nav>
+          <section id="settings-panel" key={tab} className={styles.panel} role="tabpanel" aria-labelledby={`tab-${tab}`}>
+            {tab === "account" && <Account user={props.user} />}
+            {tab === "appearance" && <Appearance />}
+            {tab === "security" && <Security {...props.security} />}
+            {tab === "data" && <DataPrivacy shares={props.personalization.shares} />}
+            {tab === "personalization" && <Personalization data={props.personalization} />}
+            {tab === "keys" && (
+              <>
+                <Keys keys={props.keys} serverKeys={props.serverKeys} />
+                <Endpoints endpoints={props.endpoints} />
+              </>
+            )}
+            {tab === "connectors" && <Connectors servers={props.servers} />}
+            {tab === "github" && <GitHub />}
+            {tab === "billing" && <Billing billing={props.billing} checkoutOk={props.checkoutOk} />}
+          </section>
+        </div>
       </div>
     </div>
   );
@@ -144,12 +155,18 @@ export function Section({ title, description, children }: { title: string; descr
   );
 }
 
+function initialsOf(name: string) {
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
 function Account({ user }: { user: Props["user"] }) {
   const router = useRouter();
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
-  const [pwMsg, setPwMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
   const [verifySent, setVerifySent] = useState(false);
 
   async function resendVerification() {
@@ -163,25 +180,6 @@ function Account({ user }: { user: Props["user"] }) {
     const { error } = await authClient.updateUser({ name });
     setMsg(error ? { kind: "error", text: authErrorMessage(error, "No se pudo guardar") } : { kind: "ok", text: "Guardado" });
     if (!error) router.refresh();
-  }
-
-  async function changePassword(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const data = new FormData(form);
-    const { error } = await authClient.changePassword({
-      currentPassword: String(data.get("current")),
-      newPassword: String(data.get("next")),
-      revokeOtherSessions: true,
-    });
-    setPwMsg(error ? { kind: "error", text: authErrorMessage(error, "No se pudo cambiar") } : { kind: "ok", text: "Contraseña actualizada" });
-    if (!error) form.reset();
-  }
-
-  async function deleteAccount() {
-    await authClient.deleteUser();
-    router.replace("/login");
-    router.refresh();
   }
 
   return (
@@ -198,7 +196,17 @@ function Account({ user }: { user: Props["user"] }) {
           )}
         </p>
       )}
-      <Section title="Perfil" description={user.email}>
+      <div className={styles.identity}>
+        <span className={styles.identityAvatar} aria-hidden="true">
+          {initialsOf(user.name)}
+        </span>
+        <span>
+          <strong>{user.name}</strong>
+          <span className="muted">{user.email}</span>
+          <span className="hint">Miembro desde {new Date(user.createdAt).toLocaleDateString("es", { month: "long", year: "numeric" })}</span>
+        </span>
+      </div>
+      <Section title="Perfil" description="Así te llama Nexo y así te ven en los equipos.">
         <form className={styles.inline} onSubmit={saveName}>
           <label className="field">
             <span>Nombre</span>
@@ -208,57 +216,15 @@ function Account({ user }: { user: Props["user"] }) {
         </form>
         {msg && <p className={msg.kind === "ok" ? styles.ok : "error-text"}>{msg.text}</p>}
       </Section>
-
-      <Section title="Contraseña" description="Al cambiarla se cierran tus otras sesiones.">
-        <form className={styles.stack} onSubmit={changePassword}>
+      <Section title="Correo" description="Para cambiarlo, escríbenos o crea otra cuenta.">
+        <div className={styles.inline}>
           <label className="field">
-            <span>Contraseña actual</span>
-            <input className="input" name="current" type="password" required autoComplete="current-password" />
+            <span className="sr-only">Correo</span>
+            <input className="input" value={user.email} readOnly />
           </label>
-          <label className="field">
-            <span>Nueva contraseña</span>
-            <input className="input" name="next" type="password" required minLength={8} autoComplete="new-password" />
-          </label>
-          <div>
-            <button className="btn">Cambiar contraseña</button>
-          </div>
-          {pwMsg && <p className={pwMsg.kind === "ok" ? styles.ok : "error-text"}>{pwMsg.text}</p>}
-        </form>
-      </Section>
-
-      <Section title="Tus datos" description="Descarga todos tus chats, proyectos, memoria y ajustes en un archivo JSON.">
-        <div>
-          <a className="btn" href="/api/export" download>
-            Exportar mis datos
-          </a>
+          {user.emailVerified ? <span className="tag tag-success">Confirmado</span> : <span className="tag tag-warning">Sin confirmar</span>}
         </div>
       </Section>
-
-      <Section title="Zona de peligro" description="Borra tu cuenta, tus chats, archivos y conectores. No se puede deshacer.">
-        <div>
-          <button className="btn btn-danger" onClick={() => setConfirmDelete(true)}>
-            Eliminar mi cuenta
-          </button>
-        </div>
-      </Section>
-
-      <Dialog.Root open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="dialog-overlay" />
-          <Dialog.Content className="dialog">
-            <Dialog.Title>¿Eliminar tu cuenta?</Dialog.Title>
-            <Dialog.Description className="muted">
-              Se borra todo de forma permanente. Si tienes una suscripción, cancélala antes desde la pestaña Plan.
-            </Dialog.Description>
-            <div className="dialog-actions">
-              <Dialog.Close className="btn">Cancelar</Dialog.Close>
-              <button className="btn btn-danger" onClick={deleteAccount}>
-                Sí, eliminar
-              </button>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
     </>
   );
 }
@@ -392,11 +358,6 @@ function Personalization({ data }: { data: Props["personalization"] }) {
     router.refresh();
   }
 
-  async function unshare(conversationId: string) {
-    await api(`/api/conversations/${conversationId}/share`, { method: "DELETE" });
-    router.refresh();
-  }
-
   return (
     <>
       <Section
@@ -516,28 +477,6 @@ function Personalization({ data }: { data: Props["personalization"] }) {
         )}
       </Section>
 
-      <Section title="Enlaces compartidos" description="Chats que tienen un enlace público activo.">
-        {data.shares.length === 0 ? (
-          <div className={styles.empty}>
-            <Link2 size={20} aria-hidden="true" />
-            <p>No has compartido ningún chat.</p>
-          </div>
-        ) : (
-          <ul className={styles.memories}>
-            {data.shares.map((x) => (
-              <li key={x.id}>
-                <Link href={`/chat/${x.conversationId}`}>{x.title}</Link>
-                <a className="icon-btn" href={`/share/${x.id}`} target="_blank" rel="noopener noreferrer" aria-label="Abrir enlace público">
-                  <ExternalLink />
-                </a>
-                <button className="btn btn-sm btn-ghost btn-danger" onClick={() => unshare(x.conversationId)}>
-                  Dejar de compartir
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Section>
     </>
   );
 }
@@ -870,7 +809,7 @@ function Billing({ billing, checkoutOk }: { billing: Props["billing"]; checkoutO
           <div style={{ inlineSize: `${pct}%` }} />
         </div>
         <p className="label">
-          {billing.used} / {billing.limit} mensajes
+          {billing.used} / {billing.limit} mensajes · <Link href="/platform/usage">Ver uso y costos detallados</Link>
         </p>
       </Section>
 

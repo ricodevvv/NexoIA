@@ -22,6 +22,8 @@ export function AuthForm({ mode, providers, next }: Props) {
   const [busy, setBusy] = useState(false);
   const [unverified, setUnverified] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [twoFactor, setTwoFactor] = useState(false);
+  const [backup, setBackup] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -44,8 +46,31 @@ export function AuthForm({ mode, providers, next }: Props) {
       }
       return;
     }
+    if (mode === "login" && "twoFactorRedirect" in result.data && result.data.twoFactorRedirect) {
+      setTwoFactor(true);
+      return;
+    }
     if (mode === "signup" && !("token" in result.data && result.data.token)) {
       setNotice(`Te mandamos un enlace a ${email}. Ábrelo para confirmar tu cuenta y entrar.`);
+      return;
+    }
+    router.replace(next);
+    router.refresh();
+  }
+
+  async function verify(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    const code = String(data.get("code")).replace(/\s+/g, "");
+    const trustDevice = data.get("trust") === "on";
+    setBusy(true);
+    setError(null);
+    const result = backup
+      ? await authClient.twoFactor.verifyBackupCode({ code, trustDevice })
+      : await authClient.twoFactor.verifyTotp({ code, trustDevice });
+    setBusy(false);
+    if (result.error) {
+      setError(backup ? "Ese código de respaldo no sirve o ya se usó." : "El código no coincide. Revisa la hora de tu teléfono e intenta con el siguiente.");
       return;
     }
     router.replace(next);
@@ -64,6 +89,57 @@ export function AuthForm({ mode, providers, next }: Props) {
   }
 
   const isSignup = mode === "signup";
+
+  if (twoFactor) {
+    return (
+      <div className={styles.card}>
+        <h1>Un paso más.</h1>
+        <p className="muted">
+          {backup ? "Escribe uno de los códigos de respaldo que guardaste al activar la verificación." : "Abre tu app de autenticación y escribe el código de 6 dígitos de Nexo."}
+        </p>
+        <form className={styles.form} onSubmit={verify}>
+          <label className="field">
+            <span>{backup ? "Código de respaldo" : "Código de verificación"}</span>
+            <input
+              key={backup ? "backup" : "totp"}
+              className={`input ${styles.code}`}
+              name="code"
+              required
+              autoFocus
+              autoComplete="one-time-code"
+              inputMode={backup ? "text" : "numeric"}
+              pattern={backup ? undefined : "[0-9 ]{6,7}"}
+              maxLength={backup ? 24 : 7}
+              spellCheck={false}
+            />
+          </label>
+          <label className="check">
+            <input type="checkbox" name="trust" /> Confiar en este dispositivo por 30 días
+          </label>
+          {error && (
+            <p className="error-text" role="alert">
+              {error}
+            </p>
+          )}
+          <button className={`btn btn-primary ${styles.submit}`} disabled={busy} aria-busy={busy}>
+            {busy ? "Verificando…" : "Verificar y entrar"}
+          </button>
+        </form>
+        <p className={styles.switch}>
+          <button
+            type="button"
+            className={styles.linkButton}
+            onClick={() => {
+              setBackup(!backup);
+              setError(null);
+            }}
+          >
+            {backup ? "Usar el código de la app" : "¿No tienes el teléfono? Usa un código de respaldo"}
+          </button>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.card}>

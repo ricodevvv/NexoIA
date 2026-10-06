@@ -17,7 +17,7 @@ export default async function SettingsPage(props: PageProps<"/settings">) {
   const user = await requireUser();
   const { tab, checkout } = await props.searchParams;
 
-  const [keys, servers, plan, used, sub, settings, memories, shares, customStyles] = await Promise.all([
+  const [keys, servers, plan, used, sub, settings, memories, shares, customStyles, credential] = await Promise.all([
     db
       .select({ provider: schema.apiKey.provider, hint: schema.apiKey.hint })
       .from(schema.apiKey)
@@ -49,13 +49,18 @@ export default async function SettingsPage(props: PageProps<"/settings">) {
       .from(schema.responseStyle)
       .where(eq(schema.responseStyle.userId, user.id))
       .orderBy(asc(schema.responseStyle.createdAt)),
+    db.query.account.findFirst({
+      where: and(eq(schema.account.userId, user.id), eq(schema.account.providerId, "credential")),
+      columns: { id: true },
+    }),
   ]);
 
   return (
     <Settings
       initialTab={typeof tab === "string" ? tab : "account"}
       checkoutOk={checkout === "ok"}
-      user={{ name: user.name, email: user.email, emailVerified: user.emailVerified }}
+      user={{ name: user.name, email: user.email, emailVerified: user.emailVerified, createdAt: user.createdAt.toISOString() }}
+      security={{ twoFactorEnabled: Boolean(user.twoFactorEnabled), hasPassword: Boolean(credential) }}
       keys={keys}
       endpoints={(await listEndpoints(user.id)).map((e) => ({ id: e.id, name: e.name, baseUrl: e.baseUrl, models: e.models, hasKey: Boolean(e.apiKey) }))}
       personalization={{
