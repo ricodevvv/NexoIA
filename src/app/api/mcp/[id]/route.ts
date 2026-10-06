@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { audit } from "@/lib/audit";
 import { db, schema } from "@/lib/db";
 import { connectServer, NeedsAuthorization } from "@/lib/mcp";
 import { enforce, LIMITS } from "@/lib/rate-limit";
@@ -55,12 +56,13 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/mcp/[id]">
   }
 }
 
-export async function DELETE(_request: Request, ctx: RouteContext<"/api/mcp/[id]">) {
+export async function DELETE(request: Request, ctx: RouteContext<"/api/mcp/[id]">) {
   try {
     const user = await apiUser();
     const { id } = await ctx.params;
-    await accessible(user.id, id, true);
+    const row = await accessible(user.id, id, true);
     await db.delete(schema.mcpServer).where(eq(schema.mcpServer.id, id));
+    await audit({ userId: user.id, organizationId: row.organizationId, action: "connector.removed", target: row.name, headers: request.headers });
     return new Response(null, { status: 204 });
   } catch (err) {
     return handleError(err);

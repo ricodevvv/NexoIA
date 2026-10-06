@@ -22,7 +22,14 @@ export async function usedToday(userId: string) {
   const [row] = await db
     .select({ n: count() })
     .from(schema.usage)
-    .where(and(eq(schema.usage.userId, userId), eq(schema.usage.byok, false), gte(schema.usage.createdAt, startOfDay())));
+    .where(
+      and(
+        eq(schema.usage.userId, userId),
+        eq(schema.usage.byok, false),
+        eq(schema.usage.status, "ok"),
+        gte(schema.usage.createdAt, startOfDay()),
+      ),
+    );
   return row?.n ?? 0;
 }
 
@@ -58,13 +65,35 @@ export async function quotaStatus(userId: string): Promise<Quota> {
   return { used, limit: PLANS[plan].dailyMessages, plan, resetsAt: nextReset() };
 }
 
-export async function recordUsage(userId: string, model: string, usage: Usage, byok: boolean) {
+export type UsageRecord = {
+  userId: string;
+  model: string;
+  usage: Usage;
+  byok: boolean;
+  source?: "chat" | "api" | "playground" | "code";
+  apiKeyId?: string | null;
+  conversationId?: string | null;
+  latencyMs?: number | null;
+  error?: string | null;
+};
+
+/**
+ * Guarda una petición al modelo con sus tokens, de dónde vino y cuánto tardó.
+ * Si trae `error` queda como fallida y no cuenta para el límite del plan.
+ */
+export async function recordUsage(record: UsageRecord) {
   await db.insert(schema.usage).values({
     id: nanoid(),
-    userId,
-    model,
-    inputTokens: usage.inputTokens,
-    outputTokens: usage.outputTokens,
-    byok,
+    userId: record.userId,
+    model: record.model,
+    inputTokens: record.usage.inputTokens,
+    outputTokens: record.usage.outputTokens,
+    byok: record.byok,
+    source: record.source ?? "chat",
+    apiKeyId: record.apiKeyId ?? null,
+    conversationId: record.conversationId ?? null,
+    latencyMs: record.latencyMs ?? null,
+    status: record.error ? "error" : "ok",
+    error: record.error?.slice(0, 500) ?? null,
   });
 }

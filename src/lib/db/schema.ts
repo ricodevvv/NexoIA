@@ -14,6 +14,7 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
@@ -89,6 +90,8 @@ export const conversation = pgTable(
     title: text("title").notNull().default("Nuevo chat"),
     model: text("model").notNull(),
     starred: boolean("starred").notNull().default(false),
+    archived: boolean("archived").notNull().default(false),
+    temporary: boolean("temporary").notNull().default(false),
     currentLeafId: text("current_leaf_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -165,9 +168,15 @@ export const usage = pgTable(
     inputTokens: integer("input_tokens").notNull().default(0),
     outputTokens: integer("output_tokens").notNull().default(0),
     byok: boolean("byok").notNull().default(false),
+    source: text("source", { enum: ["chat", "api", "playground", "code"] }).notNull().default("chat"),
+    apiKeyId: text("api_key_id").references((): AnyPgColumn => platformKey.id, { onDelete: "set null" }),
+    conversationId: text("conversation_id").references(() => conversation.id, { onDelete: "set null" }),
+    latencyMs: integer("latency_ms"),
+    status: text("status", { enum: ["ok", "error"] }).notNull().default("ok"),
+    error: text("error"),
     createdAt: createdAt(),
   },
-  (t) => [index("usage_user_idx").on(t.userId, t.createdAt)],
+  (t) => [index("usage_user_idx").on(t.userId, t.createdAt), index("usage_api_key_idx").on(t.apiKeyId)],
 );
 
 export const userSettings = pgTable("user_settings", {
@@ -363,3 +372,75 @@ export const appConfig = pgTable("app_config", {
   value: text("value").notNull(),
   updatedAt: updatedAt(),
 });
+
+export const platformKey = pgTable(
+  "platform_key",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    prefix: text("prefix").notNull(),
+    hash: text("hash").notNull().unique(),
+    lastUsedAt: timestamp("last_used_at"),
+    expiresAt: timestamp("expires_at"),
+    revokedAt: timestamp("revoked_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("platform_key_user_idx").on(t.userId, t.createdAt)],
+);
+
+export type PromptVariable = { name: string; description?: string };
+
+export const prompt = pgTable(
+  "prompt",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    system: text("system").notNull().default(""),
+    content: text("content").notNull(),
+    model: text("model"),
+    tags: jsonb("tags").$type<string[]>().notNull().default([]),
+    uses: integer("uses").notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("prompt_user_idx").on(t.userId, t.updatedAt)],
+);
+
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    organizationId: text("organization_id").references(() => organization.id, { onDelete: "cascade" }),
+    action: text("action").notNull(),
+    target: text("target"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("audit_log_user_idx").on(t.userId, t.createdAt), index("audit_log_org_idx").on(t.organizationId, t.createdAt)],
+);
+
+export const twoFactor = pgTable(
+  "two_factor",
+  {
+    id: text("id").primaryKey(),
+    secret: text("secret").notNull(),
+    backupCodes: text("backup_codes").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    verified: boolean("verified").default(true),
+    failedVerificationCount: integer("failed_verification_count").default(0),
+    lockedUntil: timestamp("locked_until"),
+  },
+  (t) => [index("two_factor_secret_idx").on(t.secret), index("two_factor_user_idx").on(t.userId)],
+);

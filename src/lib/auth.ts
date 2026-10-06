@@ -1,8 +1,11 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { createAuthMiddleware, getSessionFromCtx, isAPIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
-import { organization } from "better-auth/plugins";
+import { organization, twoFactor } from "better-auth/plugins";
+import { audit } from "@/lib/audit";
+import type { AuditAction } from "@/lib/audit-labels";
 import { db, schema } from "@/lib/db";
 import { sendMail } from "@/lib/email";
 import { syncSeats } from "@/lib/billing/team";
@@ -20,6 +23,41 @@ function social() {
   return providers;
 }
 
+const AUDITED: Record<string, AuditAction> = {
+  "/change-password": "auth.password_changed",
+  "/two-factor/verify-totp": "auth.two_factor_enabled",
+  "/two-factor/disable": "auth.two_factor_disabled",
+  "/revoke-session": "auth.session_revoked",
+  "/revoke-other-sessions": "auth.sessions_revoked",
+  "/update-user": "account.updated",
+  "/organization/invite-member": "member.invited",
+  "/organization/remove-member": "member.removed",
+  "/organization/update-member-role": "member.role_changed",
+};
+
+/**
+ * Deja en la bitácora las acciones de cuenta y de equipo que pasan por Better
+ * Auth, solo si salieron bien y había una sesión (así no cuenta el paso de 2FA
+ * del login).
+ */
+const auditAfter = createAuthMiddleware(async (ctx) => {
+  const action = ctx.path ? AUDITED[ctx.path] : undefined;
+  if (!action || isAPIError(ctx.context.returned)) return;
+  const session = ctx.context.session ?? (await getSessionFromCtx(ctx).catch(() => null));
+  if (!session) return;
+  const body = (ctx.body ?? {}) as Record<string, unknown>;
+  const organizationId = typeof body.organizationId === "string" ? body.organizationId : (session.session as { activeOrganizationId?: string | null }).activeOrganizationId;
+  const target = [body.email, body.memberIdOrEmail, body.memberId].find((v): v is string => typeof v === "string") ?? null;
+  await audit({
+    userId: session.user.id,
+    action,
+    organizationId: action.startsWith("member.") ? organizationId : null,
+    target,
+    metadata: typeof body.role === "string" ? { role: body.role } : {},
+    headers: ctx.headers ?? null,
+  });
+});
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -31,6 +69,7 @@ export const auth = betterAuth({
       organization: schema.organization,
       member: schema.member,
       invitation: schema.invitation,
+      twoFactor: schema.twoFactor,
     },
   }),
   emailAndPassword: {
@@ -75,6 +114,20 @@ export const auth = betterAuth({
     },
   },
   session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
+  hooks: { after: auditAfter },
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => audit({ userId: user.id, action: "auth.sign_up", target: user.email }),
+      },
+    },
+    session: {
+      create: {
+        after: async (session) =>
+          audit({ userId: session.userId, action: "auth.sign_in", ip: session.ipAddress ?? null, userAgent: session.userAgent ?? null }),
+      },
+    },
+  },
   rateLimit: {
     enabled: true,
     window: 60,
@@ -88,6 +141,7 @@ export const auth = betterAuth({
     },
   },
   plugins: [
+    twoFactor({ issuer: "Nexo", backupCodeOptions: { amount: 10, length: 10 } }),
     organization({
       creatorRole: "owner",
       membershipLimit: 200,

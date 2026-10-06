@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { audit } from "@/lib/audit";
 import { conversationView } from "@/lib/conversation-view";
 import { db, schema } from "@/lib/db";
 import type { SharedMessage } from "@/lib/db/schema";
@@ -29,7 +30,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/conversatio
  * Crea o actualiza el enlace público. Guarda una copia de los mensajes tal como
  * están ahora; lo que se escriba después no aparece hasta volver a compartir.
  */
-export async function POST(_request: Request, ctx: RouteContext<"/api/conversations/[id]/share">) {
+export async function POST(request: Request, ctx: RouteContext<"/api/conversations/[id]/share">) {
   try {
     const user = await apiUser();
     const { id } = await ctx.params;
@@ -51,17 +52,22 @@ export async function POST(_request: Request, ctx: RouteContext<"/api/conversati
     }
     const shareId = nanoid(16);
     await db.insert(schema.share).values({ id: shareId, userId: user.id, conversationId: id, title: conv.title, messages });
+    await audit({ userId: user.id, action: "conversation.shared", target: conv.title, metadata: { shareId }, headers: request.headers });
     return Response.json({ id: shareId });
   } catch (err) {
     return handleError(err);
   }
 }
 
-export async function DELETE(_request: Request, ctx: RouteContext<"/api/conversations/[id]/share">) {
+export async function DELETE(request: Request, ctx: RouteContext<"/api/conversations/[id]/share">) {
   try {
     const user = await apiUser();
     const { id } = await ctx.params;
-    await db.delete(schema.share).where(and(eq(schema.share.conversationId, id), eq(schema.share.userId, user.id)));
+    const removed = await db
+      .delete(schema.share)
+      .where(and(eq(schema.share.conversationId, id), eq(schema.share.userId, user.id)))
+      .returning({ title: schema.share.title });
+    if (removed.length) await audit({ userId: user.id, action: "conversation.unshared", target: removed[0].title, headers: request.headers });
     return new Response(null, { status: 204 });
   } catch (err) {
     return handleError(err);

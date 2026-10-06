@@ -1,4 +1,5 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
+import { audit } from "@/lib/audit";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { encrypt } from "@/lib/crypto";
@@ -73,6 +74,7 @@ export async function POST(request: Request) {
         headers: input.authType === "headers" && Object.keys(input.headers).length ? encrypt(JSON.stringify(input.headers)) : null,
       })
       .returning({ id: schema.mcpServer.id });
+    await audit({ userId: user.id, organizationId, action: "connector.added", target: input.name, metadata: { url: input.url }, headers: request.headers });
     return Response.json(row);
   } catch (err) {
     if (err instanceof z.ZodError) return Response.json({ error: "Datos inválidos" }, { status: 400 });

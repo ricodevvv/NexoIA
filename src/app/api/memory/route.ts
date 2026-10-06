@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { audit } from "@/lib/audit";
 import { db, schema } from "@/lib/db";
 import { listMemories } from "@/lib/settings";
 import { apiUser, handleError, HttpError } from "@/lib/session";
@@ -35,6 +36,7 @@ export async function DELETE(request: Request) {
     const id = new URL(request.url).searchParams.get("id");
     if (id === "all") {
       await db.delete(schema.memory).where(eq(schema.memory.userId, user.id));
+      await audit({ userId: user.id, action: "memory.cleared", headers: request.headers });
     } else if (id) {
       await db.delete(schema.memory).where(and(eq(schema.memory.id, id), eq(schema.memory.userId, user.id)));
     } else {

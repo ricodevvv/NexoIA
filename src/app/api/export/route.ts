@@ -1,4 +1,5 @@
 import { asc, eq, inArray } from "drizzle-orm";
+import { audit } from "@/lib/audit";
 import { db, schema } from "@/lib/db";
 import { getSettings, listMemories } from "@/lib/settings";
 import { enforce, LIMITS } from "@/lib/rate-limit";
@@ -9,10 +10,11 @@ import { apiUser, handleError } from "@/lib/session";
  * estilos y conversaciones. No incluye secretos (API keys, headers de MCP) ni
  * el contenido binario de los adjuntos, solo sus datos.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await apiUser();
     await enforce([{ key: `export:u:${user.id}`, ...LIMITS.export }]);
+    await audit({ userId: user.id, action: "account.exported", headers: request.headers });
     const [conversations, projects, styles, servers, files, settings, memories] = await Promise.all([
       db.query.conversation.findMany({ where: eq(schema.conversation.userId, user.id), orderBy: asc(schema.conversation.createdAt) }),
       db.query.project.findMany({ where: eq(schema.project.userId, user.id), orderBy: asc(schema.project.createdAt) }),

@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { audit } from "@/lib/audit";
 import { encrypt } from "@/lib/crypto";
 import { db, schema } from "@/lib/db";
 import { apiUser, handleError } from "@/lib/session";
@@ -33,6 +34,7 @@ export async function PUT(request: Request) {
       secret: encrypt(key),
       hint: `…${key.slice(-4)}`,
     });
+    await audit({ userId: user.id, action: "provider_key.saved", target: provider, headers: request.headers });
     return Response.json({ ok: true });
   } catch (err) {
     if (err instanceof z.ZodError) return Response.json({ error: "Key inválida" }, { status: 400 });
@@ -45,6 +47,7 @@ export async function DELETE(request: Request) {
     const user = await apiUser();
     const provider = Provider.parse(new URL(request.url).searchParams.get("provider"));
     await db.delete(schema.apiKey).where(and(eq(schema.apiKey.userId, user.id), eq(schema.apiKey.provider, provider)));
+    await audit({ userId: user.id, action: "provider_key.removed", target: provider, headers: request.headers });
     return new Response(null, { status: 204 });
   } catch (err) {
     return handleError(err);

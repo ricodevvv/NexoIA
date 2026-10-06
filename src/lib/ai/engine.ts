@@ -23,6 +23,7 @@ export type TurnOutcome = {
   parts: MessagePart[];
   native: NativeTurn | null;
   usage: Usage;
+  error: string | null;
 };
 
 function createSession(opts: SessionOptions): ProviderSession {
@@ -46,6 +47,7 @@ export async function runTurn(
   let parts: MessagePart[] = [];
   const usage: Usage = { inputTokens: 0, outputTokens: 0 };
   let clean = true;
+  let error: string | null = null;
 
   const push = (event: ProviderEvent) => {
     parts = applyEvent(parts, event);
@@ -87,16 +89,19 @@ export async function runTurn(
     clean = false;
     if (!signal.aborted) {
       logError("provider", err, { provider: opts.model.provider, model: opts.model.id, status: (err as { status?: number }).status });
-      const text = describeError(err);
-      push({ type: "notice", level: "error", text });
+      error = describeError(err);
+      push({ type: "notice", level: "error", text: error });
     }
   }
 
   const native = session.nativeTurn();
-  return { parts, native: clean && native.items.length ? native : null, usage };
+  return { parts, native: clean && native.items.length ? native : null, usage, error };
 }
 
-function describeError(err: unknown) {
+/**
+ * Mensaje en español y entendible para un error del proveedor.
+ */
+export function describeError(err: unknown) {
   const e = err as { status?: number; message?: string };
   if (e.status === 401) return "La API key no es válida o expiró.";
   if (e.status === 429) return "El proveedor está limitando las peticiones. Intenta de nuevo en un momento.";
