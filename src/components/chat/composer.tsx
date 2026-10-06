@@ -1,7 +1,8 @@
 "use client";
 
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { ArrowUp, Check, CornerDownLeft, ChevronRight, Feather, FileText, Globe, Image as ImageIcon, Loader2, Mic, Paperclip, Plus, Settings2, Square, Telescope, X } from "lucide-react";
+import { ArrowUp, BookOpen, Check, CornerDownLeft, ChevronRight, Feather, FileText, Globe, Image as ImageIcon, Loader2, Mic, Paperclip, Plus, Settings2, Square, Telescope, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Effort } from "@/lib/ai/types";
@@ -40,6 +41,8 @@ type Props = {
   onStop: () => void;
 };
 
+type PromptLite = { id: string; name: string; description: string; content: string; variables: string[] };
+
 async function upload(file: File) {
   const form = new FormData();
   form.append("file", file);
@@ -63,6 +66,38 @@ export function Composer(props: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const current = models.find((m) => m.id === model);
   const baseTextRef = useRef("");
+  const [prompts, setPrompts] = useState<PromptLite[] | null>(null);
+  const [slashActive, setSlashActive] = useState(0);
+  const [slashDismissed, setSlashDismissed] = useState<string | null>(null);
+  const slashQuery = /^\/[^\n]{0,60}$/.test(text) ? text.slice(1).trim().toLowerCase() : null;
+  const slashOpen = slashQuery !== null && slashDismissed !== text;
+  const slashItems = slashOpen && prompts ? prompts.filter((p) => !slashQuery || `${p.name} ${p.description}`.toLowerCase().includes(slashQuery)).slice(0, 8) : [];
+
+  useEffect(() => {
+    if (!slashOpen || prompts) return;
+    let alive = true;
+    fetch("/api/platform/prompts")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: PromptLite[]) => alive && setPrompts(data));
+    return () => {
+      alive = false;
+    };
+  }, [slashOpen, prompts]);
+
+  function insertPrompt(p: PromptLite) {
+    setText(p.content);
+    setSlashActive(0);
+    fetch(`/api/platform/prompts/${p.id}`, { method: "POST" }).catch(() => {});
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      const start = p.content.indexOf("{{");
+      if (start >= 0) el.setSelectionRange(start, p.content.indexOf("}}", start) + 2);
+      else el.setSelectionRange(p.content.length, p.content.length);
+    });
+  }
+
   const dictation = useDictation((spoken) => {
     const base = baseTextRef.current;
     setText(base ? `${base} ${spoken}` : spoken);
@@ -93,14 +128,30 @@ export function Composer(props: Props) {
   const uploading = files.some((f) => !f.id && !f.error);
   const ready = files.filter((f) => f.id).map((f) => f.id!);
   const canSend = !busy && !uploading && (text.trim().length > 0 || ready.length > 0) && Boolean(current?.available);
+  const [queued, setQueued] = useState(false);
 
   function send() {
+    if (uploading && !busy && Boolean(current?.available)) {
+      setQueued(true);
+      return;
+    }
+    setQueued(false);
+    if (queued && files.some((f) => f.error)) return;
     if (!canSend) return;
     if (dictation.listening) dictation.toggle();
     props.onSend(text, ready);
     setText("");
     setFiles([]);
   }
+
+  const sendRef = useRef(send);
+  useEffect(() => {
+    sendRef.current = send;
+  });
+
+  useEffect(() => {
+    if (queued && !uploading) sendRef.current();
+  }, [queued, uploading]);
 
   const currentStyle = props.styles.find((st) => st.id === props.style);
   const canSearch = Boolean(current?.webSearch);
@@ -143,6 +194,40 @@ export function Composer(props: Props) {
           </ul>
         )}
 
+        {slashOpen && (
+          <div className={styles.slashMenu} role="listbox" id="prompt-picker" aria-label="Prompts de tu biblioteca">
+            <p className={styles.slashHead}>
+              <BookOpen size={13} aria-hidden="true" /> Tu biblioteca de prompts
+            </p>
+            {prompts === null ? (
+              <p className={styles.slashEmpty}>
+                <Loader2 size={13} className={styles.spin} aria-hidden="true" /> Cargando…
+              </p>
+            ) : slashItems.length ? (
+              slashItems.map((p, i) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="option"
+                  aria-selected={i === Math.min(slashActive, slashItems.length - 1)}
+                  className={styles.slashItem}
+                  onMouseEnter={() => setSlashActive(i)}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insertPrompt(p)}
+                >
+                  <strong>{p.name}</strong>
+                  <span>{p.description || p.content.slice(0, 80)}</span>
+                </button>
+              ))
+            ) : (
+              <p className={styles.slashEmpty}>{prompts.length ? "Ningún prompt coincide." : "Todavía no tienes prompts guardados."}</p>
+            )}
+            <Link href="/platform/prompts" className={styles.slashFoot}>
+              Administrar prompts
+            </Link>
+          </div>
+        )}
+
         <label className="sr-only" htmlFor="composer-input">
           Escribe tu mensaje
         </label>
@@ -153,6 +238,7 @@ export function Composer(props: Props) {
           value={text}
           rows={1}
           autoFocus={props.autoFocus}
+          aria-controls={slashOpen ? "prompt-picker" : undefined}
           placeholder={
             !current?.available
               ? "Configura una API key en Ajustes para usar este modelo"
@@ -171,6 +257,24 @@ export function Composer(props: Props) {
             }
           }}
           onKeyDown={(e) => {
+            if (slashOpen && slashItems.length) {
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                const delta = e.key === "ArrowDown" ? 1 : -1;
+                setSlashActive((i) => (i + delta + slashItems.length) % slashItems.length);
+                return;
+              }
+              if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
+                e.preventDefault();
+                insertPrompt(slashItems[Math.min(slashActive, slashItems.length - 1)]);
+                return;
+              }
+            }
+            if (slashOpen && e.key === "Escape") {
+              e.preventDefault();
+              setSlashDismissed(text);
+              return;
+            }
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               send();
@@ -283,7 +387,14 @@ export function Composer(props: Props) {
                 <Square size={12} fill="currentColor" />
               </button>
             ) : (
-              <button type="button" className={styles.send} onClick={send} disabled={!canSend} aria-label="Enviar">
+              <button
+                type="button"
+                className={styles.send}
+                onClick={send}
+                disabled={!canSend && !(uploading && !queued)}
+                aria-label={queued ? "Se envía al terminar de subir" : "Enviar"}
+                aria-busy={queued}
+              >
                 <ArrowUp size={18} strokeWidth={2.25} className={styles.sendArrow} />
                 <CornerDownLeft size={18} className={styles.sendEnter} />
               </button>

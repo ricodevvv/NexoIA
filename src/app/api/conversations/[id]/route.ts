@@ -6,6 +6,7 @@ import { apiUser, handleError, HttpError } from "@/lib/session";
 const Patch = z.object({
   title: z.string().trim().min(1).max(120).optional(),
   starred: z.boolean().optional(),
+  archived: z.boolean().optional(),
 });
 
 function owned(userId: string, id: string) {
@@ -19,7 +20,7 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/conversati
     const data = Patch.parse(await request.json());
     const [row] = await db.update(schema.conversation).set(data).where(owned(user.id, id)).returning();
     if (!row) throw new HttpError(404, "Conversación no encontrada");
-    return Response.json({ id: row.id, title: row.title, starred: row.starred });
+    return Response.json({ id: row.id, title: row.title, starred: row.starred, archived: row.archived });
   } catch (err) {
     return handleError(err);
   }

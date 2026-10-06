@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { ChevronDown, FileText, Pencil, Trash2 } from "lucide-react";
+import { Archive, ChevronDown, Download, FileText, Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ArtifactVersion } from "../artifacts/artifacts";
@@ -10,7 +10,7 @@ import { notifyConversationsChanged } from "../events";
 import styles from "./chat.module.css";
 
 /**
- * Título del chat con su menú: renombrar y eliminar.
+ * Título del chat con su menú: renombrar, exportar, archivar y eliminar.
  */
 export function TitleMenu({ conversationId, title, onRenamed }: { conversationId: string; title: string; onRenamed: (title: string) => void }) {
   const router = useRouter();
@@ -27,6 +27,16 @@ export function TitleMenu({ conversationId, title, onRenamed }: { conversationId
       notifyConversationsChanged();
     }
     setDialog(null);
+  }
+
+  async function archive() {
+    await fetch(`/api/conversations/${conversationId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archived: true }),
+    });
+    notifyConversationsChanged();
+    router.push("/");
   }
 
   async function remove() {
@@ -47,6 +57,14 @@ export function TitleMenu({ conversationId, title, onRenamed }: { conversationId
           <Menu.Content className="menu" align="start" sideOffset={6}>
             <Menu.Item className="menu-item" onSelect={() => setDialog("rename")}>
               <Pencil /> Renombrar
+            </Menu.Item>
+            <Menu.Item className="menu-item" asChild>
+              <a href={`/api/conversations/${conversationId}/export`} download>
+                <Download /> Exportar a Markdown
+              </a>
+            </Menu.Item>
+            <Menu.Item className="menu-item" onSelect={archive}>
+              <Archive /> Archivar
             </Menu.Item>
             <Menu.Separator className="menu-sep" />
             <Menu.Item className="menu-item" data-danger onSelect={() => setDialog("delete")}>

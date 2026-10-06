@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, Code2, FolderClosed, GraduationCap, Lightbulb, PanelLeft, PenLine } from "lucide-react";
+import { ArrowDown, Code2, FolderClosed, GraduationCap, Lightbulb, MessageCircleDashed, PanelLeft, PenLine } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { applyEvent } from "@/lib/ai/parts";
@@ -29,6 +29,8 @@ type Props = {
   project?: { id: string; name: string; description?: string } | null;
   emptyExtra?: ReactNode;
   styles: StyleOption[];
+  temporary?: boolean;
+  initialDraft?: string;
 };
 
 type SendArgs = {
@@ -70,6 +72,7 @@ export function Chat(props: Props) {
   const [web, setWeb] = useStoredState<"on" | "off">("nexo-web", "off");
   const webSearch = web === "on";
   const [research, setResearch] = useState(false);
+  const [temporary, setTemporary] = useState(Boolean(props.temporary));
   const [storedStyle, setStyle] = useStoredState<string>("nexo-style", "normal");
   const style = props.styles.some((s) => s.id === storedStyle) ? storedStyle : "normal";
   const model =
@@ -161,6 +164,7 @@ export function Chat(props: Props) {
           style,
           regenerate,
           editMessageId,
+          temporary: !conversationId && temporary,
         }),
       });
       if (!res.ok || !res.body) {
@@ -281,7 +285,7 @@ export function Chat(props: Props) {
   const empty = messages.length === 0;
   const labels = new Map(models.map((m) => [m.id, m.label]));
   const firstName = props.userName.split(" ")[0];
-  const [draft, setDraft] = useState({ text: "", n: 0 });
+  const [draft, setDraft] = useState({ text: props.initialDraft ?? "", n: 0 });
   const [quota, setQuota] = useState<QuotaState | null>(null);
   const [quotaHidden, setQuotaHidden] = useState(false);
 
@@ -377,6 +381,11 @@ export function Chat(props: Props) {
           <h2 className={styles.greeting}>{props.project.name}</h2>
           {props.project.description && <p className={styles.projectDescription}>{props.project.description}</p>}
         </>
+      ) : temporary ? (
+        <>
+          <h2 className={styles.greeting}>Chat temporal</h2>
+          <p className={styles.projectDescription}>No aparece en tu historial, no usa ni guarda memoria y se borra solo en 24 horas.</p>
+        </>
       ) : (
         <>
           <h2 className={styles.greeting}>
@@ -385,7 +394,7 @@ export function Chat(props: Props) {
         </>
       )}
       <div className={styles.welcomeComposer}>{composer}</div>
-      {!props.project && (
+      {!props.project && !temporary && (
         <div className={styles.suggestions}>
           {SUGGESTIONS.map(({ label, Icon, text }) => (
             <button key={label} type="button" className={styles.suggestion} onClick={() => setDraft((d) => ({ text, n: d.n + 1 }))}>
@@ -428,8 +437,25 @@ export function Chat(props: Props) {
                 !empty && <span className={styles.titleText}>{title}</span>
               )}
             </h1>
+            {temporary && !empty && (
+              <span className="tag" title="Este chat no se guarda en el historial">
+                <MessageCircleDashed size={12} aria-hidden="true" /> Temporal
+              </span>
+            )}
+            {empty && !conversationId && !props.project && (
+              <button
+                type="button"
+                className={`icon-btn ${styles.tempBtn}`}
+                aria-pressed={temporary}
+                aria-label="Chat temporal"
+                title={temporary ? "Salir del chat temporal" : "Chat temporal: no se guarda en el historial"}
+                onClick={() => setTemporary(!temporary)}
+              >
+                <MessageCircleDashed />
+              </button>
+            )}
             <ArtifactsButton items={viewer.latest} onOpen={viewer.openLatest} />
-            {conversationId && !empty && !busy && <ShareDialog conversationId={conversationId} />}
+            {conversationId && !empty && !busy && !temporary && <ShareDialog conversationId={conversationId} />}
           </header>
           {empty ? welcome : thread}
         </div>

@@ -31,6 +31,7 @@ export async function searchConversations(userId: string, query: string, opts: {
   const texts = sql<string[]>`jsonb_path_query_array(${schema.message.parts}, '$[*] ? (@.type == "text").text')`;
   const mine = and(
     eq(schema.conversation.userId, userId),
+    eq(schema.conversation.temporary, false),
     opts.exclude ? ne(schema.conversation.id, opts.exclude) : undefined,
   );
 

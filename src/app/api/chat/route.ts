@@ -34,6 +34,7 @@ const Body = z.object({
   regenerate: z.boolean().default(false),
   editMessageId: z.string().optional(),
   style: z.string().max(40).default("normal"),
+  temporary: z.boolean().default(false),
 });
 
 function titleFrom(text: string) {
@@ -133,6 +134,7 @@ export async function POST(request: Request) {
               projectId: (await loadProject(user.id, body.projectId ?? null))?.id ?? null,
               title: titleFrom(body.text),
               model: model.id,
+              temporary: body.temporary,
             })
             .returning()
         )[0];
@@ -171,7 +173,8 @@ export async function POST(request: Request) {
       getSettings(user.id),
       resolveStyle(user.id, body.style),
     ]);
-    const memories = settings.memoryEnabled ? await listMemories(user.id) : null;
+    const useMemory = settings.memoryEnabled && !conversation.temporary;
+    const memories = useMemory ? await listMemories(user.id) : null;
     const history = withProjectFiles(stored, project?.files ?? []);
     const attachmentIds = history.flatMap((m) =>
       m.parts.flatMap((p) => (p.type === "attachment" ? [p.attachmentId] : [])),
@@ -217,13 +220,14 @@ export async function POST(request: Request) {
         const builtins = builtinTools({
           userId: user.id,
           artifacts: settings.artifactsEnabled,
-          memory: settings.memoryEnabled,
+          memory: useMemory,
           code,
           files: [...attachments.values()],
           conversationId: conversation.id,
         });
         for (const error of toolbox.errors) send({ type: "notice", level: "warning", text: error });
 
+        const startedAt = Date.now();
         const outcome = await runTurn(
           {
             model,
@@ -266,8 +270,17 @@ export async function POST(request: Request) {
           .update(schema.conversation)
           .set({ updatedAt: new Date(), model: model.id, currentLeafId: outcome.parts.length ? assistantMessageId : activeTip })
           .where(eq(schema.conversation.id, conversation.id));
-        if (outcome.usage.inputTokens || outcome.usage.outputTokens) {
-          await recordUsage(user.id, model.id, outcome.usage, key.byok);
+        if (outcome.usage.inputTokens || outcome.usage.outputTokens || outcome.error) {
+          await recordUsage({
+            userId: user.id,
+            model: model.id,
+            usage: outcome.usage,
+            byok: key.byok,
+            source: "chat",
+            conversationId: conversation.id,
+            latencyMs: Date.now() - startedAt,
+            error: outcome.error,
+          });
         }
 
         const aiTitle = await titleJob;

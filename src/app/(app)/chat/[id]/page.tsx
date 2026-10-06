@@ -50,6 +50,7 @@ export default async function ChatPage(props: PageProps<"/chat/[id]">) {
       plan={plan}
       styles={styles}
       project={project ? { id: project.id, name: project.name } : null}
+      temporary={conversation.temporary}
     />
   );
 }
