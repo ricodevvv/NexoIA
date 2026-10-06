@@ -78,6 +78,7 @@ export type SessionOptions = {
   effort: Effort;
   webSearch: boolean;
   research: boolean;
+  maxTokens?: number;
 };
 
 export interface ProviderSession {
@@ -85,6 +86,8 @@ export interface ProviderSession {
   addToolResults(results: ToolResult[]): void;
   nativeTurn(): NativeTurn;
 }
+
+export type Pricing = { input: number; output: number };
 
 export type ModelInfo = {
   id: string;
@@ -99,6 +102,8 @@ export type ModelInfo = {
   webFetch: "web_fetch_20260209" | "web_fetch_20250910" | null;
   fallbacks: boolean;
   maxOutput: number;
+  context?: number;
+  pricing?: Pricing;
   baseURL?: string;
   endpointId?: string;
   group?: string;

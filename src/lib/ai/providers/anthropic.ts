@@ -121,9 +121,10 @@ export function createAnthropicSession(opts: SessionOptions): ProviderSession {
   }
 
   function params(): BetaMessageStreamParams {
+    const maxTokens = opts.maxTokens ?? model.maxOutput;
     const base: BetaMessageStreamParams = {
       model: model.id,
-      max_tokens: model.maxOutput,
+      max_tokens: maxTokens,
       system: opts.system,
       messages,
       cache_control: { type: "ephemeral" },
@@ -132,7 +133,7 @@ export function createAnthropicSession(opts: SessionOptions): ProviderSession {
     if (model.reasoning === "adaptive") {
       base.thinking = { type: "adaptive", display: "summarized" };
       base.output_config = { effort: opts.effort };
-    } else if (model.reasoning === "budget" && BUDGETS[opts.effort] > 0) {
+    } else if (model.reasoning === "budget" && BUDGETS[opts.effort] > 0 && BUDGETS[opts.effort] < maxTokens) {
       base.thinking = { type: "enabled", budget_tokens: BUDGETS[opts.effort] };
     }
     if (model.fallbacks) {

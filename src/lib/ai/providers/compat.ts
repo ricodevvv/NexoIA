@@ -116,7 +116,7 @@ export function createCompatSession(opts: SessionOptions): ProviderSession {
         messages,
         stream: true,
         stream_options: { include_usage: true },
-        max_tokens: opts.model.maxOutput,
+        max_tokens: opts.maxTokens ?? opts.model.maxOutput,
         ...(tools.length ? { tools } : {}),
         ...(withEffort ? { reasoning_effort: clampEffort(opts.effort, opts.model.reasoning) } : {}),
       },

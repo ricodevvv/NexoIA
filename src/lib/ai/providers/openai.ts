@@ -106,7 +106,7 @@ export function createOpenAISession(opts: SessionOptions): ProviderSession {
       input,
       stream: true,
       store: false,
-      max_output_tokens: model.maxOutput,
+      max_output_tokens: opts.maxTokens ?? model.maxOutput,
       ...(tools.length ? { tools } : {}),
       ...(model.reasoning === "openai"
         ? { reasoning: { effort: clampEffort(opts.effort, model.reasoning), summary: "auto" as const }, include: ["reasoning.encrypted_content" as const] }
