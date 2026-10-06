@@ -58,4 +58,8 @@ export const LIMITS = {
   share: { window: 60, max: 120 },
   code: { window: 60, max: 20 },
   github: { window: 60, max: 120 },
+  api: { window: 60, max: 60 },
+  apiUser: { window: 60, max: 120 },
+  playground: { window: 60, max: 30 },
+  platform: { window: 60, max: 60 },
 };
